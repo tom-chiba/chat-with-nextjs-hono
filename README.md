@@ -100,6 +100,19 @@ pnpm --filter @repo/api db:migrate:remote
 
 フロントは `apps/web/lib/auth-client.ts`（`NEXT_PUBLIC_API_URL` で API を指定）から `signIn` / `signUp` / `signOut` / `useSession` を利用する。
 
+### API 呼び出し（Hono RPC）
+
+API（`apps/api`）は `AppType` をエクスポートし、フロントは `apps/web/lib/rpc.ts` の型安全クライアント（`hc<AppType>`）から呼び出す。
+
+```ts
+import { client } from "@/lib/rpc";
+
+const res = await client.health.$get();
+const data = await res.json(); // 型は API 側の定義から推論（{ status: "ok" }）
+```
+
+型は `@repo/api` のソースから共有されるため、API のルート定義を変更するとフロントの呼び出しが即座に型エラーで検出される。
+
 ### デプロイ（Vercel: apps/web）
 
 モノレポのため、Vercel プロジェクト側で以下を設定する。

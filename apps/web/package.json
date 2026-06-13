@@ -10,8 +10,10 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@repo/api": "workspace:*",
     "@repo/shared": "workspace:*",
     "better-auth": "^1.6.18",
+    "hono": "^4.12.25",
     "next": "^16.2.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
