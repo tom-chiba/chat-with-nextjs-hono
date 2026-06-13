@@ -84,6 +84,22 @@ pnpm --filter @repo/api db:migrate:local
 pnpm --filter @repo/api db:migrate:remote
 ```
 
+### 認証（Better Auth + Resend）
+
+メール+パスワード認証。Better Auth を `apps/api` の `/api/auth/*` にマウントし、メール検証リンクを Resend で送信する。
+
+ローカル開発では `apps/api/.dev.vars`（`.dev.vars.example` をコピー）に以下を設定する。
+
+| 変数 | 用途 |
+| --- | --- |
+| `BETTER_AUTH_SECRET` | セッション署名用シークレット |
+| `BETTER_AUTH_URL` | API のベース URL（dev: `http://localhost:8787`） |
+| `WEB_URL` | フロントの origin（CORS / 信頼オリジン、dev: `http://localhost:3000`） |
+| `RESEND_API_KEY` | Resend API キー（メール実送信時に必要） |
+| `EMAIL_FROM` | 送信元アドレス（Resend で検証済みのもの） |
+
+フロントは `apps/web/lib/auth-client.ts`（`NEXT_PUBLIC_API_URL` で API を指定）から `signIn` / `signUp` / `signOut` / `useSession` を利用する。
+
 ### デプロイ（Vercel: apps/web）
 
 モノレポのため、Vercel プロジェクト側で以下を設定する。

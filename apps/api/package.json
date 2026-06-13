@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "@repo/shared": "workspace:*",
+    "better-auth": "^1.6.18",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.12.25"
+    "hono": "^4.12.25",
+    "resend": "^6.12.4"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260613.1",
