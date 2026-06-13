@@ -3,6 +3,10 @@
 #
 #   cp apps/api/.dev.vars.example apps/api/.dev.vars
 #
-# 例（#5 認証 / Resend 連携などで追加予定）:
-# RESEND_API_KEY=""
-# BETTER_AUTH_SECRET=""
+# Better Auth
+BETTER_AUTH_SECRET="dev-secret-change-me"
+BETTER_AUTH_URL="http://localhost:8787"
+WEB_URL="http://localhost:3000"
+# Resend（メール検証の送信に使用。ローカルでメールを実送信する場合のみ実キーを設定）
+RESEND_API_KEY="re_xxxxxxxx"
+EMAIL_FROM="onboarding@resend.dev"

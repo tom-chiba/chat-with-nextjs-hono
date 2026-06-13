@@ -1,5 +1,8 @@
 import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { user } from "./auth-schema";
+
+export * from "./auth-schema";
 
 /**
  * チャットルーム。
@@ -14,7 +17,6 @@ export const rooms = sqliteTable("rooms", {
 
 /**
  * ルーム内のメッセージ。
- * userId は #5 で Better Auth が定義する user テーブルへ FK を張る予定（現時点では論理参照）。
  */
 export const messages = sqliteTable(
   "messages",
@@ -23,7 +25,9 @@ export const messages = sqliteTable(
     roomId: text("room_id")
       .notNull()
       .references(() => rooms.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     body: text("body").notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
