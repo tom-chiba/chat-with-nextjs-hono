@@ -15,9 +15,9 @@
     "test": "turbo test"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3",
+    "@types/node": "catalog:",
     "oxlint": "^1.69.0",
     "turbo": "^2.9.18",
-    "typescript": "^6.0.3"
+    "typescript": "catalog:"
   }
 }
