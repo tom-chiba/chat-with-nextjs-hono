@@ -10,7 +10,6 @@ export type Bindings = AuthEnv;
 const app = new Hono<{ Bindings: Bindings }>();
 
 // Web（別サブドメイン = 別オリジン）からの Cookie 認証クロスオリジン呼び出しを許可する。
-// 認証エンドポイントだけでなく /me など保護ルートも対象にするため全ルートへ適用。
 app.use("*", (c, next) =>
   cors({
     origin: c.env.WEB_URL,
@@ -25,16 +24,18 @@ app.on(["GET", "POST"], "/api/auth/*", (c) =>
   createAuth(c.env).handler(c.req.raw),
 );
 
-app.get("/health", (c) => c.json({ status: "ok" } as const));
-
-// 保護ルートの例：有効なセッションが無ければ 401。
-app.get("/me", async (c) => {
-  const auth = createAuth(c.env);
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session) {
-    return c.json({ error: "unauthorized" } as const, 401);
-  }
-  return c.json({ user: session.user });
-});
+// RPC 用に型を共有するルートはチェーンして定義し、その型をエクスポートする。
+const routes = app
+  .get("/health", (c) => c.json({ status: "ok" } as const))
+  // 保護ルートの例：有効なセッションが無ければ 401。
+  .get("/me", async (c) => {
+    const auth = createAuth(c.env);
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!session) {
+      return c.json({ error: "unauthorized" } as const, 401);
+    }
+    return c.json({ user: session.user });
+  });
 
 export default app;
+export type AppType = typeof routes;

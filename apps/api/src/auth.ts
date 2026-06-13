@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import type { D1Database } from "@cloudflare/workers-types";
 import { Resend } from "resend";
 import { createDb, schema } from "./db";
 
