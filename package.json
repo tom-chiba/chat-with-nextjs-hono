@@ -12,9 +12,11 @@
     "lint:fix": "oxlint --fix",
     "format": "oxlint --fix",
     "typecheck": "turbo typecheck",
-    "test": "turbo test"
+    "test": "turbo test",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/node": "catalog:",
     "oxlint": "^1.69.0",
     "turbo": "^2.9.18",

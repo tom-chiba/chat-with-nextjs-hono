@@ -11,6 +11,7 @@
     "deploy": "wrangler deploy",
     "build": "wrangler deploy --dry-run --outdir dist",
     "typecheck": "tsc",
+    "test": "vitest run",
     "cf-typegen": "wrangler types",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
@@ -24,10 +25,12 @@
     "resend": "^6.12.4"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.16.14",
     "@cloudflare/workers-types": "^4.20260613.1",
     "@repo/typescript-config": "workspace:*",
     "drizzle-kit": "^0.31.10",
     "typescript": "catalog:",
+    "vitest": "catalog:",
     "wrangler": "^4.100.0"
   }
 }
