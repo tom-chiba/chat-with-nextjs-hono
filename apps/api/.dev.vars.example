@@ -1,0 +1,8 @@
+# ローカル開発用シークレットのサンプル。
+# このファイルをコピーして apps/api/.dev.vars を作成する（.dev.vars は git 管理外）。
+#
+#   cp apps/api/.dev.vars.example apps/api/.dev.vars
+#
+# 例（#5 認証 / Resend 連携などで追加予定）:
+# RESEND_API_KEY=""
+# BETTER_AUTH_SECRET=""
