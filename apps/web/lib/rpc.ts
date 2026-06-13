@@ -7,6 +7,8 @@ import { hc } from "hono/client";
  */
 export const client = hc<AppType>(
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787",
+  // 別サブドメインの API へセッション Cookie を送るためクロスオリジンでも資格情報を付与する。
+  { init: { credentials: "include" } },
 );
 
 /**
