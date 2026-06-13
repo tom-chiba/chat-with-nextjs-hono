@@ -35,12 +35,16 @@ export function createAuth(env: AuthEnv) {
     emailVerification: {
       sendOnSignUp: true,
       async sendVerificationEmail({ user, url }) {
-        await resend.emails.send({
+        const { error } = await resend.emails.send({
           from: env.EMAIL_FROM,
           to: user.email,
           subject: "メールアドレスの確認",
           text: `以下のリンクからメールアドレスを確認してください:\n${url}`,
         });
+        // Resend は API エラー時も throw せず { error } を返すため、明示的に失敗させる。
+        if (error) {
+          throw new Error(`検証メールの送信に失敗しました: ${error.message}`);
+        }
       },
     },
   });

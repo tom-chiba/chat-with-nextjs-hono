@@ -9,8 +9,9 @@ export type Bindings = AuthEnv;
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// 認証エンドポイントは Web からの Cookie 認証クロスオリジン呼び出しを許可する。
-app.use("/api/auth/*", (c, next) =>
+// Web（別サブドメイン = 別オリジン）からの Cookie 認証クロスオリジン呼び出しを許可する。
+// 認証エンドポイントだけでなく /me など保護ルートも対象にするため全ルートへ適用。
+app.use("*", (c, next) =>
   cors({
     origin: c.env.WEB_URL,
     credentials: true,
