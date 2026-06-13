@@ -1,0 +1,23 @@
+{
+  "name": "chat-with-nextjs-hono",
+  "private": true,
+  "packageManager": "pnpm@11.6.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxlint --fix",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "oxlint": "^1.69.0",
+    "turbo": "^2.9.18",
+    "typescript": "^6.0.3"
+  }
+}
