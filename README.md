@@ -30,4 +30,31 @@ PWA を使った軽量チャットツール。
 
 ## 開発
 
-> セットアップ手順は基盤構築後に追記します。
+前提: [mise](https://mise.jdx.dev/) を導入済みであること。
+
+```bash
+# ツール（node / pnpm）の導入
+mise install
+
+# 依存インストール
+pnpm install
+
+# Lint / Format（oxlint）
+pnpm lint
+pnpm lint:fix
+
+# 型チェック（turbo 経由で各パッケージ）
+pnpm typecheck
+
+# テスト
+pnpm test
+```
+
+### モノレポ構成
+
+| ワークスペース | 内容 |
+| --- | --- |
+| `apps/web` | Next.js（Vercel）※ 今後追加 |
+| `apps/api` | Hono（Cloudflare Workers）※ 今後追加 |
+| `packages/shared` | 共有型・ドメインロジック（Hono RPC 型など） |
+| `packages/typescript-config` | 共有 TypeScript 設定（base / nextjs / workers） |
