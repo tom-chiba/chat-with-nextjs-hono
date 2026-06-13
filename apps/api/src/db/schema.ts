@@ -9,7 +9,7 @@ export const rooms = sqliteTable("rooms", {
   name: text("name").notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
-    .default(sql`(unixepoch() * 1000)`),
+    .default(sql`(CAST(unixepoch('subsec') * 1000 AS INTEGER))`),
 });
 
 /**
@@ -27,7 +27,7 @@ export const messages = sqliteTable(
     body: text("body").notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+      .default(sql`(CAST(unixepoch('subsec') * 1000 AS INTEGER))`),
   },
   (t) => [index("messages_room_id_created_at_idx").on(t.roomId, t.createdAt)],
 );

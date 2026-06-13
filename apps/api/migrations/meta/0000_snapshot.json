@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "406de60c-a072-480c-beaf-db057d25164f",
+  "id": "e20a0f01-e83e-4bee-a51a-9e60d9453a2c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "messages": {
@@ -41,7 +41,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(unixepoch() * 1000)"
+          "default": "(CAST(unixepoch('subsec') * 1000 AS INTEGER))"
         }
       },
       "indexes": {
@@ -96,7 +96,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(unixepoch() * 1000)"
+          "default": "(CAST(unixepoch('subsec') * 1000 AS INTEGER))"
         }
       },
       "indexes": {},
