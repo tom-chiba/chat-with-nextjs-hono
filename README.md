@@ -54,7 +54,25 @@ pnpm test
 
 | ワークスペース | 内容 |
 | --- | --- |
-| `apps/web` | Next.js（Vercel）※ 今後追加 |
-| `apps/api` | Hono（Cloudflare Workers）※ 今後追加 |
+| `apps/web` | Next.js（Vercel） |
+| `apps/api` | Hono（Cloudflare Workers） |
 | `packages/shared` | 共有型・ドメインロジック（Hono RPC 型など） |
 | `packages/typescript-config` | 共有 TypeScript 設定（base / nextjs / workers） |
+
+### ローカル起動
+
+```bash
+# フロントエンド（Next.js）
+pnpm --filter @repo/web dev
+
+# バックエンド（Hono / wrangler）
+pnpm --filter @repo/api dev
+```
+
+### デプロイ（Vercel: apps/web）
+
+モノレポのため、Vercel プロジェクト側で以下を設定する。
+
+- **Root Directory**: `apps/web`
+- Framework Preset: Next.js（自動検出）
+- ビルド/インストールは Vercel がワークスペースを認識して実行（`pnpm install` / `next build`）
