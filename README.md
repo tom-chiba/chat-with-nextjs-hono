@@ -69,6 +69,21 @@ pnpm --filter @repo/web dev
 pnpm --filter @repo/api dev
 ```
 
+### DB（Cloudflare D1 + Drizzle）
+
+スキーマは `apps/api/src/db/schema.ts`、マイグレーションは `apps/api/migrations/`。
+
+```bash
+# スキーマ変更後にマイグレーション SQL を生成
+pnpm --filter @repo/api db:generate
+
+# ローカル D1 に適用（.wrangler/ 配下の sqlite）
+pnpm --filter @repo/api db:migrate:local
+
+# 本番 D1 に適用（事前に `wrangler d1 create` で database_id を取得し wrangler.jsonc を更新）
+pnpm --filter @repo/api db:migrate:remote
+```
+
 ### デプロイ（Vercel: apps/web）
 
 モノレポのため、Vercel プロジェクト側で以下を設定する。

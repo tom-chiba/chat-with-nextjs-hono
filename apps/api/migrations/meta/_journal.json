@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1781341785386,
+      "tag": "0000_lyrical_venom",
+      "breakpoints": true
+    }
+  ]
+}
