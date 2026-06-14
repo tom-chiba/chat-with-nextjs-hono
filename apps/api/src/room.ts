@@ -1,0 +1,172 @@
+import { DurableObject } from "cloudflare:workers";
+import {
+  type ChatMessage,
+  type ServerMessage,
+  MAX_MESSAGE_LENGTH,
+} from "@repo/shared";
+import { desc, eq } from "drizzle-orm";
+import { createDb } from "./db";
+import { messages, rooms, user } from "./db/schema";
+
+/** 接続ごとに WebSocket へ添付する送信者情報（ハイバネ復帰後も保持される）。 */
+type SocketAttachment = {
+  userId: string;
+  userName: string;
+  roomId: string;
+};
+
+/** 接続直後に返す履歴の件数。 */
+const HISTORY_LIMIT = 50;
+
+/**
+ * 1 ルーム = 1 インスタンスのチャットルーム Durable Object。
+ * WebSocket Hibernation API で接続を保持し、発言を D1 に保存して全員へ配信する。
+ * Worker からのみ到達し、本人情報は upgrade リクエストのヘッダで信頼する。
+ */
+export class RoomDO extends DurableObject<Env> {
+  override async fetch(request: Request): Promise<Response> {
+    if (request.headers.get("Upgrade") !== "websocket") {
+      return new Response("Expected WebSocket upgrade", { status: 426 });
+    }
+
+    const userId = request.headers.get("X-User-Id");
+    const roomId = request.headers.get("X-Room-Id");
+    if (!userId || !roomId) {
+      return new Response("Missing identity headers", { status: 400 });
+    }
+
+    // 表示名は DB から解決する（ヘッダで非 Latin-1 を運べないため）。
+    const userName = await this.resolveUserName(userId);
+    if (!userName) {
+      return new Response("Unknown user", { status: 400 });
+    }
+
+    const pair = new WebSocketPair();
+    const client = pair[0];
+    const server = pair[1];
+
+    // Hibernation API: 接続をこの DO にバインドし、送信者情報を添付する。
+    this.ctx.acceptWebSocket(server);
+    server.serializeAttachment({ userId, userName, roomId } satisfies SocketAttachment);
+
+    // messages.room_id は rooms への FK。ルームが無ければ作成しておく（FK 違反回避）。
+    await this.ensureRoom(roomId);
+
+    // 接続直後に直近の履歴を送る（UI が空にならないように）。
+    const history = await this.recentMessages(roomId);
+    server.send(
+      JSON.stringify({ type: "history", messages: history } satisfies ServerMessage),
+    );
+
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  override async webSocketMessage(
+    ws: WebSocket,
+    raw: string | ArrayBuffer,
+  ): Promise<void> {
+    const attachment = ws.deserializeAttachment() as SocketAttachment | null;
+    if (!attachment) return;
+
+    const text = typeof raw === "string" ? raw : new TextDecoder().decode(raw);
+    let body: unknown;
+    try {
+      const parsed = JSON.parse(text) as { type?: unknown; body?: unknown };
+      if (parsed.type !== "message") return;
+      body = parsed.body;
+    } catch {
+      return;
+    }
+
+    if (typeof body !== "string") return;
+    const trimmed = body.trim();
+    if (trimmed.length === 0 || trimmed.length > MAX_MESSAGE_LENGTH) return;
+
+    const { userId, userName, roomId } = attachment;
+    const message: ChatMessage = {
+      id: crypto.randomUUID(),
+      roomId,
+      userId,
+      userName,
+      body: trimmed,
+      createdAt: Date.now(),
+    };
+
+    const db = createDb(this.env.DB);
+    await db.insert(messages).values({
+      id: message.id,
+      roomId: message.roomId,
+      userId: message.userId,
+      body: message.body,
+      createdAt: new Date(message.createdAt),
+    });
+
+    const payload = JSON.stringify({
+      type: "message",
+      message,
+    } satisfies ServerMessage);
+    for (const socket of this.ctx.getWebSockets()) {
+      socket.send(payload);
+    }
+  }
+
+  override async webSocketClose(ws: WebSocket, code: number): Promise<void> {
+    // クローズハンドシェイクを完了させる。ただし 1005/1006 など予約コードは
+    // Close フレームに設定できず close() が例外を投げるため、正常コードに丸める。
+    const safeCode = code >= 1000 && code <= 4999 && code !== 1004 &&
+      code !== 1005 && code !== 1006 && code !== 1015
+      ? code
+      : 1000;
+    ws.close(safeCode, "closing");
+  }
+
+  /** userId から表示名を解決する（存在しなければ null）。 */
+  private async resolveUserName(userId: string): Promise<string | null> {
+    const db = createDb(this.env.DB);
+    const rows = await db
+      .select({ name: user.name })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    return rows[0]?.name ?? null;
+  }
+
+  /** ルーム行が無ければ作成する（id = name とする最小実装。ルーム管理は #8）。 */
+  private async ensureRoom(roomId: string): Promise<void> {
+    const db = createDb(this.env.DB);
+    await db
+      .insert(rooms)
+      .values({ id: roomId, name: roomId })
+      .onConflictDoNothing();
+  }
+
+  /** ルームの直近メッセージを古い順で返す。 */
+  private async recentMessages(roomId: string): Promise<ChatMessage[]> {
+    const db = createDb(this.env.DB);
+    const rows = await db
+      .select({
+        id: messages.id,
+        roomId: messages.roomId,
+        userId: messages.userId,
+        body: messages.body,
+        createdAt: messages.createdAt,
+        userName: user.name,
+      })
+      .from(messages)
+      .innerJoin(user, eq(messages.userId, user.id))
+      .where(eq(messages.roomId, roomId))
+      .orderBy(desc(messages.createdAt), desc(messages.id))
+      .limit(HISTORY_LIMIT);
+
+    return rows
+      .map((r) => ({
+        id: r.id,
+        roomId: r.roomId,
+        userId: r.userId,
+        userName: r.userName,
+        body: r.body,
+        createdAt: r.createdAt.getTime(),
+      }))
+      .toReversed();
+  }
+}

@@ -1,0 +1,129 @@
+import { env } from "cloudflare:test";
+import type { ServerMessage } from "@repo/shared";
+import { eq } from "drizzle-orm";
+import { beforeEach, describe, expect, test } from "vitest";
+import { createDb } from "../src/db";
+import { messages, user } from "../src/db/schema";
+
+/** テスト用にユーザー行を作成（messages.user_id の FK を満たすため）。 */
+async function seedUser(id: string, name: string) {
+  const db = createDb(env.DB);
+  await db
+    .insert(user)
+    .values({
+      id,
+      name,
+      email: `${id}@example.com`,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .onConflictDoNothing();
+}
+
+/** 受信メッセージをキューに溜め、1 件ずつ await で取り出すヘルパ。 */
+function readQueue(ws: WebSocket) {
+  const queue: ServerMessage[] = [];
+  const waiters: ((m: ServerMessage) => void)[] = [];
+  ws.addEventListener("message", (event) => {
+    const msg = JSON.parse(event.data as string) as ServerMessage;
+    const waiter = waiters.shift();
+    if (waiter) waiter(msg);
+    else queue.push(msg);
+  });
+  return () =>
+    new Promise<ServerMessage>((resolve) => {
+      const msg = queue.shift();
+      if (msg) resolve(msg);
+      else waiters.push(resolve);
+    });
+}
+
+/**
+ * DO へ upgrade リクエストを送り、accept した WebSocket と次メッセージ取得関数を返す。
+ * 表示名は DO が DB から解決するため、ヘッダでは userId のみ渡す。
+ */
+async function connect(roomId: string, userId: string) {
+  const stub = env.ROOM.get(env.ROOM.idFromName(roomId));
+  const res = await stub.fetch(
+    new Request(`https://example.com/ws/room/${roomId}`, {
+      headers: {
+        Upgrade: "websocket",
+        "X-User-Id": userId,
+        "X-Room-Id": roomId,
+      },
+    }),
+  );
+  const ws = res.webSocket;
+  if (!ws) throw new Error("WebSocket がレスポンスに含まれていません");
+  const next = readQueue(ws);
+  ws.accept();
+  return { ws, next };
+}
+
+describe("RoomDO", () => {
+  beforeEach(async () => {
+    // 表示名は DB から解決されるため、非 Latin-1（日本語）でも壊れないことを併せて確認する。
+    await seedUser("alice", "アリス");
+    await seedUser("bob", "Bob");
+  });
+
+  test("接続直後に履歴（初回は空）を受け取る", async () => {
+    const { next } = await connect("room-history", "alice");
+    const first = await next();
+    expect(first.type).toBe("history");
+    if (first.type === "history") {
+      expect(first.messages).toEqual([]);
+    }
+  });
+
+  test("発言が同じルームの全接続へブロードキャストされ D1 に保存される", async () => {
+    const a = await connect("room-broadcast", "alice");
+    expect((await a.next()).type).toBe("history");
+    const b = await connect("room-broadcast", "bob");
+    expect((await b.next()).type).toBe("history");
+
+    a.ws.send(JSON.stringify({ type: "message", body: "こんにちは" }));
+
+    const received = await b.next();
+    expect(received.type).toBe("message");
+    if (received.type === "message") {
+      expect(received.message.body).toBe("こんにちは");
+      expect(received.message.userId).toBe("alice");
+      expect(received.message.userName).toBe("アリス");
+      expect(received.message.roomId).toBe("room-broadcast");
+    }
+
+    const db = createDb(env.DB);
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.roomId, "room-broadcast"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.body).toBe("こんにちは");
+    expect(rows[0]?.userId).toBe("alice");
+  });
+
+  test("空文字や非 message 型は無視される", async () => {
+    const a = await connect("room-ignore", "alice");
+    expect((await a.next()).type).toBe("history");
+
+    a.ws.send(JSON.stringify({ type: "message", body: "   " }));
+    a.ws.send(JSON.stringify({ type: "ping" }));
+    a.ws.send(JSON.stringify({ type: "message", body: "有効" }));
+
+    // 無視された 2 件は配信されず、有効な 1 件だけが届く。
+    const received = await a.next();
+    expect(received.type).toBe("message");
+    if (received.type === "message") {
+      expect(received.message.body).toBe("有効");
+    }
+
+    const db = createDb(env.DB);
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.roomId, "room-ignore"));
+    expect(rows).toHaveLength(1);
+  });
+});
