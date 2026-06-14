@@ -25,7 +25,14 @@ export function AuthForm() {
     setError(null);
 
     if (mode === "signup") {
-      const result = await signUp.email({ email, password, name });
+      // 検証リンクのリダイレクト先（callbackURL）を FE 自身に向ける。
+      // 未指定だと API ドメインのルートに飛んで 404 になる。
+      const result = await signUp.email({
+        email,
+        password,
+        name,
+        callbackURL: window.location.origin,
+      });
       setPending(false);
       if (result.error) {
         setError(result.error.message ?? "サインアップに失敗しました");

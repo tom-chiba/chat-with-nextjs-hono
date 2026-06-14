@@ -35,6 +35,8 @@ export function createAuth(env: AuthEnv) {
     },
     emailVerification: {
       sendOnSignUp: true,
+      // 検証完了後はそのままログイン状態にする（同一ルートドメインなので Cookie が通る）。
+      autoSignInAfterVerification: true,
       async sendVerificationEmail({ user, url }) {
         const { error } = await resend.emails.send({
           from: env.EMAIL_FROM,
