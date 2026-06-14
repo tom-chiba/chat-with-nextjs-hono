@@ -1,7 +1,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "chat-api",
-	"main": "src/index.ts",
+	"main": "src/worker.ts",
 	"compatibility_date": "2026-06-13",
 	"compatibility_flags": [
 		"nodejs_compat"
@@ -29,6 +29,24 @@
 			"database_name": "chat-db",
 			"database_id": "0da6cb37-cbe0-4f8f-9709-ef3378a87d12",
 			"migrations_dir": "migrations"
+		}
+	],
+	// チャットルーム = 1 Durable Object。WebSocket Hibernation で接続を保持する。
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "ROOM",
+				"class_name": "RoomDO"
+			}
+		]
+	},
+	// SQLite バックエンドの DO（無料プラン可）。
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"RoomDO"
+			]
 		}
 	]
 }

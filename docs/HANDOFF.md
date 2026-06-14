@@ -16,13 +16,22 @@
 | 4 | DB: Cloudflare D1 + Drizzle | ✅ 完了 | #15 |
 | 5 | 認証: Better Auth（メール+パスワード）+ Resend | ✅ 完了 | #16 |
 | 6 | API: Hono RPC 型共有 | ✅ 完了 | #17 |
-| 7 | 双方向通信: WebSocket チャット | ⬜ 未着手 | — |
+| 7 | 双方向通信: WebSocket チャット（単一ルーム + 最小ログイン UI） | ✅ 完了 | — |
 | 8 | チャット機能（ルーム / メッセージ） | ⬜ 未着手 | — |
 | 9 | PWA 対応 | ⬜ 未着手 | — |
 | 10 | テスト基盤（Vitest / RTL / Playwright） | ✅ 完了 | — |
 | 11 | CI（GitHub Actions） | ⬜ 未着手 | — |
 
-推奨順序: **#10 テスト基盤が入ったので #7/#8** に進む。WebSocket / チャット機能をテストで固めながら実装できる。#11 CI は #10 の `pnpm test` / `pnpm test:e2e` をそのまま流せる。
+推奨順序: 次は **#8 チャット機能**（ルーム一覧/作成・履歴ページネーション・UI 整形）。#7 で土台（WS・1ルーム・最小ログイン UI）は完成済み。#11 CI は #10 の `pnpm test` / `pnpm test:e2e` をそのまま流せる。
+
+### #7 で実装した WebSocket チャットの要点（非自明）
+
+- **1 ルーム = 1 Durable Object（`RoomDO`, `apps/api/src/room.ts`）**。WebSocket Hibernation API（`ctx.acceptWebSocket` / `getWebSockets` / `serializeAttachment`）で接続を保持し、発言を D1（`messages`）に保存して同ルームへブロードキャスト。SQLite-backed DO（`new_sqlite_classes`）で無料プラン可。
+- **Worker エントリを分離**: `src/worker.ts`（Worker 実体 = Hono app に WS ルート登録 + `RoomDO` export、wrangler の `main`）と `src/index.ts`（FE が RPC 型を解決するエントリ）。**FE の型解決に Worker ランタイム専用コード（`cloudflare:workers` / `WebSocketPair` / DO フォワード）を持ち込まないため**の分離。`ROOM` も共有 `Bindings` には載せず worker.ts でグローバル型として扱う（npm `@cloudflare/workers-types` と生成ランタイム型の `Request` 不一致を避ける）。
+- **認証/セキュリティ**: WS は `/ws/room/:roomId` で受け、(1) **Origin を `WEB_URL` と照合**（WS は CORS 非対象のためなりすまし防止）、(2) Better Auth セッション検証、(3) `userId` のみヘッダで DO へ渡す。**表示名はヘッダに載せない**（日本語/絵文字は ByteString 制約で `Headers.set` が throw するため）→ DO 側で `userId` から DB 解決。
+- **FK 対策**: `messages.room_id` は `rooms` への FK。DO 接続時に `rooms` を `onConflictDoNothing` で自動作成（"general" 等が未作成でも保存できるように）。
+- **FE**: `apps/web/lib/use-room-chat.ts`（再接続つき WS フック。`roomId` 変更時の stale close で現行 ref を消さないよう `wsRef.current === ws` ガード）、`components/auth-form.tsx`（最小ログイン）、`components/chat-room.tsx`、`app/page.tsx` でセッション出し分け。
+- **テスト**: DO はブロードキャスト/保存/バリデーションを vitest-pool-workers で（DO スタブに upgrade リクエストを直接送り Worker 認証を迂回）。Worker は WS の 401/403/426 ゲート。2ユーザー自動 E2E はメール検証の都合で行わず、同一ユーザー2タブの手動確認で完了条件を満たす。
 
 ---
 
