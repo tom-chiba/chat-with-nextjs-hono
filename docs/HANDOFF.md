@@ -20,9 +20,18 @@
 | 8 | チャット機能（ルーム / メッセージ） | ⬜ 未着手 | — |
 | 9 | PWA 対応 | ⬜ 未着手 | — |
 | 10 | テスト基盤（Vitest / RTL / Playwright） | ✅ 完了 | — |
-| 11 | CI（GitHub Actions） | ⬜ 未着手 | — |
+| 11 | CI（GitHub Actions） | ✅ 完了 | — |
 
-推奨順序: 次は **#8 チャット機能**（ルーム一覧/作成・履歴ページネーション・UI 整形）。#7 で土台（WS・1ルーム・最小ログイン UI）は完成済み。#11 CI は #10 の `pnpm test` / `pnpm test:e2e` をそのまま流せる。
+推奨順序: 残るは **#8 チャット機能**（ルーム一覧/作成・履歴ページネーション・UI 整形）と **#9 PWA 対応**。#7 で土台（WS・1ルーム・最小ログイン UI）は完成済み。
+
+### CI（#11・`.github/workflows/ci.yml`）
+
+- `pull_request` と `main` への `push` でトリガ。**2 ジョブ並列**: `check`（lint → typecheck → test）と `e2e`（chromium インストール → `pnpm test:e2e`）。
+- セットアップは **mise-action**（`mise.toml` の node 24 / pnpm 11.6.0 = ローカルと一致）+ pnpm store キャッシュ。`pnpm install --frozen-lockfile`。
+- api テスト（vitest-pool-workers / workerd）は `.dev.vars` 無しでも `apps/api/vitest.config.ts` の miniflare ダミー値で動く。
+- **`permissions: contents: read`** で GITHUB_TOKEN を最小権限化。**`cancel-in-progress` は PR 限定**（main の中間コミットを取りこぼさない）。
+- `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true`（2026-06-16 の Node 24 強制切替に先回り。将来 actions/cache・mise-action が Node 24 対応版になれば削除可）。
+- Turborepo リモートキャッシュは未導入（任意）。
 
 ### #7 で実装した WebSocket チャットの要点（非自明）
 
