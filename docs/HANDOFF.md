@@ -2,7 +2,7 @@
 
 このファイルは Issue / コード / README には現れない「決定の背景・外部設定・未検証事項・ハマりどころ・進め方の慣習」をまとめたもの。再開時にまず読む。
 
-最終更新: 2026-06-13（#1〜#6, #10 完了時点）
+最終更新: 2026-06-14（#1〜#6, #10 完了 + 本番デプロイ実施時点）
 
 ---
 
@@ -91,21 +91,26 @@
 
 ---
 
-## 5. 再開前に必要な外部アカウント設定（未実施）
+## 5. 本番デプロイ（2026-06-14 実施済み）
 
-これらは Cloudflare/Resend/Vercel のアカウントが必要で、本セッションでは未対応。
+初回デプロイ完了。構成は以下。再デプロイは `pnpm --filter @repo/api run deploy`（FE は Vercel が GitHub push で自動）。
 
-- **Cloudflare D1（本番）**: `wrangler.jsonc` の `database_id` が `"local-placeholder"`。`! wrangler login` の後 `wrangler d1 create chat-with-nextjs-hono-db` で実 ID を取得して差し替える。差し替え後 `pnpm --filter @repo/api db:migrate:remote`。
-- **Resend**: 実メール送信には `apps/api/.dev.vars`（と本番 secret）に実 `RESEND_API_KEY` + **検証済み送信ドメインの `EMAIL_FROM`** が必要。
-- **Vercel（apps/web）**: プロジェクトの **Root Directory = `apps/web`**。`NEXT_PUBLIC_API_URL` に API の URL を設定。
-- **Workers secret（本番）**: `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL` / `WEB_URL` / `RESEND_API_KEY` / `EMAIL_FROM` を `wrangler secret put` 等で投入（ローカルは `.dev.vars`、サンプルは `.dev.vars.example`）。
+- **ドメイン**: FE `https://chat.tom-chiba.com`（Vercel）/ BE `https://chat.api.tom-chiba.com`（Workers カスタムドメイン）。同一ルートドメイン `tom-chiba.com` なので §4 のとおり `SameSite=Lax` で Cookie が通る。
+- **Cloudflare D1（本番）**: DB 名 `chat-db` / `database_id` は `wrangler.jsonc` にコミット済み（`0da6cb37-...`）。マイグレーション適用済み。スキーマ変更時は `pnpm --filter @repo/api db:migrate:remote`。
+- **wrangler.jsonc の env 方針**: 秘匿不要な `BETTER_AUTH_URL` / `WEB_URL` / `EMAIL_FROM` は **`vars`（コミット対象）**。秘匿値の **`BETTER_AUTH_SECRET` / `RESEND_API_KEY` のみ `wrangler secret`**。同名を secret と vars に二重登録すると衝突するため、vars 化したものは `wrangler secret delete` 済み。
+- **Resend**: 送信ドメイン検証済み、`EMAIL_FROM = no-reply@tom-chiba.com`。検証メール送信を本番で確認済み。
+- **Vercel（apps/web）**: Root Directory = `apps/web`。環境変数は **`NEXT_PUBLIC_API_URL = https://chat.api.tom-chiba.com` のみ**（FE に秘匿情報なし）。`NEXT_PUBLIC_` はビルド時埋め込みのため値変更時は再デプロイ要。
+- **カスタムドメインの TLS**: `chat.api.tom-chiba.com` は2階層サブドメインで Universal SSL 対象外。Workers カスタムドメインが専用証明書を自動発行（今回は約90秒で有効化）。多階層は数分かかることがある。
+
+> ローカル開発用の secret は `apps/api/.dev.vars`（サンプル `.dev.vars.example`）。テストは miniflare のダミー値でも動く。
 
 ---
 
-## 6. 未検証事項（実環境が必要なため本セッションで確認できていない）
+## 6. 実環境での検証結果（2026-06-14・解消済み）
 
-- **認証フルフロー**: signup → 検証メール受信 → verify → login の通し確認は、実 Resend キー + 検証済みドメイン + ブラウザが必要なため未実施。ローカルでは「user 行作成・`/api/auth/get-session` の 200 null・`/me` の 401・送信失敗の ERROR ログ」までは確認済み。
-- **本番クロスサブドメインの Cookie/CORS 実挙動**: 実デプロイでの動作は未確認（理論上は §4 の通り動くはず）。
+- **認証フルフロー**: signup（`POST /api/auth/sign-up/email`）→ 200 + user 行作成 → **検証メール受信** を本番で確認済み（`requireEmailVerification: true` のため signup 時点では `token:null`/`emailVerified:false` が正常）。
+- **本番クロスサブドメインの Cookie/CORS 実挙動**: `/health` 200・`/me` 401・FE オリジンからの CORS preflight 204（`allow-origin: https://chat.tom-chiba.com` / `allow-credentials: true`）を確認済み。
+- 残: verify リンク→login→`/me` が user を返すところまでの通し（メール到達まで確認済みなので残りは UI 実装と合わせて）。
 
 ---
 
