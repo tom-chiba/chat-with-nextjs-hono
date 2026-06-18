@@ -17,6 +17,32 @@ describe("API ルート", () => {
     expect(await res.json()).toEqual({ error: "unauthorized" });
   });
 
+  test("GET /rooms はセッション無しで 401 を返す", async () => {
+    const res = await app.request("/rooms", {}, env);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "unauthorized" });
+  });
+
+  test("POST /rooms はセッション無しで 401 を返す", async () => {
+    const res = await app.request(
+      "/rooms",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "雑談" }),
+      },
+      env,
+    );
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "unauthorized" });
+  });
+
+  test("GET /rooms/:roomId/messages はセッション無しで 401 を返す", async () => {
+    const res = await app.request("/rooms/general/messages", {}, env);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "unauthorized" });
+  });
+
   test("WS /ws/room/:id は正しい Origin でもセッション無しなら 401 を返す", async () => {
     const res = await workerApp.request(
       "/ws/room/general",

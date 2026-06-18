@@ -4,8 +4,9 @@ import {
   type ServerMessage,
   MAX_MESSAGE_LENGTH,
 } from "@repo/shared";
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { createDb } from "./db";
+import { listMessages } from "./db/messages";
 import { messages, rooms, user } from "./db/schema";
 
 /** 接続ごとに WebSocket へ添付する送信者情報（ハイバネ復帰後も保持される）。 */
@@ -143,30 +144,6 @@ export class RoomDO extends DurableObject<Env> {
   /** ルームの直近メッセージを古い順で返す。 */
   private async recentMessages(roomId: string): Promise<ChatMessage[]> {
     const db = createDb(this.env.DB);
-    const rows = await db
-      .select({
-        id: messages.id,
-        roomId: messages.roomId,
-        userId: messages.userId,
-        body: messages.body,
-        createdAt: messages.createdAt,
-        userName: user.name,
-      })
-      .from(messages)
-      .innerJoin(user, eq(messages.userId, user.id))
-      .where(eq(messages.roomId, roomId))
-      .orderBy(desc(messages.createdAt), desc(messages.id))
-      .limit(HISTORY_LIMIT);
-
-    return rows
-      .map((r) => ({
-        id: r.id,
-        roomId: r.roomId,
-        userId: r.userId,
-        userName: r.userName,
-        body: r.body,
-        createdAt: r.createdAt.getTime(),
-      }))
-      .toReversed();
+    return listMessages(db, { roomId, limit: HISTORY_LIMIT });
   }
 }

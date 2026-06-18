@@ -8,6 +8,12 @@ export const APP_NAME = "chat-with-nextjs-hono" as const;
 export type {
   ChatMessage,
   ClientMessage,
+  Room,
   ServerMessage,
 } from "./chat";
-export { MAX_MESSAGE_LENGTH } from "./chat";
+export {
+  MAX_MESSAGE_LENGTH,
+  MAX_ROOM_NAME_LENGTH,
+  MESSAGE_PAGE_SIZE,
+  MESSAGE_PAGE_SIZE_MAX,
+} from "./chat";
