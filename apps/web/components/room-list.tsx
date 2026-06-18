@@ -31,7 +31,13 @@ export function RoomList({
       try {
         const list = await listRooms();
         if (!active) return;
-        setRooms(list);
+        // ロード中にユーザーが作成したルーム（prev に prepend 済み）は、サーバ
+        // スナップショットに含まれていなくても消さないようマージする。
+        setRooms((prev) => {
+          const ids = new Set(list.map((r) => r.id));
+          const localOnly = prev.filter((r) => !ids.has(r.id));
+          return [...localOnly, ...list];
+        });
         // 未選択なら先頭ルームを自動選択する。
         const first = list[0];
         if (first && selectedRef.current === null) {
