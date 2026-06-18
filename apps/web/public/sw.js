@@ -43,13 +43,31 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// /_next/static はコンテンツハッシュ付きで内容が不変。再検証は無駄なので cache-first。
+function isImmutableAsset(url) {
+  return url.pathname.startsWith("/_next/static/");
+}
+
+// それ以外の静的アセット（同名で差し替わりうる）。stale-while-revalidate 対象。
 function isStaticAsset(url) {
   return (
-    url.pathname.startsWith("/_next/static/") ||
     url.pathname.startsWith("/icons/") ||
     url.pathname === "/manifest.webmanifest" ||
     /\.(?:css|js|png|jpg|jpeg|svg|webp|ico|woff2?)$/.test(url.pathname)
   );
+}
+
+// キャッシュの無制限増加を抑える。デプロイのたびに増えるハッシュ付きアセットが
+// 溜まり続けないよう、挿入順（caches は挿入順を保持）に古いものから削除する。
+const MAX_STATIC_ENTRIES = 96;
+async function putWithLimit(cache, request, response) {
+  await cache.put(request, response);
+  const keys = await cache.keys();
+  if (keys.length > MAX_STATIC_ENTRIES) {
+    await Promise.all(
+      keys.slice(0, keys.length - MAX_STATIC_ENTRIES).map((k) => cache.delete(k)),
+    );
+  }
 }
 
 self.addEventListener("fetch", (event) => {
@@ -76,7 +94,22 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 静的アセット: stale-while-revalidate。
+  // 不変アセット（/_next/static）: cache-first。ヒット時は再検証 fetch をしない。
+  if (isImmutableAsset(url)) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(STATIC_CACHE);
+        const cached = await cache.match(request);
+        if (cached) return cached;
+        const res = await fetch(request).catch(() => undefined);
+        if (res && res.ok) await putWithLimit(cache, request, res.clone());
+        return res || Response.error();
+      })(),
+    );
+    return;
+  }
+
+  // その他の静的アセット: stale-while-revalidate。
   if (isStaticAsset(url)) {
     event.respondWith(
       (async () => {
@@ -84,7 +117,7 @@ self.addEventListener("fetch", (event) => {
         const cached = await cache.match(request);
         const network = fetch(request)
           .then((res) => {
-            if (res && res.ok) cache.put(request, res.clone());
+            if (res && res.ok) putWithLimit(cache, request, res.clone());
             return res;
           })
           .catch(() => undefined);
