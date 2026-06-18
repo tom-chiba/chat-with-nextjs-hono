@@ -1,7 +1,9 @@
 "use client";
 
-import { MAX_MESSAGE_LENGTH } from "@repo/shared";
+import type { ChatMessage } from "@repo/shared";
+import { MAX_MESSAGE_LENGTH, MESSAGE_PAGE_SIZE } from "@repo/shared";
 import { useEffect, useRef, useState } from "react";
+import { fetchMessages } from "@/lib/rooms";
 import { useRoomChat } from "@/lib/use-room-chat";
 
 const STATUS_LABEL = {
@@ -10,22 +12,50 @@ const STATUS_LABEL = {
   closed: "切断（再接続中…）",
 } as const;
 
-/** 単一ルームのチャット UI（一覧 + 入力 + 接続状態）。 */
+/**
+ * 単一ルームのチャット UI（一覧 + 入力 + 接続状態 + 過去ログ読み込み）。
+ *
+ * 親は `key={roomId}` で本コンポーネントを再マウントし、ルーム切替時に状態を初期化する。
+ * ライブ分（履歴 + 新着）は WebSocket フックから、それより古い分は REST で取得して前方に連結する。
+ */
 export function ChatRoom({
-  roomId = "general",
+  roomId,
   currentUserId,
 }: {
-  roomId?: string;
+  roomId: string;
   currentUserId: string;
 }) {
-  const { messages, status, send } = useRoomChat(roomId);
+  const { messages: live, status, send } = useRoomChat(roomId);
+  const [older, setOlder] = useState<ChatMessage[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // 新着で最下部へスクロール。
+  // 新着（ライブ）でのみ最下部へスクロールする。過去ログ連結では位置を保つ。
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [live]);
+
+  const all = [...older, ...live];
+
+  const loadOlder = async () => {
+    const oldest = all[0];
+    if (loadingMore || !oldest) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchMessages(roomId, {
+        createdAt: oldest.createdAt,
+        id: oldest.id,
+      });
+      setOlder((prev) => [...page, ...prev]);
+      if (page.length < MESSAGE_PAGE_SIZE) setHasMore(false);
+    } catch {
+      // 取得失敗時はボタンを残し、再試行できるようにする。
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,9 +67,7 @@ export function ChatRoom({
 
   return (
     <div style={{ display: "grid", gap: 8, maxWidth: 520 }}>
-      <div style={{ fontSize: 12, color: "#666" }}>
-        ルーム: {roomId} / 状態: {STATUS_LABEL[status]}
-      </div>
+      <div style={{ fontSize: 12, color: "#666" }}>状態: {STATUS_LABEL[status]}</div>
 
       <div
         style={{
@@ -53,10 +81,24 @@ export function ChatRoom({
           alignContent: "start",
         }}
       >
-        {messages.length === 0 && (
+        {all.length === 0 ? (
           <p style={{ color: "#999" }}>まだメッセージはありません。</p>
+        ) : hasMore ? (
+          <button
+            type="button"
+            onClick={loadOlder}
+            disabled={loadingMore}
+            style={{ justifySelf: "center", fontSize: 12 }}
+          >
+            {loadingMore ? "読み込み中…" : "過去のメッセージを読み込む"}
+          </button>
+        ) : (
+          <p style={{ textAlign: "center", color: "#bbb", fontSize: 12 }}>
+            これ以上の履歴はありません
+          </p>
         )}
-        {messages.map((m) => {
+
+        {all.map((m) => {
           const mine = m.userId === currentUserId;
           return (
             <div key={m.id} style={{ textAlign: mine ? "right" : "left" }}>
@@ -87,7 +129,10 @@ export function ChatRoom({
           maxLength={MAX_MESSAGE_LENGTH}
           style={{ flex: 1 }}
         />
-        <button type="submit" disabled={status !== "open" || draft.trim().length === 0}>
+        <button
+          type="submit"
+          disabled={status !== "open" || draft.trim().length === 0}
+        >
           送信
         </button>
       </form>

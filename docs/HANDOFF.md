@@ -2,7 +2,7 @@
 
 このファイルは Issue / コード / README には現れない「決定の背景・外部設定・未検証事項・ハマりどころ・進め方の慣習」をまとめたもの。再開時にまず読む。
 
-最終更新: 2026-06-14（#1〜#6, #10 完了 + 本番デプロイ実施時点）
+最終更新: 2026-06-18（#8 チャット機能 = ルーム CRUD + 履歴ページネーション 実装時点）
 
 ---
 
@@ -17,12 +17,22 @@
 | 5 | 認証: Better Auth（メール+パスワード）+ Resend | ✅ 完了 | #16 |
 | 6 | API: Hono RPC 型共有 | ✅ 完了 | #17 |
 | 7 | 双方向通信: WebSocket チャット（単一ルーム + 最小ログイン UI） | ✅ 完了 | — |
-| 8 | チャット機能（ルーム / メッセージ） | ⬜ 未着手 | — |
+| 8 | チャット機能（ルーム / メッセージ） | ✅ 完了 | — |
 | 9 | PWA 対応 | ⬜ 未着手 | — |
 | 10 | テスト基盤（Vitest / RTL / Playwright） | ✅ 完了 | — |
 | 11 | CI（GitHub Actions） | ✅ 完了 | — |
 
-推奨順序: 残るは **#8 チャット機能**（ルーム一覧/作成・履歴ページネーション・UI 整形）と **#9 PWA 対応**。#7 で土台（WS・1ルーム・最小ログイン UI）は完成済み。
+推奨順序: 残るは **#9 PWA 対応**。#7 で土台（WS・1ルーム・最小ログイン UI）、#8 でルーム CRUD・履歴ページネーション・複数ルーム UI を実装済み。
+
+### #8 で実装したチャット機能の要点（非自明）
+
+- **メッセージ取得は `apps/api/src/db/messages.ts` の `listMessages` に一本化**。DO の接続時履歴と REST のページネーションが同一クエリを共有する。並びは **`ORDER BY (created_at DESC, id DESC)` で取得 → `toReversed()` で昇順化**。`before` カーソル（`{createdAt, id}`）は **`created_at < c OR (created_at = c AND id < c.id)`** のキーセット条件で、同一ミリ秒でも重複・欠落しない（`messages.test.ts` で検証）。
+- **ルーム API は RPC チェーン（`index.ts` の `routes`）に追加**: `GET /rooms`（新しい順）・`POST /rooms`（id は `crypto.randomUUID()` でサーバ採番、`createdAt` も明示採番して往復なしで返す）・`GET /rooms/:roomId/messages`。**全て要セッション**（`getSession` で 401 ゲート、テスト済み）。
+- **query パラメータは `hono/validator` の `validator("query", …)` で明示バリデートが必須**。未バリデートだと hc（RPC クライアント）の `$get` が `query` を受け取れず型エラーになる。FE は `before`/`beforeId` 不使用時も **3 キーを常に渡す**（validator 入力型が全キーを要求するため、未使用キーは `undefined`）。
+- **FE は複数ルーム化**: `components/room-list.tsx`（一覧 + 作成、初回マウント時のみ取得し未選択なら先頭を自動選択。`onSelect`/`selectedRoomId` は ref 経由で参照し再取得を防ぐ）、`app/page.tsx` でルーム選択状態を保持し **`<ChatRoom key={roomId}>`** で切替時に状態を初期化。`chat-room.tsx` はライブ分（WS フック）＋過去ログ（REST で前方連結）を表示し、**新着スクロールは `live` 依存の effect に限定**して過去ログ読み込み時はスクロール位置を保つ。`lib/rooms.ts` が RPC ラッパ。
+- **既読・未読は実装せず**（Issue の「既読など最小限」/ 完了条件外）。
+- **DO の `ensureRoom`（id=name フォールバック）は安全網として残置**。通常は REST 作成済みルーム（UUID）へ接続するため `onConflictDoNothing` で no-op。
+- **未検証**: 2 ユーザー実ブラウザ E2E はメール検証の都合で従来どおり自動化せず。ルーム作成→送受信→過去ログ読み込みは同一ユーザー手動確認の想定。
 
 ### CI（#11・`.github/workflows/ci.yml`）
 
