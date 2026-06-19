@@ -1,0 +1,100 @@
+name: CD
+
+# CI（ci.yml）の完了をトリガーに、main への push 時のみ API Worker をデプロイする。
+# 別ワークフローのため needs: は使えないので workflow_run で CI 成功を前提条件にする。
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+# 進行中の deploy/migration は中断しない（本番 DB への適用や deploy を途中で切らない）。
+# CI の main push 方針（キャンセルしない）と揃える。GitHub は同一グループの pending を
+# 1 件に集約するため、連続マージ時は最後のコミット向け実行だけが待機して走る。
+concurrency:
+  group: cd-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+# JS 製アクションを Node 24 で動かす（CI と揃える）。
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# デプロイはリポジトリの読み取りのみ。Cloudflare 認証は Secrets の API トークンで行う。
+permissions:
+  contents: read
+
+jobs:
+  # workflow_run は「コミット順」ではなく「CI 完了順」で届く。古い CI の遅延完了や
+  # 手動 rerun で古い head_sha をデプロイし本番をロールバックさせないため、
+  # デプロイ対象が origin/main の先端であることを先に確認する。
+  guard:
+    name: check freshness
+    runs-on: ubuntu-latest
+    # CI（push to main）が成功したときだけ評価する。
+    # workflow_run は pull_request 起因の CI 完了でも発火しうるため event も明示的に確認する。
+    if: >-
+      ${{ github.event.workflow_run.event == 'push'
+        && github.event.workflow_run.conclusion == 'success' }}
+    outputs:
+      fresh: ${{ steps.check.outputs.fresh }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Compare head_sha with origin/main
+        id: check
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git fetch --depth=1 origin main
+          latest="$(git rev-parse origin/main)"
+          if [ "$latest" = "$HEAD_SHA" ]; then
+            echo "fresh=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$HEAD_SHA は origin/main の先端 ($latest) ではないためデプロイをスキップします。$latest の CD がデプロイします。"
+          fi
+
+  deploy:
+    name: deploy API Worker
+    needs: guard
+    if: needs.guard.outputs.fresh == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      # CI が通過した正確なコミットをデプロイする（FE/BE のデプロイ乖離を防ぐ目的に合わせる）。
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # mise.toml に従って node 24 / pnpm 11.6.0 をインストール（CI と同一）。
+      - uses: jdx/mise-action@v2
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 本番 D1 にマイグレーションを適用してから deploy する。
+      # 冪等（適用済みは skip）だが本番 DB を変更するため deploy より前に実行する。
+      - name: Apply D1 migrations (remote)
+        run: pnpm --filter @repo/api run db:migrate:remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy API Worker
+        run: pnpm --filter @repo/api run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
