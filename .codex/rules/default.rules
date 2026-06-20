@@ -1,0 +1,3 @@
+prefix_rule(pattern=["pnpm", "test:e2e"], decision="allow")
+prefix_rule(pattern=["pnpm", "dev"], decision="allow")
+prefix_rule(pattern=["playwright-cli"], decision="allow")
