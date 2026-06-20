@@ -1,0 +1,78 @@
+{
+  "env": {
+    "ENABLE_TOOL_SEARCH": "true",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && pnpm typecheck && pnpm lint && pnpm format:check || exit 2"
+          }
+        ]
+      }
+    ]
+  },
+  "autoMode": {
+    "environment": [
+      "$defaults"
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(ls *)",
+      "Bash(lsof *)",
+      "Bash(mkdir *)",
+      "Bash(echo *)",
+      "Bash(grep *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git switch *)",
+      "Bash(pnpm dev)",
+      "Bash(pnpm build)",
+      "Bash(pnpm cy-typegen)",
+      "Bash(pnpm test*)",
+      "Bash(pnpm e2e*)",
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm lint*)",
+      "Bash(pnpm format*)",
+      "Bash(gh issue list *)",
+      "Bash(gh issue view *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr list *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr status *)",
+      "Bash(gh repo view *)",
+      "Bash(gh repo list *)",
+      "Bash(gh release list *)",
+      "Bash(gh run list *)",
+      "Bash(gh run view *)",
+      "Skill(playwright-cli)",
+      "Bash(playwright-cli *)"
+    ],
+    "ask": [
+      "Bash(playwright-cli eval *)",
+      "Bash(playwright-cli delete-data *)",
+      "Bash(playwright-cli cookie-delete *)",
+      "Bash(playwright-cli cookie-clear *)",
+      "Bash(playwright-cli localstorage-delete *)",
+      "Bash(playwright-cli localstorage-clear *)",
+      "Bash(playwright-cli run-code *)"
+    ],
+    "deny": [
+      "Bash(git switch -C *)",
+      "Bash(git switch --force-create *)",
+      "Bash(git switch -f *)",
+      "Bash(git switch --force *)",
+      "Bash(git switch --discard-changes *)"
+    ]
+  }
+}
