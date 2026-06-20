@@ -32,10 +32,10 @@ describe("sendVerificationEmailWithResend", () => {
     });
   });
 
-  test("Resend の API エラーを認証フローへ throw しない", async () => {
+  test("宛先が suppression 対象の Resend API エラーは認証フローへ throw しない", async () => {
     const error = {
       name: "validation_error",
-      message: "Email is suppressed",
+      message: "Email user@example.net is suppressed",
       statusCode: 422,
     };
     const send = vi.fn().mockResolvedValue({
@@ -56,12 +56,44 @@ describe("sendVerificationEmailWithResend", () => {
       "Verification email delivery failed",
       {
         recipientDomain: "example.net",
+        error: {
+          ...error,
+          message: "Email [email] is suppressed",
+        },
+      },
+    );
+  });
+
+  test("suppression 以外の Resend API エラーは認証フローへ throw する", async () => {
+    const error = {
+      name: "invalid_api_key",
+      message: "Invalid API key",
+      statusCode: 401,
+    };
+    const send = vi.fn().mockResolvedValue({
+      data: null,
+      error,
+      headers: null,
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      sendVerificationEmailWithResend({
+        emailSender: { send },
+        ...baseEmail,
+      }),
+    ).rejects.toThrow("Verification email delivery failed");
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "Verification email delivery failed",
+      {
+        recipientDomain: "example.net",
         error,
       },
     );
   });
 
-  test("Resend クライアントの例外を認証フローへ throw しない", async () => {
+  test("Resend クライアントの例外は認証フローへ throw する", async () => {
     const send = vi.fn().mockRejectedValue(new Error("network failed"));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -70,7 +102,7 @@ describe("sendVerificationEmailWithResend", () => {
         emailSender: { send },
         ...baseEmail,
       }),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow("Verification email delivery failed");
 
     expect(consoleError).toHaveBeenCalledWith(
       "Verification email delivery failed",
