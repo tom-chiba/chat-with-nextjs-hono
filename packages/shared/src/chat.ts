@@ -20,6 +20,15 @@ export type Room = {
   myRole: RoomRole;
 };
 
+/** ルームメンバー。メンバー管理 UI と API レスポンスで共有する。 */
+export type RoomMember = {
+  userId: string;
+  userName: string;
+  role: RoomRole;
+  /** ミリ秒エポック（`room_members.joined_at`）。 */
+  joinedAt: number;
+};
+
 /**
  * クライアントに配信する 1 メッセージ。
  * DB の `messages` 行に送信者名（`userName`）を付与した形。

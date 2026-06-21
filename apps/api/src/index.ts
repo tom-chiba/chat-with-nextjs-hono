@@ -371,55 +371,60 @@ const routes = app
     });
   })
   // オーナーが既存ユーザーをルームへ追加する。
-  .post("/rooms/:roomId/members", async (c) => {
-    const auth = createAuth(c.env);
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (!session) {
-      return c.json({ error: "unauthorized" } as const, 401);
-    }
+  .post(
+    "/rooms/:roomId/members",
+    // RPC クライアントに json ボディ型を伝えるため validator を通す。
+    validator("json", (value: { userId?: string }) => value),
+    async (c) => {
+      const auth = createAuth(c.env);
+      const session = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (!session) {
+        return c.json({ error: "unauthorized" } as const, 401);
+      }
 
-    const roomId = c.req.param("roomId");
-    const db = createDb(c.env.DB);
-    const owner = await requireRoomOwner(db, roomId, session.user.id);
-    if (owner.status === "not_found") {
-      return c.json({ error: "room not found" } as const, 404);
-    }
-    if (owner.status !== "owner") {
-      return c.json({ error: "forbidden" } as const, 403);
-    }
+      const roomId = c.req.param("roomId");
+      const db = createDb(c.env.DB);
+      const owner = await requireRoomOwner(db, roomId, session.user.id);
+      if (owner.status === "not_found") {
+        return c.json({ error: "room not found" } as const, 404);
+      }
+      if (owner.status !== "owner") {
+        return c.json({ error: "forbidden" } as const, 403);
+      }
 
-    const json = (await c.req.json().catch(() => ({}))) as { userId?: unknown };
-    const userId = typeof json.userId === "string" ? json.userId.trim() : "";
-    if (userId.length === 0) {
-      return c.json({ error: "invalid user id" } as const, 400);
-    }
-    if (!(await userExists(db, userId))) {
-      return c.json({ error: "user not found" } as const, 404);
-    }
+      const json = c.req.valid("json");
+      const userId = typeof json.userId === "string" ? json.userId.trim() : "";
+      if (userId.length === 0) {
+        return c.json({ error: "invalid user id" } as const, 400);
+      }
+      if (!(await userExists(db, userId))) {
+        return c.json({ error: "user not found" } as const, 404);
+      }
 
-    const existing = await getRoomMembership(db, roomId, userId);
-    if (existing.status === "member") {
-      return c.json(
-        { error: "user is already a member", role: existing.role } as const,
-        409,
-      );
-    }
+      const existing = await getRoomMembership(db, roomId, userId);
+      if (existing.status === "member") {
+        return c.json(
+          { error: "user is already a member", role: existing.role } as const,
+          409,
+        );
+      }
 
-    const joinedAt = Date.now();
-    await db
-      .insert(roomMembers)
-      .values({
-        roomId,
-        userId,
-        role: "member",
-        joinedAt: new Date(joinedAt),
-        // 参加時点では過去のメッセージを未読としない（既読位置 = 参加時刻）。
-        lastReadAt: new Date(joinedAt),
-      })
-      .onConflictDoNothing();
+      const joinedAt = Date.now();
+      await db
+        .insert(roomMembers)
+        .values({
+          roomId,
+          userId,
+          role: "member",
+          joinedAt: new Date(joinedAt),
+          // 参加時点では過去のメッセージを未読としない（既読位置 = 参加時刻）。
+          lastReadAt: new Date(joinedAt),
+        })
+        .onConflictDoNothing();
 
-    return c.json({ member: { userId, role: "member", joinedAt } }, 201);
-  })
+      return c.json({ member: { userId, role: "member", joinedAt } }, 201);
+    },
+  )
   // オーナーがメンバーを外す。自分自身の owner 権限削除は拒否する。
   .delete("/rooms/:roomId/members/:userId", async (c) => {
     const auth = createAuth(c.env);

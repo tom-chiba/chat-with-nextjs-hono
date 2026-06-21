@@ -1,4 +1,4 @@
-import type { ChatMessage, Room } from "@repo/shared";
+import type { ChatMessage, Room, RoomMember } from "@repo/shared";
 import { MESSAGE_PAGE_SIZE } from "@repo/shared";
 import { client } from "./rpc";
 
@@ -54,6 +54,54 @@ export async function markRoomRead(roomId: string, at: number): Promise<void> {
     json: { at },
   });
   if (!res.ok) throw new Error("既読更新に失敗しました");
+}
+
+/** ルームメンバー一覧を取得する。 */
+export async function listRoomMembers(roomId: string): Promise<RoomMember[]> {
+  const res = await client.rooms[":roomId"].members.$get({
+    param: { roomId },
+  });
+  if (!res.ok) {
+    if (res.status === 403) throw new Error("メンバーのみ閲覧できます");
+    if (res.status === 404) throw new Error("ルームが見つかりませんでした");
+    throw new Error("メンバー一覧の取得に失敗しました");
+  }
+  const data = await res.json();
+  return data.members;
+}
+
+/** ルームへ既存ユーザーを追加する（オーナー専用）。 */
+export async function addRoomMember(
+  roomId: string,
+  userId: string,
+): Promise<void> {
+  const res = await client.rooms[":roomId"].members.$post({
+    param: { roomId },
+    json: { userId },
+  });
+  if (!res.ok) {
+    if (res.status === 403) throw new Error("オーナーのみ追加できます");
+    if (res.status === 404) throw new Error("ユーザーまたはルームが見つかりません");
+    if (res.status === 409) throw new Error("このユーザーは既にメンバーです");
+    if (res.status === 400) throw new Error("ユーザーIDが不正です");
+    throw new Error("メンバーの追加に失敗しました");
+  }
+}
+
+/** ルームからメンバーを外す（オーナー専用）。 */
+export async function removeRoomMember(
+  roomId: string,
+  userId: string,
+): Promise<void> {
+  const res = await client.rooms[":roomId"].members[":userId"].$delete({
+    param: { roomId, userId },
+  });
+  if (!res.ok) {
+    if (res.status === 403) throw new Error("オーナーのみ削除できます");
+    if (res.status === 404) throw new Error("メンバーが見つかりませんでした");
+    if (res.status === 400) throw new Error("オーナーは削除できません");
+    throw new Error("メンバーの削除に失敗しました");
+  }
 }
 
 /** メッセージ本文を編集する（本人のみ）。 */

@@ -10,6 +10,7 @@ export type {
   ClientMessage,
   MessageBodyToken,
   Room,
+  RoomMember,
   RoomRole,
   ServerErrorCode,
   ServerMessage,
