@@ -65,6 +65,13 @@ export function ChatRoom({
     setDraft("");
   };
 
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Shift+Enter は改行、IME 変換中の Enter は確定なので送信しない。
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    submit(e);
+  };
+
   return (
     <div style={{ display: "grid", gap: 8, maxWidth: 520 }}>
       <div style={{ fontSize: 12, color: "#666" }}>状態: {STATUS_LABEL[status]}</div>
@@ -110,6 +117,8 @@ export function ChatRoom({
                   borderRadius: 8,
                   padding: "4px 8px",
                   wordBreak: "break-word",
+                  whiteSpace: "pre-wrap",
+                  textAlign: "left",
                 }}
               >
                 {m.body}
@@ -120,14 +129,15 @@ export function ChatRoom({
         <div ref={bottomRef} />
       </div>
 
-      <form onSubmit={submit} style={{ display: "flex", gap: 8 }}>
-        <input
-          type="text"
+      <form onSubmit={submit} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+        <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="メッセージを入力"
+          onKeyDown={onKeyDown}
+          placeholder="メッセージを入力（Shift+Enter で改行）"
           maxLength={MAX_MESSAGE_LENGTH}
-          style={{ flex: 1 }}
+          rows={2}
+          style={{ flex: 1, resize: "vertical", fontFamily: "inherit", fontSize: "inherit" }}
         />
         <button
           type="submit"
