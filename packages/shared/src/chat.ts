@@ -40,7 +40,11 @@ export type ClientMessage = { type: "message"; body: string };
 /** サーバ → クライアント。 */
 export type ServerMessage =
   | { type: "history"; messages: ChatMessage[] }
-  | { type: "message"; message: ChatMessage };
+  | { type: "message"; message: ChatMessage }
+  | { type: "error"; code: ServerErrorCode; message: string };
+
+/** クライアントが分岐に使う想定のエラーコード。 */
+export type ServerErrorCode = "rate_limited";
 
 /** WebSocket で送る body の最大長（文字数）。 */
 export const MAX_MESSAGE_LENGTH = 2000;

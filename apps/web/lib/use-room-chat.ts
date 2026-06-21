@@ -24,6 +24,8 @@ function reconnectDelay(attempts: number): number {
 export function useRoomChat(roomId: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<ChatStatus>("connecting");
+  /** サーバから来た最新のエラーメッセージ（レート制限など）。next send で自然に上書きされる。 */
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -53,6 +55,8 @@ export function useRoomChat(roomId: string) {
           setMessages(data.messages);
         } else if (data.type === "message") {
           setMessages((prev) => [...prev, data.message]);
+        } else if (data.type === "error") {
+          setErrorMessage(data.message);
         }
       });
 
@@ -84,10 +88,14 @@ export function useRoomChat(roomId: string) {
   const send = useCallback((body: string) => {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
+      // 送信時にエラー表示を消す（新たなレート制限が来たら setErrorMessage で再表示）。
+      setErrorMessage(null);
       const msg: ClientMessage = { type: "message", body };
       ws.send(JSON.stringify(msg));
     }
   }, []);
 
-  return { messages, status, send };
+  const clearError = useCallback(() => setErrorMessage(null), []);
+
+  return { messages, status, send, errorMessage, clearError };
 }

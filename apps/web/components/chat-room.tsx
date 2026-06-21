@@ -36,7 +36,8 @@ export function ChatRoom({
   /** モバイル時の「← 一覧へ」ボタン押下で呼ばれる（デスクトップでは表示されない）。 */
   onBack?: () => void;
 }) {
-  const { messages: live, status, send } = useRoomChat(roomId);
+  const { messages: live, status, send, errorMessage, clearError } =
+    useRoomChat(roomId);
   const [older, setOlder] = useState<ChatMessage[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -210,6 +211,39 @@ export function ChatRoom({
         })}
         <div ref={bottomRef} />
       </div>
+
+      {errorMessage && (
+        <div
+          role="alert"
+          style={{
+            background: "#fff3cd",
+            color: "#7a5d00",
+            border: "1px solid #f5d77a",
+            padding: "6px 8px",
+            borderRadius: 6,
+            fontSize: 12,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span>{errorMessage}</span>
+          <button
+            type="button"
+            onClick={clearError}
+            aria-label="エラー表示を閉じる"
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 14,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <form onSubmit={submit} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
         <textarea

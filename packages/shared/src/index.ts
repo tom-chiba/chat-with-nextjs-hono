@@ -10,6 +10,8 @@ export type {
   ClientMessage,
   MessageBodyToken,
   Room,
+  RoomRole,
+  ServerErrorCode,
   ServerMessage,
 } from "./chat";
 export {
@@ -22,3 +24,9 @@ export {
   parseMentionCandidates,
   tokenizeMessageBody,
 } from "./chat";
+export {
+  MIN_PASSWORD_LENGTH,
+  MAX_PASSWORD_LENGTH,
+  WS_RATE_LIMIT_WINDOW_MS,
+  WS_RATE_LIMIT_MAX,
+} from "./policy";

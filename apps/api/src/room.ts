@@ -3,6 +3,8 @@ import {
   type ChatMessage,
   type ServerMessage,
   MAX_MESSAGE_LENGTH,
+  WS_RATE_LIMIT_MAX,
+  WS_RATE_LIMIT_WINDOW_MS,
   parseMentionCandidates,
 } from "@repo/shared";
 import { eq } from "drizzle-orm";
@@ -34,6 +36,29 @@ const ROOM_DELETED_CLOSE_REASON = "room deleted";
  * Worker からのみ到達し、本人情報は upgrade リクエストのヘッダで信頼する。
  */
 export class RoomDO extends DurableObject<Env> {
+  /**
+   * ユーザーごとの直近メッセージ送信時刻（ミリ秒エポック）。
+   * `WS_RATE_LIMIT_WINDOW_MS` 内に `WS_RATE_LIMIT_MAX` 件を超えると拒否する。
+   * DO は単一インスタンスのため、Map による in-memory 管理で十分。
+   */
+  private readonly recentSendsByUser = new Map<string, number[]>();
+
+  /**
+   * `userId` がレート制限に達していなければ true。同時に履歴へ now を記録する。
+   */
+  private allowSend(userId: string, now: number): boolean {
+    const cutoff = now - WS_RATE_LIMIT_WINDOW_MS;
+    const history = this.recentSendsByUser.get(userId) ?? [];
+    const recent = history.filter((t) => t > cutoff);
+    if (recent.length >= WS_RATE_LIMIT_MAX) {
+      this.recentSendsByUser.set(userId, recent);
+      return false;
+    }
+    recent.push(now);
+    this.recentSendsByUser.set(userId, recent);
+    return true;
+  }
+
   override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "POST" && url.pathname === DISCONNECT_MEMBER_PATH) {
@@ -105,13 +130,26 @@ export class RoomDO extends DurableObject<Env> {
       return;
     }
 
+    const now = Date.now();
+    if (!this.allowSend(userId, now)) {
+      // 自分にだけエラーを返し、メッセージは破棄する（接続は維持）。
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          code: "rate_limited",
+          message: "メッセージの送信が早すぎます。少し待ってから再度お試しください。",
+        } satisfies ServerMessage),
+      );
+      return;
+    }
+
     const message: ChatMessage = {
       id: crypto.randomUUID(),
       roomId,
       userId,
       userName,
       body: trimmed,
-      createdAt: Date.now(),
+      createdAt: now,
     };
 
     await db.insert(messages).values({
