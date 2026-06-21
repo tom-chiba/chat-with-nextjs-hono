@@ -14,6 +14,7 @@ import {
   markRoomRead,
 } from "@/lib/rooms";
 import { useRoomChat } from "@/lib/use-room-chat";
+import { RoomMembers } from "./room-members";
 
 const STATUS_LABEL = {
   connecting: "接続中…",
@@ -187,6 +188,8 @@ export function ChatRoom({
           状態: {STATUS_LABEL[status]}
         </div>
       </div>
+
+      <RoomMembers roomId={roomId} currentUserId={currentUserId} />
 
       <div
         ref={scrollContainerRef}
