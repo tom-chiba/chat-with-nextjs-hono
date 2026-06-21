@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { eq } from "drizzle-orm";
 import { describe, expect, test } from "vitest";
 import { createDb } from "../src/db";
+import { createRoomWithOwner } from "../src/db/rooms";
 import { roomMembers, rooms, session, user } from "../src/db/schema";
 import app from "../src/index";
 // WS ルートは worker.ts 側で app に登録される。default export は同一の app インスタンス。
@@ -165,6 +166,25 @@ describe("API ルート", () => {
     expect(members).toContainEqual(
       expect.objectContaining({ userId: "owner-create", role: "owner" }),
     );
+  });
+
+  test("ルーム作成時の owner 登録に失敗したら rooms 行を rollback する", async () => {
+    const db = createDb(env.DB);
+
+    await expect(
+      createRoomWithOwner(db, {
+        id: "orphan-rollback",
+        name: "orphan rollback",
+        ownerId: "missing-owner",
+        createdAt: new Date(),
+      }),
+    ).rejects.toThrow();
+
+    const orphanRooms = await db
+      .select()
+      .from(rooms)
+      .where(eq(rooms.id, "orphan-rollback"));
+    expect(orphanRooms).toHaveLength(0);
   });
 
   test("GET /rooms は未所属ルームを返さない", async () => {

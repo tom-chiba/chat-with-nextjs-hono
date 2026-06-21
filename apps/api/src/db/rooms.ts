@@ -4,6 +4,13 @@ import { roomMembers, rooms, user } from "./schema";
 
 export type RoomRole = "owner" | "member";
 
+export type CreateRoomWithOwnerInput = {
+  id: string;
+  name: string;
+  ownerId: string;
+  createdAt: Date;
+};
+
 export type RoomMembership =
   | { status: "member"; role: RoomRole }
   | { status: "not_found" }
@@ -25,6 +32,21 @@ export async function listRoomsForUser(db: Db, userId: string) {
 export async function getRoomById(db: Db, roomId: string) {
   const rows = await db.select().from(rooms).where(eq(rooms.id, roomId)).limit(1);
   return rows[0] ?? null;
+}
+
+export async function createRoomWithOwner(
+  db: Db,
+  { id, name, ownerId, createdAt }: CreateRoomWithOwnerInput,
+) {
+  await db.batch([
+    db.insert(rooms).values({ id, name, createdAt }),
+    db.insert(roomMembers).values({
+      roomId: id,
+      userId: ownerId,
+      role: "owner",
+      joinedAt: createdAt,
+    }),
+  ]);
 }
 
 export async function getRoomMembership(

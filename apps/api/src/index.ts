@@ -11,13 +11,14 @@ import { type AuthEnv, createAuth } from "./auth";
 import { createDb } from "./db";
 import { listMessages } from "./db/messages";
 import {
+  createRoomWithOwner,
   getRoomMembership,
   listRoomMembers,
   listRoomsForUser,
   requireRoomOwner,
   userExists,
 } from "./db/rooms";
-import { roomMembers, rooms } from "./db/schema";
+import { roomMembers } from "./db/schema";
 
 /** クエリ値（string | string[] | undefined）から単一の文字列だけを取り出す。 */
 const pickQuery = (v: string | string[] | undefined) =>
@@ -100,12 +101,11 @@ const routes = app
     const createdAt = Date.now();
     const id = crypto.randomUUID();
     const db = createDb(c.env.DB);
-    await db.insert(rooms).values({ id, name, createdAt: new Date(createdAt) });
-    await db.insert(roomMembers).values({
-      roomId: id,
-      userId: session.user.id,
-      role: "owner",
-      joinedAt: new Date(createdAt),
+    await createRoomWithOwner(db, {
+      id,
+      name,
+      ownerId: session.user.id,
+      createdAt: new Date(createdAt),
     });
     return c.json({ room: { id, name, createdAt } }, 201);
   })
