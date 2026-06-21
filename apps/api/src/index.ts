@@ -307,6 +307,8 @@ const routes = app
         userId,
         role: "member",
         joinedAt: new Date(joinedAt),
+        // 参加時点では過去のメッセージを未読としない（既読位置 = 参加時刻）。
+        lastReadAt: new Date(joinedAt),
       })
       .onConflictDoNothing();
 
