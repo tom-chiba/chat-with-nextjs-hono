@@ -1,7 +1,11 @@
 "use client";
 
 import type { ChatMessage } from "@repo/shared";
-import { MAX_MESSAGE_LENGTH, MENTION_PATTERN, MESSAGE_PAGE_SIZE } from "@repo/shared";
+import {
+  MAX_MESSAGE_LENGTH,
+  MESSAGE_PAGE_SIZE,
+  tokenizeMessageBody,
+} from "@repo/shared";
 import { useEffect, useRef, useState } from "react";
 import { fetchMessages, markRoomRead } from "@/lib/rooms";
 import { useRoomChat } from "@/lib/use-room-chat";
@@ -12,30 +16,6 @@ const STATUS_LABEL = {
   closed: "切断（再接続中…）",
 } as const;
 
-/**
- * 本文を「テキスト」と「メンション (`@<name>`)」のセグメントに分解する。
- * 表示時にメンションだけハイライト用 span にするために使う。
- */
-function splitByMentions(body: string): Array<
-  { type: "text"; value: string } | { type: "mention"; value: string }
-> {
-  const out: Array<{ type: "text"; value: string } | { type: "mention"; value: string }> = [];
-  let cursor = 0;
-  // MENTION_PATTERN は `g` フラグ付きなので毎呼び出しで new することで lastIndex を回避。
-  const re = new RegExp(MENTION_PATTERN.source, "g");
-  for (const m of body.matchAll(re)) {
-    const start = m.index ?? 0;
-    if (start > cursor) {
-      out.push({ type: "text", value: body.slice(cursor, start) });
-    }
-    out.push({ type: "mention", value: m[0] });
-    cursor = start + m[0].length;
-  }
-  if (cursor < body.length) {
-    out.push({ type: "text", value: body.slice(cursor) });
-  }
-  return out;
-}
 
 /**
  * 単一ルームのチャット UI（一覧 + 入力 + 接続状態 + 過去ログ読み込み）。
@@ -192,24 +172,38 @@ export function ChatRoom({
                   textAlign: "left",
                 }}
               >
-                {splitByMentions(m.body).map((seg, i) =>
-                  seg.type === "mention" ? (
-                    <span
-                      key={i}
-                      style={{
-                        background: "#fff3a0",
-                        color: "#5a4500",
-                        borderRadius: 4,
-                        padding: "0 2px",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {seg.value}
-                    </span>
-                  ) : (
-                    seg.value
-                  ),
-                )}
+                {tokenizeMessageBody(m.body).map((seg, i) => {
+                  if (seg.type === "mention") {
+                    return (
+                      <span
+                        key={i}
+                        style={{
+                          background: "#fff3a0",
+                          color: "#5a4500",
+                          borderRadius: 4,
+                          padding: "0 2px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {seg.value}
+                      </span>
+                    );
+                  }
+                  if (seg.type === "link") {
+                    return (
+                      <a
+                        key={i}
+                        href={seg.value}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "#1e6fdf", textDecoration: "underline" }}
+                      >
+                        {seg.value}
+                      </a>
+                    );
+                  }
+                  return seg.value;
+                })}
               </div>
             </div>
           );
