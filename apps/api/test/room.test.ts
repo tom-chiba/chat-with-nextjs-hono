@@ -1,9 +1,9 @@
 import { env } from "cloudflare:test";
 import type { ServerMessage } from "@repo/shared";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createDb } from "../src/db";
-import { messages, user } from "../src/db/schema";
+import { messages, roomMembers, rooms, user } from "../src/db/schema";
 
 /** テスト用にユーザー行を作成（messages.user_id の FK を満たすため）。 */
 async function seedUser(id: string, name: string) {
@@ -18,6 +18,22 @@ async function seedUser(id: string, name: string) {
       createdAt: new Date(),
       updatedAt: new Date(),
     })
+    .onConflictDoNothing();
+}
+
+/** テスト用にルームと所属を作成する。 */
+async function seedRoom(roomId: string, memberIds: string[]) {
+  const db = createDb(env.DB);
+  await db.insert(rooms).values({ id: roomId, name: roomId }).onConflictDoNothing();
+  await db
+    .insert(roomMembers)
+    .values(
+      memberIds.map((userId, index) => ({
+        roomId,
+        userId,
+        role: index === 0 ? ("owner" as const) : ("member" as const),
+      })),
+    )
     .onConflictDoNothing();
 }
 
@@ -69,6 +85,7 @@ describe("RoomDO", () => {
   });
 
   test("接続直後に履歴（初回は空）を受け取る", async () => {
+    await seedRoom("room-history", ["alice"]);
     const { next } = await connect("room-history", "alice");
     const first = await next();
     expect(first.type).toBe("history");
@@ -78,6 +95,7 @@ describe("RoomDO", () => {
   });
 
   test("発言が同じルームの全接続へブロードキャストされ D1 に保存される", async () => {
+    await seedRoom("room-broadcast", ["alice", "bob"]);
     const a = await connect("room-broadcast", "alice");
     expect((await a.next()).type).toBe("history");
     const b = await connect("room-broadcast", "bob");
@@ -105,6 +123,7 @@ describe("RoomDO", () => {
   });
 
   test("空文字や非 message 型は無視される", async () => {
+    await seedRoom("room-ignore", ["alice"]);
     const a = await connect("room-ignore", "alice");
     expect((await a.next()).type).toBe("history");
 
@@ -125,5 +144,30 @@ describe("RoomDO", () => {
       .from(messages)
       .where(eq(messages.roomId, "room-ignore"));
     expect(rows).toHaveLength(1);
+  });
+
+  test("接続後にメンバーから外れたユーザーの発言は保存しない", async () => {
+    await seedRoom("room-removed-member", ["alice", "bob"]);
+    const b = await connect("room-removed-member", "bob");
+    expect((await b.next()).type).toBe("history");
+
+    const db = createDb(env.DB);
+    await db
+      .delete(roomMembers)
+      .where(
+        and(
+          eq(roomMembers.roomId, "room-removed-member"),
+          eq(roomMembers.userId, "bob"),
+        ),
+      );
+
+    b.ws.send(JSON.stringify({ type: "message", body: "削除後の発言" }));
+    await scheduler.wait(10);
+
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.roomId, "room-removed-member"));
+    expect(rows).toHaveLength(0);
   });
 });
