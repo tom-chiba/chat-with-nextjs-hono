@@ -2,17 +2,24 @@
 
 import type { Room } from "@repo/shared";
 import { MAX_ROOM_NAME_LENGTH } from "@repo/shared";
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createRoom, listRooms } from "@/lib/rooms";
 
+export type RoomListHandle = {
+  /** 未読件数を含むルーム一覧をサーバから取り直す。選択中ルーム既読化後に親から呼ぶ。 */
+  refresh: () => void;
+  /** 指定ルームの未読を 0 として即時反映する（refresh の到達前の楽観更新）。 */
+  markRoomReadLocally: (roomId: string) => void;
+};
+
 /** ルーム一覧 + 作成フォーム。選択中ルームを親に通知する。 */
-export function RoomList({
-  selectedRoomId,
-  onSelect,
-}: {
-  selectedRoomId: string | null;
-  onSelect: (roomId: string) => void;
-}) {
+export const RoomList = forwardRef<
+  RoomListHandle,
+  {
+    selectedRoomId: string | null;
+    onSelect: (roomId: string) => void;
+  }
+>(function RoomList({ selectedRoomId, onSelect }, ref) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,35 +32,52 @@ export function RoomList({
   const selectedRef = useRef(selectedRoomId);
   selectedRef.current = selectedRoomId;
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const list = await listRooms();
-        if (!active) return;
-        // ロード中にユーザーが作成したルーム（prev に prepend 済み）は、サーバ
-        // スナップショットに含まれていなくても消さないようマージする。
-        setRooms((prev) => {
-          const ids = new Set(list.map((r) => r.id));
-          const localOnly = prev.filter((r) => !ids.has(r.id));
-          return [...localOnly, ...list];
-        });
-        // 未選択なら先頭ルームを自動選択する。
-        const first = list[0];
-        if (first && selectedRef.current === null) {
-          onSelectRef.current(first.id);
-        }
-      } catch (e) {
-        if (active) {
-          setError(e instanceof Error ? e.message : "読み込みに失敗しました");
-        }
-      } finally {
-        if (active) setLoading(false);
+  const fetchRooms = async (signal: { active: boolean }) => {
+    try {
+      const list = await listRooms();
+      if (!signal.active) return;
+      // ロード中にユーザーが作成したルーム（prev に prepend 済み）は、サーバ
+      // スナップショットに含まれていなくても消さないようマージする。
+      setRooms((prev) => {
+        const fromServer = new Map(list.map((r) => [r.id, r]));
+        const localOnly = prev.filter((r) => !fromServer.has(r.id));
+        return [...localOnly, ...list];
+      });
+      const first = list[0];
+      if (first && selectedRef.current === null) {
+        onSelectRef.current(first.id);
       }
-    })();
+    } catch (e) {
+      if (signal.active) {
+        setError(e instanceof Error ? e.message : "読み込みに失敗しました");
+      }
+    } finally {
+      if (signal.active) setLoading(false);
+    }
+  };
+
+  const refreshSignal = useRef({ active: true });
+  refreshSignal.current.active = true;
+
+  useImperativeHandle(ref, () => ({
+    refresh: () => {
+      void fetchRooms(refreshSignal.current);
+    },
+    markRoomReadLocally: (roomId) => {
+      setRooms((prev) =>
+        prev.map((r) => (r.id === roomId ? { ...r, unreadCount: 0 } : r)),
+      );
+    },
+  }));
+
+  useEffect(() => {
+    const signal = { active: true };
+    void fetchRooms(signal);
     return () => {
-      active = false;
+      signal.active = false;
     };
+    // 初回マウント時のみ読み込む（refresh は ref 経由で呼ばれる）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const submit = async (e: React.FormEvent) => {
@@ -120,11 +144,39 @@ export function RoomList({
                     cursor: "pointer",
                     fontWeight: active ? 600 : 400,
                     overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
                   }}
                 >
-                  {room.name}
+                  <span
+                    style={{
+                      flex: 1,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {room.name}
+                  </span>
+                  {room.unreadCount > 0 && (
+                    <span
+                      aria-label={`未読 ${room.unreadCount} 件`}
+                      style={{
+                        background: "#e74c3c",
+                        color: "#fff",
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: "1px 6px",
+                        minWidth: 18,
+                        textAlign: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {room.unreadCount > 99 ? "99+" : room.unreadCount}
+                    </span>
+                  )}
                 </button>
               </li>
             );
@@ -133,4 +185,4 @@ export function RoomList({
       )}
     </div>
   );
-}
+});

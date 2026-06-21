@@ -19,6 +19,18 @@ export async function createRoom(name: string): Promise<Room> {
 }
 
 /**
+ * 自分のルーム既読位置を `at`（ミリ秒）まで進める。
+ * サーバ側で「より新しい場合のみ」更新するため、巻き戻しは起きない。
+ */
+export async function markRoomRead(roomId: string, at: number): Promise<void> {
+  const res = await client.rooms[":roomId"].read.$post({
+    param: { roomId },
+    json: { at },
+  });
+  if (!res.ok) throw new Error("既読更新に失敗しました");
+}
+
+/**
  * ルームのメッセージ履歴を古い順で取得する。
  * `before` を渡すと、その位置より古い 1 ページを取得する（過去ログ読み込み用）。
  */

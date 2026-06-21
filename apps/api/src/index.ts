@@ -19,6 +19,7 @@ import {
   getRoomMembership,
   listRoomMembers,
   listRoomsForUser,
+  markRoomRead,
   requireRoomOwner,
   userExists,
 } from "./db/rooms";
@@ -172,6 +173,7 @@ const routes = app
         id: r.id,
         name: r.name,
         createdAt: r.createdAt.getTime(),
+        unreadCount: Number(r.unreadCount ?? 0),
       })),
     });
   })
@@ -197,8 +199,43 @@ const routes = app
       ownerId: session.user.id,
       createdAt: new Date(createdAt),
     });
-    return c.json({ room: { id, name, createdAt } }, 201);
+    return c.json(
+      { room: { id, name, createdAt, unreadCount: 0 } },
+      201,
+    );
   })
+  // 自分の lastReadAt を進める。`at` は既読化したい時刻のミリ秒。
+  .post(
+    "/rooms/:roomId/read",
+    // RPC クライアントに json ボディ型を伝えるため validator を通す。
+    validator("json", (value: { at?: number }) => value),
+    async (c) => {
+      const auth = createAuth(c.env);
+      const session = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (!session) {
+        return c.json({ error: "unauthorized" } as const, 401);
+      }
+
+      const roomId = c.req.param("roomId");
+      const db = createDb(c.env.DB);
+      const membership = await getRoomMembership(db, roomId, session.user.id);
+      if (membership.status === "not_found") {
+        return c.json({ error: "room not found" } as const, 404);
+      }
+      if (membership.status === "forbidden") {
+        return c.json({ error: "forbidden" } as const, 403);
+      }
+
+      const json = c.req.valid("json");
+      const atMs = typeof json.at === "number" ? json.at : Date.now();
+      if (!Number.isFinite(atMs) || atMs < 0) {
+        return c.json({ error: "invalid at" } as const, 400);
+      }
+
+      await markRoomRead(db, roomId, session.user.id, new Date(atMs));
+      return c.json({ ok: true } as const);
+    },
+  )
   // ルームメンバー一覧。所属メンバーのみ閲覧可。
   .get("/rooms/:roomId/members", async (c) => {
     const auth = createAuth(c.env);

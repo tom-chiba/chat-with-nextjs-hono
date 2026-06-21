@@ -1,6 +1,6 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import type { Db } from "./index";
-import { roomMembers, rooms, user } from "./schema";
+import { messages, roomMembers, rooms, user } from "./schema";
 
 export type RoomRole = "owner" | "member";
 
@@ -22,11 +22,40 @@ export async function listRoomsForUser(db: Db, userId: string) {
       id: rooms.id,
       name: rooms.name,
       createdAt: rooms.createdAt,
+      // 自分が書いたものは未読としない。lastReadAt より新しい他人のメッセージ件数。
+      unreadCount: sql<number>`(
+        SELECT COUNT(*) FROM ${messages}
+        WHERE ${messages.roomId} = ${rooms.id}
+          AND ${messages.createdAt} > ${roomMembers.lastReadAt}
+          AND ${messages.userId} != ${roomMembers.userId}
+      )`,
     })
     .from(roomMembers)
     .innerJoin(rooms, eq(roomMembers.roomId, rooms.id))
     .where(eq(roomMembers.userId, userId))
     .orderBy(desc(rooms.createdAt), desc(rooms.id));
+}
+
+/**
+ * 自分のメンバー行の `lastReadAt` を `at` まで進める。
+ * 後退（巻き戻し）はしない。
+ */
+export async function markRoomRead(
+  db: Db,
+  roomId: string,
+  userId: string,
+  at: Date,
+) {
+  await db
+    .update(roomMembers)
+    .set({ lastReadAt: at })
+    .where(
+      and(
+        eq(roomMembers.roomId, roomId),
+        eq(roomMembers.userId, userId),
+        lt(roomMembers.lastReadAt, at),
+      ),
+    );
 }
 
 export async function getRoomById(db: Db, roomId: string) {
@@ -45,6 +74,7 @@ export async function createRoomWithOwner(
       userId: ownerId,
       role: "owner",
       joinedAt: createdAt,
+      lastReadAt: createdAt,
     }),
   ]);
 }
