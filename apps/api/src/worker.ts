@@ -5,6 +5,8 @@
  * （Durable Object フォワード・`RoomDO`）はこのファイルに分離している。
  */
 import { createAuth } from "./auth";
+import { createDb } from "./db";
+import { getRoomMembership } from "./db/rooms";
 import app from "./index";
 
 // WebSocket 接続。セッションを検証し、ルームの Durable Object へ本人情報付きでフォワードする。
@@ -26,6 +28,15 @@ app.get("/ws/room/:roomId", async (c) => {
   }
 
   const roomId = c.req.param("roomId");
+  const db = createDb(c.env.DB);
+  const membership = await getRoomMembership(db, roomId, session.user.id);
+  if (membership.status === "not_found") {
+    return c.json({ error: "room not found" } as const, 404);
+  }
+  if (membership.status === "forbidden") {
+    return c.json({ error: "forbidden" } as const, 403);
+  }
+
   // ROOM は共有 Bindings には載せず、ここで Worker ランタイムのグローバル型に統一して扱う
   // （npm の @cloudflare/workers-types と生成ランタイム型の Request 不一致を避けるため）。
   const room = (c.env as unknown as { ROOM: DurableObjectNamespace }).ROOM;

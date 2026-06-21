@@ -7,7 +7,8 @@ import {
 import { eq } from "drizzle-orm";
 import { createDb } from "./db";
 import { listMessages } from "./db/messages";
-import { messages, rooms, user } from "./db/schema";
+import { getRoomMembership } from "./db/rooms";
+import { messages, user } from "./db/schema";
 
 /** 接続ごとに WebSocket へ添付する送信者情報（ハイバネ復帰後も保持される）。 */
 type SocketAttachment = {
@@ -50,9 +51,6 @@ export class RoomDO extends DurableObject<Env> {
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ userId, userName, roomId } satisfies SocketAttachment);
 
-    // messages.room_id は rooms への FK。ルームが無ければ作成しておく（FK 違反回避）。
-    await this.ensureRoom(roomId);
-
     // 接続直後に直近の履歴を送る（UI が空にならないように）。
     const history = await this.recentMessages(roomId);
     server.send(
@@ -84,6 +82,13 @@ export class RoomDO extends DurableObject<Env> {
     if (trimmed.length === 0 || trimmed.length > MAX_MESSAGE_LENGTH) return;
 
     const { userId, userName, roomId } = attachment;
+    const db = createDb(this.env.DB);
+    const membership = await getRoomMembership(db, roomId, userId);
+    if (membership.status !== "member") {
+      ws.close(1008, "not a room member");
+      return;
+    }
+
     const message: ChatMessage = {
       id: crypto.randomUUID(),
       roomId,
@@ -93,7 +98,6 @@ export class RoomDO extends DurableObject<Env> {
       createdAt: Date.now(),
     };
 
-    const db = createDb(this.env.DB);
     await db.insert(messages).values({
       id: message.id,
       roomId: message.roomId,
@@ -130,15 +134,6 @@ export class RoomDO extends DurableObject<Env> {
       .where(eq(user.id, userId))
       .limit(1);
     return rows[0]?.name ?? null;
-  }
-
-  /** ルーム行が無ければ作成する（id = name とする最小実装。ルーム管理は #8）。 */
-  private async ensureRoom(roomId: string): Promise<void> {
-    const db = createDb(this.env.DB);
-    await db
-      .insert(rooms)
-      .values({ id: roomId, name: roomId })
-      .onConflictDoNothing();
   }
 
   /** ルームの直近メッセージを古い順で返す。 */

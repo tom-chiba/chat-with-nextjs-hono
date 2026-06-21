@@ -15,6 +15,13 @@
       "when": 1781342883681,
       "tag": "0001_material_nightcrawler",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1782007641477,
+      "tag": "0002_young_gunslinger",
+      "breakpoints": true
     }
   ]
 }
