@@ -113,6 +113,23 @@ const data = await res.json(); // 型は API 側の定義から推論（{ status
 
 型は `@repo/api` のソースから共有されるため、API のルート定義を変更するとフロントの呼び出しが即座に型エラーで検出される。
 
+### Push 通知（Web Push / VAPID）
+
+Web Push の VAPID 鍵は環境ごとに 1 ペアを発行して管理する。
+
+```bash
+# 鍵ペア生成
+node --input-type=module -e "const k=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);const jwk=await crypto.subtle.exportKey('jwk',k.privateKey);const pub=Buffer.concat([Buffer.from([4]),Buffer.from(jwk.x,'base64url'),Buffer.from(jwk.y,'base64url')]).toString('base64url');console.log('VAPID_PUBLIC_KEY='+pub);console.log('VAPID_PRIVATE_KEY='+jwk.d);"
+
+# 公開鍵は秘匿不要な環境変数へ設定
+# apps/api/wrangler.jsonc の vars に VAPID_PUBLIC_KEY を追加する
+
+# 秘密鍵は Cloudflare Workers secret として設定
+pnpm --filter @repo/api exec wrangler secret put VAPID_PRIVATE_KEY
+```
+
+任意で `VAPID_SUBJECT` を設定できる。未設定時は `mailto:${EMAIL_FROM}` を subject として使う。
+
 ### デプロイ（Vercel: apps/web）
 
 モノレポのため、Vercel プロジェクト側で以下を設定する。

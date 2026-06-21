@@ -10,7 +10,8 @@
 		"enabled": true
 	},
 	// 秘匿不要な設定値は vars で管理（version 管理対象）。秘匿値は wrangler secret で投入する:
-	//   BETTER_AUTH_SECRET（署名鍵）/ RESEND_API_KEY（API キー）
+	//   BETTER_AUTH_SECRET（署名鍵）/ RESEND_API_KEY（API キー）/ VAPID_PRIVATE_KEY（Push 秘密鍵）
+	// Push 通知を有効にするには VAPID_PUBLIC_KEY を vars に追加し、同じペアの秘密鍵を secret に入れる。
 	"vars": {
 		"BETTER_AUTH_URL": "https://chat.api.tom-chiba.com",
 		"WEB_URL": "https://chat.tom-chiba.com",

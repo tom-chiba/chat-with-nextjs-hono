@@ -4,12 +4,16 @@ import { APP_NAME } from "@repo/shared";
 import { useState } from "react";
 import { AuthForm } from "@/components/auth-form";
 import { ChatRoom } from "@/components/chat-room";
+import { PushNotificationControl } from "@/components/push-notification-control";
 import { RoomList } from "@/components/room-list";
 import { signOut, useSession } from "@/lib/auth-client";
 
 export default function Home() {
   const { data: session, isPending } = useSession();
-  const [roomId, setRoomId] = useState<string | null>(null);
+  const [roomId, setRoomId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("room");
+  });
 
   return (
     <main style={{ padding: 24, display: "grid", gap: 16 }}>
@@ -21,6 +25,7 @@ export default function Home() {
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span>{session.user.name} としてログイン中</span>
+            <PushNotificationControl />
             <button type="button" onClick={() => signOut()}>
               ログアウト
             </button>

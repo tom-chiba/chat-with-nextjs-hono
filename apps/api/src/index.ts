@@ -11,6 +11,10 @@ import { type AuthEnv, createAuth } from "./auth";
 import { createDb } from "./db";
 import { listMessages } from "./db/messages";
 import {
+  deletePushSubscription,
+  upsertPushSubscription,
+} from "./db/push-subscriptions";
+import {
   createRoomWithOwner,
   getRoomMembership,
   listRoomMembers,
@@ -19,6 +23,7 @@ import {
   userExists,
 } from "./db/rooms";
 import { roomMembers } from "./db/schema";
+import { hasPushConfig } from "./push";
 
 /** クエリ値（string | string[] | undefined）から単一の文字列だけを取り出す。 */
 const pickQuery = (v: string | string[] | undefined) =>
@@ -34,6 +39,25 @@ const pickQuery = (v: string | string[] | undefined) =>
 export type Bindings = AuthEnv;
 
 const app = new Hono<{ Bindings: Bindings }>();
+
+function isPushSubscriptionInput(value: unknown): value is {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+} {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  const keys = record.keys;
+  if (!keys || typeof keys !== "object") return false;
+  const keyRecord = keys as Record<string, unknown>;
+  return (
+    typeof record.endpoint === "string" &&
+    record.endpoint.length > 0 &&
+    typeof keyRecord.p256dh === "string" &&
+    keyRecord.p256dh.length > 0 &&
+    typeof keyRecord.auth === "string" &&
+    keyRecord.auth.length > 0
+  );
+}
 
 type RoomNamespaceBinding = {
   idFromName(name: string): unknown;
@@ -82,6 +106,12 @@ app.on(["GET", "POST"], "/api/auth/*", (c) =>
 // RPC 用に型を共有するルートはチェーンして定義し、その型をエクスポートする。
 const routes = app
   .get("/health", (c) => c.json({ status: "ok" } as const))
+  .get("/push/vapid-public-key", (c) => {
+    if (!hasPushConfig(c.env)) {
+      return c.json({ error: "push is not configured" } as const, 503);
+    }
+    return c.json({ publicKey: c.env.VAPID_PUBLIC_KEY } as const);
+  })
   // 保護ルートの例：有効なセッションが無ければ 401。
   .get("/me", async (c) => {
     const auth = createAuth(c.env);
@@ -90,6 +120,43 @@ const routes = app
       return c.json({ error: "unauthorized" } as const, 401);
     }
     return c.json({ user: session.user });
+  })
+  .post("/push/subscriptions", async (c) => {
+    if (!hasPushConfig(c.env)) {
+      return c.json({ error: "push is not configured" } as const, 503);
+    }
+
+    const auth = createAuth(c.env);
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!session) {
+      return c.json({ error: "unauthorized" } as const, 401);
+    }
+
+    const json = await c.req.json().catch(() => undefined);
+    if (!isPushSubscriptionInput(json)) {
+      return c.json({ error: "invalid push subscription" } as const, 400);
+    }
+
+    const db = createDb(c.env.DB);
+    await upsertPushSubscription(db, session.user.id, json);
+    return c.json({ ok: true } as const, 201);
+  })
+  .delete("/push/subscriptions", async (c) => {
+    const auth = createAuth(c.env);
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!session) {
+      return c.json({ error: "unauthorized" } as const, 401);
+    }
+
+    const json = (await c.req.json().catch(() => ({}))) as { endpoint?: unknown };
+    const endpoint = typeof json.endpoint === "string" ? json.endpoint : "";
+    if (!endpoint) {
+      return c.json({ error: "invalid endpoint" } as const, 400);
+    }
+
+    const db = createDb(c.env.DB);
+    await deletePushSubscription(db, session.user.id, endpoint);
+    return c.json({ ok: true } as const);
   })
   // 自分が所属するルーム一覧（新しい順）。要セッション。
   .get("/rooms", async (c) => {
