@@ -65,9 +65,37 @@ export const messages = sqliteTable(
   (t) => [index("messages_room_id_created_at_idx").on(t.roomId, t.createdAt)],
 );
 
+/**
+ * Web Push の購読情報。
+ *
+ * endpoint はブラウザ側で一意に払い出される URL。失効時の掃除を単純にするため主キーにする。
+ */
+export const pushSubscriptions = sqliteTable(
+  "push_subscriptions",
+  {
+    endpoint: text("endpoint").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(CAST(unixepoch('subsec') * 1000 AS INTEGER))`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(CAST(unixepoch('subsec') * 1000 AS INTEGER))`),
+  },
+  (t) => [
+    index("push_subscriptions_user_id_idx").on(t.userId),
+  ],
+);
+
 export type Room = typeof rooms.$inferSelect;
 export type NewRoom = typeof rooms.$inferInsert;
 export type RoomMember = typeof roomMembers.$inferSelect;
 export type NewRoomMember = typeof roomMembers.$inferInsert;
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;

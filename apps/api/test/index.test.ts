@@ -4,7 +4,13 @@ import { eq } from "drizzle-orm";
 import { describe, expect, test } from "vitest";
 import { createDb } from "../src/db";
 import { createRoomWithOwner } from "../src/db/rooms";
-import { roomMembers, rooms, session, user } from "../src/db/schema";
+import {
+  pushSubscriptions,
+  roomMembers,
+  rooms,
+  session,
+  user,
+} from "../src/db/schema";
 import app from "../src/index";
 // WS ルートは worker.ts 側で app に登録される。default export は同一の app インスタンス。
 import workerApp from "../src/worker";
@@ -107,6 +113,85 @@ describe("API ルート", () => {
     const res = await app.request("/me", {}, env);
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "unauthorized" });
+  });
+
+  test("GET /push/vapid-public-key は未設定なら 503 を返す", async () => {
+    const unconfiguredEnv = {
+      ...env,
+      VAPID_PUBLIC_KEY: undefined,
+      VAPID_PRIVATE_KEY: undefined,
+    };
+    const res = await app.request("/push/vapid-public-key", {}, unconfiguredEnv);
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "push is not configured" });
+  });
+
+  test("Push Subscription はログインユーザーだけ登録・解除できる", async () => {
+    const configuredEnv = {
+      ...env,
+      VAPID_PUBLIC_KEY: "test-public-key",
+      VAPID_PRIVATE_KEY: "test-private-key",
+    };
+    const headers = await createSession("push-user", "Push User");
+
+    const unauthorized = await app.request(
+      "/push/subscriptions",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          endpoint: "https://push.example.com/unauthorized",
+          keys: { p256dh: "key", auth: "auth" },
+        }),
+      },
+      configuredEnv,
+    );
+    expect(unauthorized.status).toBe(401);
+
+    const createRes = await app.request(
+      "/push/subscriptions",
+      {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          endpoint: "https://push.example.com/push-user",
+          keys: { p256dh: "key", auth: "auth" },
+        }),
+      },
+      configuredEnv,
+    );
+    expect(createRes.status).toBe(201);
+    expect(await createRes.json()).toEqual({ ok: true });
+
+    const db = createDb(env.DB);
+    const rows = await db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, "push-user"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      endpoint: "https://push.example.com/push-user",
+      p256dh: "key",
+      auth: "auth",
+    });
+
+    const deleteRes = await app.request(
+      "/push/subscriptions",
+      {
+        method: "DELETE",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: "https://push.example.com/push-user" }),
+      },
+      configuredEnv,
+    );
+    expect(deleteRes.status).toBe(200);
+    expect(await deleteRes.json()).toEqual({ ok: true });
+
+    const afterDelete = await db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, "push-user"));
+    expect(afterDelete).toEqual([]);
   });
 
   test("GET /rooms はセッション無しで 401 を返す", async () => {

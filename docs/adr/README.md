@@ -21,3 +21,4 @@ ADR は `NNNN-title.md` の形式で保存します。
 ## 一覧
 
 - [0001: ADR にはユーザーが明示的に意思決定した内容のみを記録する](./0001-record-only-explicit-user-decisions.md)
+- [0002: Web Push は Web 標準 API で実装する](./0002-implement-web-push-with-web-standards.md)

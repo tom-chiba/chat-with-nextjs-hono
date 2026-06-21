@@ -9,6 +9,7 @@ import { createDb } from "./db";
 import { listMessages } from "./db/messages";
 import { getRoomMembership } from "./db/rooms";
 import { messages, user } from "./db/schema";
+import { sendMessagePushNotifications } from "./push";
 
 /** 接続ごとに WebSocket へ添付する送信者情報（ハイバネ復帰後も保持される）。 */
 type SocketAttachment = {
@@ -118,9 +119,21 @@ export class RoomDO extends DurableObject<Env> {
       type: "message",
       message,
     } satisfies ServerMessage);
+    const activeUserIds = new Set<string>();
     for (const socket of this.ctx.getWebSockets()) {
+      const socketAttachment = socket.deserializeAttachment() as SocketAttachment | null;
+      if (socketAttachment?.roomId === roomId) {
+        activeUserIds.add(socketAttachment.userId);
+      }
       socket.send(payload);
     }
+
+    await sendMessagePushNotifications({
+      db,
+      env: this.env,
+      message,
+      excludeUserIds: activeUserIds,
+    });
   }
 
   override async webSocketClose(ws: WebSocket, code: number): Promise<void> {
