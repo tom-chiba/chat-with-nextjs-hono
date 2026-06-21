@@ -3,11 +3,12 @@ import {
   type ChatMessage,
   type ServerMessage,
   MAX_MESSAGE_LENGTH,
+  parseMentionCandidates,
 } from "@repo/shared";
 import { eq } from "drizzle-orm";
 import { createDb } from "./db";
 import { listMessages } from "./db/messages";
-import { getRoomMembership } from "./db/rooms";
+import { getRoomMembership, listRoomMembers } from "./db/rooms";
 import { messages, user } from "./db/schema";
 import { sendMessagePushNotifications } from "./push";
 
@@ -128,11 +129,15 @@ export class RoomDO extends DurableObject<Env> {
       socket.send(payload);
     }
 
+    // 本文の `@<name>` をルームメンバー名と突き合わせ、メンションされた userId を解決する。
+    const mentionedUserIds = await resolveMentionedUserIds(db, roomId, trimmed);
+
     await sendMessagePushNotifications({
       db,
       env: this.env,
       message,
       excludeUserIds: activeUserIds,
+      mentionedUserIds,
     });
   }
 
@@ -163,6 +168,7 @@ export class RoomDO extends DurableObject<Env> {
     return listMessages(db, { roomId, limit: HISTORY_LIMIT });
   }
 
+
   private async disconnectMember(request: Request): Promise<Response> {
     const json = (await request.json().catch(() => ({}))) as { userId?: unknown };
     const userId = typeof json.userId === "string" ? json.userId : "";
@@ -184,4 +190,37 @@ export class RoomDO extends DurableObject<Env> {
 
     return Response.json({ closed } as const);
   }
+}
+
+/**
+ * 本文の `@<name>` をルームメンバー名と突き合わせ、メンションされた userId を返す。
+ * 完全一致のみ。最長一致のためメンバー名は長い順に評価する。
+ */
+async function resolveMentionedUserIds(
+  db: ReturnType<typeof createDb>,
+  roomId: string,
+  body: string,
+): Promise<Set<string>> {
+  const candidates = parseMentionCandidates(body);
+  if (candidates.length === 0) return new Set();
+
+  const members = await listRoomMembers(db, roomId);
+  // 表示名 → userId のマップ。同名は最初の 1 件のみ採用（任意性に依存しない MVP）。
+  const nameToUserId = new Map<string, string>();
+  for (const m of members) {
+    if (!nameToUserId.has(m.userName)) nameToUserId.set(m.userName, m.userId);
+  }
+  // 最長一致: 長いメンバー名から順にスキャンして本文にあるか確かめる。
+  const sortedNames = [...nameToUserId.keys()].toSorted(
+    (a, b) => b.length - a.length,
+  );
+
+  const hits = new Set<string>();
+  for (const cand of candidates) {
+    const matched = sortedNames.find((name) => cand.startsWith(name));
+    if (!matched) continue;
+    const userId = nameToUserId.get(matched);
+    if (userId) hits.add(userId);
+  }
+  return hits;
 }

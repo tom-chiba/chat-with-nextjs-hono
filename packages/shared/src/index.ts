@@ -14,6 +14,8 @@ export type {
 export {
   MAX_MESSAGE_LENGTH,
   MAX_ROOM_NAME_LENGTH,
+  MENTION_PATTERN,
   MESSAGE_PAGE_SIZE,
   MESSAGE_PAGE_SIZE_MAX,
+  parseMentionCandidates,
 } from "./chat";
