@@ -2,13 +2,18 @@
 
 import { MIN_PASSWORD_LENGTH } from "@repo/shared";
 import { useState } from "react";
-import { signIn, signUp } from "@/lib/auth-client";
+import {
+  requestPasswordReset,
+  signIn,
+  signUp,
+} from "@/lib/auth-client";
 
-type Mode = "login" | "signup";
+type Mode = "login" | "signup" | "forgot";
 
 /**
  * 最小のログイン / サインアップフォーム。
  * サインアップ時はメール検証が必要（`requireEmailVerification`）。
+ * パスワードを忘れた場合は forgot モードでリセットメールを発行する。
  */
 export function AuthForm() {
   const [mode, setMode] = useState<Mode>("login");
@@ -41,6 +46,23 @@ export function AuthForm() {
       }
       setMessage("確認メールを送信しました。メール内のリンクで認証してからログインしてください。");
       setMode("login");
+      return;
+    }
+
+    if (mode === "forgot") {
+      // パスワードリセットのトークン付き URL は API 側で発行され、redirectTo に飛ばされる。
+      const result = await requestPasswordReset({
+        email,
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      setPending(false);
+      if (result.error) {
+        setError(result.error.message ?? "メール送信に失敗しました");
+        return;
+      }
+      setMessage(
+        "パスワード再設定用のメールを送信しました。メール内のリンクから再設定してください。",
+      );
       return;
     }
 
@@ -89,18 +111,70 @@ export function AuthForm() {
         onChange={(e) => setEmail(e.target.value)}
         required
       />
-      <input
-        type="password"
-        placeholder={`パスワード（${MIN_PASSWORD_LENGTH}文字以上）`}
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        minLength={MIN_PASSWORD_LENGTH}
-        required
-      />
+      {mode !== "forgot" && (
+        <input
+          type="password"
+          placeholder={`パスワード（${MIN_PASSWORD_LENGTH}文字以上）`}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          minLength={MIN_PASSWORD_LENGTH}
+          required
+        />
+      )}
 
       <button type="submit" disabled={pending}>
-        {pending ? "送信中…" : mode === "login" ? "ログイン" : "登録"}
+        {pending
+          ? "送信中…"
+          : mode === "login"
+            ? "ログイン"
+            : mode === "signup"
+              ? "登録"
+              : "再設定メールを送る"}
       </button>
+
+      {mode === "login" ? (
+        <button
+          type="button"
+          onClick={() => {
+            setMode("forgot");
+            setError(null);
+            setMessage(null);
+          }}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "#1e6fdf",
+            textDecoration: "underline",
+            cursor: "pointer",
+            fontSize: 12,
+            padding: 0,
+            justifySelf: "start",
+          }}
+        >
+          パスワードを忘れた方
+        </button>
+      ) : mode === "forgot" ? (
+        <button
+          type="button"
+          onClick={() => {
+            setMode("login");
+            setError(null);
+            setMessage(null);
+          }}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "#1e6fdf",
+            textDecoration: "underline",
+            cursor: "pointer",
+            fontSize: 12,
+            padding: 0,
+            justifySelf: "start",
+          }}
+        >
+          ログインに戻る
+        </button>
+      ) : null}
 
       {message && <p style={{ color: "green" }}>{message}</p>}
       {error && <p style={{ color: "crimson" }}>{error}</p>}

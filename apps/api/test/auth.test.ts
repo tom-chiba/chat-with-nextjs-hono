@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { sendVerificationEmailWithResend } from "../src/auth";
+import {
+  sendPasswordResetEmailWithResend,
+  sendVerificationEmailWithResend,
+} from "../src/auth";
 
 const baseEmail = {
   from: "test@example.com",
@@ -110,6 +113,57 @@ describe("sendVerificationEmailWithResend", () => {
         recipientDomain: "example.net",
         error: { message: "network failed", name: "Error" },
       },
+    );
+  });
+});
+
+describe("sendPasswordResetEmailWithResend", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test("Resend にパスワード再設定メールを送信する", async () => {
+    const send = vi.fn().mockResolvedValue({
+      data: { id: "email-id" },
+      error: null,
+      headers: null,
+    });
+
+    await sendPasswordResetEmailWithResend({
+      emailSender: { send },
+      ...baseEmail,
+    });
+
+    expect(send).toHaveBeenCalledWith({
+      from: baseEmail.from,
+      to: baseEmail.to,
+      subject: "パスワードの再設定",
+      text: expect.stringContaining(baseEmail.url),
+    });
+  });
+
+  test("Resend API エラーは認証フローへ throw する", async () => {
+    const send = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        name: "invalid_api_key",
+        message: "Invalid API key",
+        statusCode: 401,
+      },
+      headers: null,
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      sendPasswordResetEmailWithResend({
+        emailSender: { send },
+        ...baseEmail,
+      }),
+    ).rejects.toThrow("Password reset email delivery failed");
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "Password reset email delivery failed",
+      expect.any(Object),
     );
   });
 });
