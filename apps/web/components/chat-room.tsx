@@ -43,10 +43,35 @@ export function ChatRoom({
   const [hasMore, setHasMore] = useState(true);
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  /** 直近で最下部スクロール判定に使ったライブ末尾 ID。 */
+  const lastSeenLiveIdRef = useRef<string | null>(null);
+  /** 最下部追従中かどうか（過去ログ閲覧中なら false）。スクロール中に追跡する。 */
+  const stickToBottomRef = useRef(true);
 
-  // 新着（ライブ）でのみ最下部へスクロールする。過去ログ連結では位置を保つ。
+  // ユーザーのスクロール位置を監視し「最下部から閾値内にいるか」を更新する。
+  // 履歴受信や新着のたびに DOM 更新前の値を見たいので useLayoutEffect ではなく onScroll で更新する。
+  const handleScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    // 余裕を持って 80px 以内なら「下にいる」とみなす。
+    stickToBottomRef.current = distance < 80;
+  };
+
+  // ライブ末尾 ID が更新されたタイミングだけ最下部へ移す（追従中のみ）。
+  // history による全置換でも末尾 ID が変わらなければスクロールしない。
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const latestId = live[live.length - 1]?.id ?? null;
+    if (latestId === lastSeenLiveIdRef.current) return;
+    const isInitial = lastSeenLiveIdRef.current === null;
+    lastSeenLiveIdRef.current = latestId;
+    if (latestId && (isInitial || stickToBottomRef.current)) {
+      // 初回マウントは "auto" で即座に最下部へ、以降は "smooth" でなめらかに。
+      bottomRef.current?.scrollIntoView({
+        behavior: isInitial ? "auto" : "smooth",
+      });
+    }
   }, [live]);
 
   // ライブ最新メッセージの createdAt を既読位置として送る。
@@ -129,6 +154,8 @@ export function ChatRoom({
       </div>
 
       <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
         style={{
           border: "1px solid #ddd",
           borderRadius: 8,
