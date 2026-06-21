@@ -3,7 +3,12 @@
 import type { Room } from "@repo/shared";
 import { MAX_ROOM_NAME_LENGTH } from "@repo/shared";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { createRoom, listRooms } from "@/lib/rooms";
+import {
+  createRoom,
+  deleteRoom as apiDeleteRoom,
+  listRooms,
+  updateRoomName,
+} from "@/lib/rooms";
 
 export type RoomListHandle = {
   /** 未読件数を含むルーム一覧をサーバから取り直す。選択中ルーム既読化後に親から呼ぶ。 */
@@ -17,7 +22,7 @@ export const RoomList = forwardRef<
   RoomListHandle,
   {
     selectedRoomId: string | null;
-    onSelect: (roomId: string) => void;
+    onSelect: (roomId: string | null) => void;
   }
 >(function RoomList({ selectedRoomId, onSelect }, ref) {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -25,6 +30,9 @@ export const RoomList = forwardRef<
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // onSelect / selectedRoomId は最新値を ref 経由で参照し、初回マウント時のみ読み込む。
   const onSelectRef = useRef(onSelect);
@@ -98,6 +106,51 @@ export const RoomList = forwardRef<
     }
   };
 
+  const startEdit = (room: Room) => {
+    setEditingId(room.id);
+    setEditDraft(room.name);
+    setActionError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft("");
+  };
+
+  const submitEdit = async (room: Room) => {
+    const name = editDraft.trim();
+    if (name.length === 0 || name === room.name) {
+      cancelEdit();
+      return;
+    }
+    setActionError(null);
+    try {
+      await updateRoomName(room.id, name);
+      setRooms((prev) =>
+        prev.map((r) => (r.id === room.id ? { ...r, name } : r)),
+      );
+      cancelEdit();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "更新に失敗しました");
+    }
+  };
+
+  const submitDelete = async (room: Room) => {
+    if (!window.confirm(`ルーム「${room.name}」を削除しますか？`)) return;
+    setActionError(null);
+    try {
+      await apiDeleteRoom(room.id);
+      setRooms((prev) => prev.filter((r) => r.id !== room.id));
+      if (selectedRoomId === room.id) {
+        // 削除したルームが選択中なら別ルームへ移すか、残り 0 件なら選択を外す。
+        const next = rooms.find((r) => r.id !== room.id) ?? null;
+        onSelect(next?.id ?? null);
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "削除に失敗しました");
+    }
+  };
+
   return (
     <div style={{ display: "grid", gap: 8, minWidth: 180, alignContent: "start" }}>
       <strong style={{ fontSize: 14 }}>ルーム</strong>
@@ -117,6 +170,9 @@ export const RoomList = forwardRef<
       </form>
 
       {error && <p style={{ color: "#c00", fontSize: 12 }}>{error}</p>}
+      {actionError && (
+        <p style={{ color: "#c00", fontSize: 12 }}>{actionError}</p>
+      )}
 
       {loading ? (
         <p style={{ color: "#999", fontSize: 12 }}>読み込み中…</p>
@@ -128,56 +184,120 @@ export const RoomList = forwardRef<
         <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 2 }}>
           {rooms.map((room) => {
             const active = room.id === selectedRoomId;
+            const isOwner = room.myRole === "owner";
+            const isEditing = editingId === room.id;
             return (
               <li key={room.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(room.id)}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "6px 8px",
-                    borderRadius: 6,
-                    border: "1px solid",
-                    borderColor: active ? "#4a90d9" : "#ddd",
-                    background: active ? "#eaf3fb" : "#fff",
-                    cursor: "pointer",
-                    fontWeight: active ? 600 : 400,
-                    overflow: "hidden",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <span
-                    style={{
-                      flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
+                {isEditing ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void submitEdit(room);
                     }}
+                    style={{ display: "flex", gap: 4 }}
                   >
-                    {room.name}
-                  </span>
-                  {room.unreadCount > 0 && (
-                    <span
-                      aria-label={`未読 ${room.unreadCount} 件`}
+                    <input
+                      type="text"
+                      autoFocus
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      maxLength={MAX_ROOM_NAME_LENGTH}
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                    <button type="submit">保存</button>
+                    <button type="button" onClick={cancelEdit}>
+                      取消
+                    </button>
+                  </form>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "stretch", gap: 2 }}>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(room.id)}
                       style={{
-                        background: "#e74c3c",
-                        color: "#fff",
-                        borderRadius: 999,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: "1px 6px",
-                        minWidth: 18,
-                        textAlign: "center",
-                        flexShrink: 0,
+                        flex: 1,
+                        textAlign: "left",
+                        padding: "6px 8px",
+                        borderRadius: 6,
+                        border: "1px solid",
+                        borderColor: active ? "#4a90d9" : "#ddd",
+                        background: active ? "#eaf3fb" : "#fff",
+                        cursor: "pointer",
+                        fontWeight: active ? 600 : 400,
+                        overflow: "hidden",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
                       }}
                     >
-                      {room.unreadCount > 99 ? "99+" : room.unreadCount}
-                    </span>
-                  )}
-                </button>
+                      <span
+                        style={{
+                          flex: 1,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {room.name}
+                      </span>
+                      {room.unreadCount > 0 && (
+                        <span
+                          aria-label={`未読 ${room.unreadCount} 件`}
+                          style={{
+                            background: "#e74c3c",
+                            color: "#fff",
+                            borderRadius: 999,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            padding: "1px 6px",
+                            minWidth: 18,
+                            textAlign: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {room.unreadCount > 99 ? "99+" : room.unreadCount}
+                        </span>
+                      )}
+                    </button>
+                    {isOwner && (
+                      <>
+                        <button
+                          type="button"
+                          aria-label="ルーム名を編集"
+                          title="ルーム名を編集"
+                          onClick={() => startEdit(room)}
+                          style={{
+                            padding: "2px 6px",
+                            border: "1px solid #ddd",
+                            borderRadius: 6,
+                            background: "#fff",
+                            cursor: "pointer",
+                            fontSize: 12,
+                          }}
+                        >
+                          編集
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="ルームを削除"
+                          title="ルームを削除"
+                          onClick={() => void submitDelete(room)}
+                          style={{
+                            padding: "2px 6px",
+                            border: "1px solid #ddd",
+                            borderRadius: 6,
+                            background: "#fff",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            color: "#c00",
+                          }}
+                        >
+                          削除
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}

@@ -22,8 +22,11 @@ type SocketAttachment = {
 /** 接続直後に返す履歴の件数。 */
 const HISTORY_LIMIT = 50;
 const DISCONNECT_MEMBER_PATH = "/disconnect-member";
+const DISCONNECT_ALL_PATH = "/disconnect-all";
 const ROOM_MEMBER_REMOVED_CLOSE_CODE = 1008;
 const ROOM_MEMBER_REMOVED_CLOSE_REASON = "removed from room";
+const ROOM_DELETED_CLOSE_CODE = 1001;
+const ROOM_DELETED_CLOSE_REASON = "room deleted";
 
 /**
  * 1 ルーム = 1 インスタンスのチャットルーム Durable Object。
@@ -35,6 +38,9 @@ export class RoomDO extends DurableObject<Env> {
     const url = new URL(request.url);
     if (request.method === "POST" && url.pathname === DISCONNECT_MEMBER_PATH) {
       return this.disconnectMember(request);
+    }
+    if (request.method === "POST" && url.pathname === DISCONNECT_ALL_PATH) {
+      return this.disconnectAll();
     }
 
     if (request.headers.get("Upgrade") !== "websocket") {
@@ -188,6 +194,16 @@ export class RoomDO extends DurableObject<Env> {
       closed += 1;
     }
 
+    return Response.json({ closed } as const);
+  }
+
+  /** ルーム削除時に、この DO に接続中の全 WebSocket を閉じる。 */
+  private async disconnectAll(): Promise<Response> {
+    let closed = 0;
+    for (const socket of this.ctx.getWebSockets()) {
+      socket.close(ROOM_DELETED_CLOSE_CODE, ROOM_DELETED_CLOSE_REASON);
+      closed += 1;
+    }
     return Response.json({ closed } as const);
   }
 }
