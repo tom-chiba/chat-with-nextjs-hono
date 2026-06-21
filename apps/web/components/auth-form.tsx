@@ -1,5 +1,6 @@
 "use client";
 
+import { MIN_PASSWORD_LENGTH } from "@repo/shared";
 import { useState } from "react";
 import { signIn, signUp } from "@/lib/auth-client";
 
@@ -90,10 +91,10 @@ export function AuthForm() {
       />
       <input
         type="password"
-        placeholder="パスワード（8文字以上）"
+        placeholder={`パスワード（${MIN_PASSWORD_LENGTH}文字以上）`}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        minLength={8}
+        minLength={MIN_PASSWORD_LENGTH}
         required
       />
 

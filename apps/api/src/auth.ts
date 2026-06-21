@@ -135,6 +135,9 @@ export function createAuth(env: AuthEnv) {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
+      // パスワード強度ポリシー：最低 12 文字、上限は誤入力/DoS 防止のため固定。
+      minPasswordLength: MIN_PASSWORD_LENGTH,
+      maxPasswordLength: MAX_PASSWORD_LENGTH,
     },
     emailVerification: {
       sendOnSignUp: true,
@@ -150,7 +153,25 @@ export function createAuth(env: AuthEnv) {
         });
       },
     },
+    // ブルートフォース / スパム抑制。デフォルトは 10 秒 100 req。認証系は 60 秒 5 回に絞る。
+    // 注: Workers のメモリは isolate 単位なので完全分散ではないが、同一 isolate 内の濫用は十分抑えられる。
+    rateLimit: {
+      enabled: true,
+      window: 10,
+      max: 100,
+      customRules: {
+        "/sign-in/email": { window: 60, max: 5 },
+        "/sign-up/email": { window: 60, max: 5 },
+        "/forget-password": { window: 60, max: 5 },
+        "/reset-password": { window: 60, max: 5 },
+      },
+    },
   });
 }
+
+/** パスワードの最小長（サーバ・クライアントで共有）。 */
+export const MIN_PASSWORD_LENGTH = 12;
+/** パスワードの最大長。誤入力 / DoS 防止のため上限を設ける。 */
+export const MAX_PASSWORD_LENGTH = 128;
 
 export type Auth = ReturnType<typeof createAuth>;

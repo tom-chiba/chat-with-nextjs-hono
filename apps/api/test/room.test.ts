@@ -1,5 +1,6 @@
 import { env } from "cloudflare:test";
 import type { ServerMessage } from "@repo/shared";
+import { WS_RATE_LIMIT_MAX } from "@repo/shared";
 import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createDb } from "../src/db";
@@ -169,5 +170,34 @@ describe("RoomDO", () => {
       .from(messages)
       .where(eq(messages.roomId, "room-removed-member"));
     expect(rows).toHaveLength(0);
+  });
+
+  test("レート制限を超えた送信は error を返し DB に保存しない", async () => {
+    await seedRoom("room-rate-limit", ["alice"]);
+    const a = await connect("room-rate-limit", "alice");
+    expect((await a.next()).type).toBe("history");
+
+    // 上限まで送信。すべて message として配信される。
+    for (let i = 0; i < WS_RATE_LIMIT_MAX; i += 1) {
+      a.ws.send(JSON.stringify({ type: "message", body: `msg-${i}` }));
+      const received = await a.next();
+      expect(received.type).toBe("message");
+    }
+
+    // 次の 1 件はレート制限に当たり、error が返る。
+    a.ws.send(JSON.stringify({ type: "message", body: "overflow" }));
+    const rejected = await a.next();
+    expect(rejected.type).toBe("error");
+    if (rejected.type === "error") {
+      expect(rejected.code).toBe("rate_limited");
+    }
+
+    const db = createDb(env.DB);
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.roomId, "room-rate-limit"));
+    expect(rows).toHaveLength(WS_RATE_LIMIT_MAX);
+    expect(rows.find((r) => r.body === "overflow")).toBeUndefined();
   });
 });
