@@ -18,6 +18,32 @@ export async function createRoom(name: string): Promise<Room> {
   return data.room;
 }
 
+/** ルーム名を変更する（オーナー専用）。 */
+export async function updateRoomName(
+  roomId: string,
+  name: string,
+): Promise<void> {
+  const res = await client.rooms[":roomId"].$patch({
+    param: { roomId },
+    json: { name },
+  });
+  if (!res.ok) {
+    if (res.status === 403) throw new Error("オーナーのみ編集できます");
+    if (res.status === 400) throw new Error("ルーム名が不正です");
+    throw new Error("ルーム名の更新に失敗しました");
+  }
+}
+
+/** ルームを削除する（オーナー専用）。 */
+export async function deleteRoom(roomId: string): Promise<void> {
+  const res = await client.rooms[":roomId"].$delete({ param: { roomId } });
+  if (!res.ok) {
+    if (res.status === 403) throw new Error("オーナーのみ削除できます");
+    if (res.status === 404) throw new Error("ルームが見つかりませんでした");
+    throw new Error("ルームの削除に失敗しました");
+  }
+}
+
 /**
  * 自分のルーム既読位置を `at`（ミリ秒）まで進める。
  * サーバ側で「より新しい場合のみ」更新するため、巻き戻しは起きない。

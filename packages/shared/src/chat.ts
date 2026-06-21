@@ -2,6 +2,9 @@
  * チャットの共有型。FE / BE（Worker・Durable Object）で共有する。
  */
 
+/** ルーム内のメンバーロール。owner は編集・削除・メンバー管理が可能。 */
+export type RoomRole = "owner" | "member";
+
 /**
  * チャットルーム。DB の `rooms` 行をクライアント向けにシリアライズした形
  * （`createdAt` をミリ秒エポックにする）。
@@ -13,6 +16,8 @@ export type Room = {
   createdAt: number;
   /** 自分が書いたものを除く、未読のメッセージ件数。 */
   unreadCount: number;
+  /** 自分のロール。UI でオーナー専用操作の出し分けに使う。 */
+  myRole: RoomRole;
 };
 
 /**

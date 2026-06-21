@@ -446,4 +446,152 @@ describe("API ルート", () => {
     expect(closeEvent.code).toBe(1008);
     expect(closeEvent.reason).toBe("removed from room");
   });
+
+  test("PATCH /rooms/:roomId はオーナーのみ名前を変更できる", async () => {
+    const ownerHeaders = await createSession("rename-owner", "Rename Owner");
+    const memberHeaders = await createSession("rename-member", "Rename Member");
+    await seedRoom({
+      roomId: "rename-room",
+      ownerId: "rename-owner",
+      memberIds: ["rename-member"],
+    });
+
+    const forbidden = await app.request(
+      "/rooms/rename-room",
+      {
+        method: "PATCH",
+        headers: { ...memberHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "新しい名前" }),
+      },
+      env,
+    );
+    expect(forbidden.status).toBe(403);
+
+    const invalid = await app.request(
+      "/rooms/rename-room",
+      {
+        method: "PATCH",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "   " }),
+      },
+      env,
+    );
+    expect(invalid.status).toBe(400);
+
+    const ok = await app.request(
+      "/rooms/rename-room",
+      {
+        method: "PATCH",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "新しい名前" }),
+      },
+      env,
+    );
+    expect(ok.status).toBe(200);
+
+    const db = createDb(env.DB);
+    const row = await db
+      .select()
+      .from(rooms)
+      .where(eq(rooms.id, "rename-room"));
+    expect(row[0]?.name).toBe("新しい名前");
+  });
+
+  test("DELETE /rooms/:roomId はオーナーのみ削除できて WS も閉じる", async () => {
+    const ownerHeaders = await createSession("delete-owner", "Delete Owner");
+    const memberHeaders = await createSession("delete-member", "Delete Member");
+    await seedRoom({
+      roomId: "delete-room",
+      ownerId: "delete-owner",
+      memberIds: ["delete-member"],
+    });
+
+    // メンバーは削除不可
+    const forbidden = await app.request(
+      "/rooms/delete-room",
+      { method: "DELETE", headers: memberHeaders },
+      env,
+    );
+    expect(forbidden.status).toBe(403);
+
+    // 存在しないルームは 404
+    const missing = await app.request(
+      "/rooms/no-such-room",
+      { method: "DELETE", headers: ownerHeaders },
+      env,
+    );
+    expect(missing.status).toBe(404);
+
+    // 接続中の WS を用意（削除時に切られることを確認）
+    const wsRes = await workerApp.request(
+      "/ws/room/delete-room",
+      {
+        headers: {
+          ...memberHeaders,
+          Upgrade: "websocket",
+          Origin: env.WEB_URL,
+        },
+      },
+      env,
+    );
+    expect(wsRes.status).toBe(101);
+    const ws = wsRes.webSocket;
+    if (!ws) throw new Error("expected webSocket on response");
+    ws.accept();
+    const close = waitForClose(ws);
+
+    const ok = await app.request(
+      "/rooms/delete-room",
+      { method: "DELETE", headers: ownerHeaders },
+      env,
+    );
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ ok: true });
+
+    const closeEvent = await close;
+    expect(closeEvent.code).toBe(1001);
+    expect(closeEvent.reason).toBe("room deleted");
+
+    const db = createDb(env.DB);
+    const remaining = await db
+      .select()
+      .from(rooms)
+      .where(eq(rooms.id, "delete-room"));
+    expect(remaining).toHaveLength(0);
+    const members = await db
+      .select()
+      .from(roomMembers)
+      .where(eq(roomMembers.roomId, "delete-room"));
+    expect(members).toHaveLength(0);
+  });
+
+  test("GET /rooms は myRole を返す", async () => {
+    const ownerHeaders = await createSession("role-owner", "Role Owner");
+    const memberHeaders = await createSession("role-member", "Role Member");
+    await seedRoom({
+      roomId: "role-room",
+      ownerId: "role-owner",
+      memberIds: ["role-member"],
+    });
+
+    const ownerRes = await app.request("/rooms", { headers: ownerHeaders }, env);
+    const ownerBody = await ownerRes.json<{
+      rooms: { id: string; myRole: string }[];
+    }>();
+    expect(
+      ownerBody.rooms.find((r) => r.id === "role-room")?.myRole,
+    ).toBe("owner");
+
+    const memberRes = await app.request(
+      "/rooms",
+      { headers: memberHeaders },
+      env,
+    );
+    const memberBody = await memberRes.json<{
+      rooms: { id: string; myRole: string }[];
+    }>();
+    expect(
+      memberBody.rooms.find((r) => r.id === "role-room")?.myRole,
+    ).toBe("member");
+  });
 });

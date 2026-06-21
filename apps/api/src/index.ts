@@ -16,11 +16,13 @@ import {
 } from "./db/push-subscriptions";
 import {
   createRoomWithOwner,
+  deleteRoom,
   getRoomMembership,
   listRoomMembers,
   listRoomsForUser,
   markRoomRead,
   requireRoomOwner,
+  updateRoomName,
   userExists,
 } from "./db/rooms";
 import { roomMembers } from "./db/schema";
@@ -83,6 +85,20 @@ async function disconnectRoomMember(
   );
 }
 
+/** ルーム削除時に、対応する DO へ接続中の全 WebSocket をクローズさせる。 */
+async function disconnectRoomAll(env: Bindings, roomId: string) {
+  const room = (env as unknown as { ROOM?: RoomNamespaceBinding }).ROOM;
+  if (!room) return;
+
+  const stub = room.get(room.idFromName(roomId));
+  await stub.fetch(
+    new Request("https://room.internal/disconnect-all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
 // Web（別サブドメイン = 別オリジン）からの Cookie 認証クロスオリジン呼び出しを許可する。
 // WebSocket の upgrade は CORS の対象外で、101 応答にヘッダを付けると干渉するためスキップする。
 app.use("*", (c, next) =>
@@ -92,7 +108,7 @@ app.use("*", (c, next) =>
         origin: c.env.WEB_URL,
         credentials: true,
         allowHeaders: ["Content-Type"],
-        allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+        allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       })(c, next),
 );
 
@@ -174,6 +190,7 @@ const routes = app
         name: r.name,
         createdAt: r.createdAt.getTime(),
         unreadCount: Number(r.unreadCount ?? 0),
+        myRole: r.role,
       })),
     });
   })
@@ -200,9 +217,72 @@ const routes = app
       createdAt: new Date(createdAt),
     });
     return c.json(
-      { room: { id, name, createdAt, unreadCount: 0 } },
+      {
+        room: {
+          id,
+          name,
+          createdAt,
+          unreadCount: 0,
+          myRole: "owner" as const,
+        },
+      },
       201,
     );
+  })
+  // ルーム名変更。オーナーのみ。
+  .patch(
+    "/rooms/:roomId",
+    // RPC クライアントに json ボディ型を伝えるため validator を通す。
+    validator("json", (value: { name?: string }) => value),
+    async (c) => {
+      const auth = createAuth(c.env);
+      const session = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (!session) {
+        return c.json({ error: "unauthorized" } as const, 401);
+      }
+
+      const roomId = c.req.param("roomId");
+      const db = createDb(c.env.DB);
+      const owner = await requireRoomOwner(db, roomId, session.user.id);
+      if (owner.status === "not_found") {
+        return c.json({ error: "room not found" } as const, 404);
+      }
+      if (owner.status !== "owner") {
+        return c.json({ error: "forbidden" } as const, 403);
+      }
+
+      const json = c.req.valid("json");
+      const name = typeof json.name === "string" ? json.name.trim() : "";
+      if (name.length === 0 || name.length > MAX_ROOM_NAME_LENGTH) {
+        return c.json({ error: "invalid room name" } as const, 400);
+      }
+
+      await updateRoomName(db, roomId, name);
+      return c.json({ room: { id: roomId, name } } as const);
+    },
+  )
+  // ルーム削除。オーナーのみ。messages/room_members は FK の CASCADE で削除される。
+  .delete("/rooms/:roomId", async (c) => {
+    const auth = createAuth(c.env);
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!session) {
+      return c.json({ error: "unauthorized" } as const, 401);
+    }
+
+    const roomId = c.req.param("roomId");
+    const db = createDb(c.env.DB);
+    const owner = await requireRoomOwner(db, roomId, session.user.id);
+    if (owner.status === "not_found") {
+      return c.json({ error: "room not found" } as const, 404);
+    }
+    if (owner.status !== "owner") {
+      return c.json({ error: "forbidden" } as const, 403);
+    }
+
+    await deleteRoom(db, roomId);
+    // 既存接続を切る（FK CASCADE 後の WS が古い状態のままになるのを防ぐ）。
+    await disconnectRoomAll(c.env, roomId);
+    return c.json({ ok: true } as const);
   })
   // 自分の lastReadAt を進める。`at` は既読化したい時刻のミリ秒。
   .post(

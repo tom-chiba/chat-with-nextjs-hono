@@ -22,6 +22,7 @@ export async function listRoomsForUser(db: Db, userId: string) {
       id: rooms.id,
       name: rooms.name,
       createdAt: rooms.createdAt,
+      role: roomMembers.role,
       // 自分が書いたものは未読としない。lastReadAt より新しい他人のメッセージ件数。
       unreadCount: sql<number>`(
         SELECT COUNT(*) FROM ${messages}
@@ -34,6 +35,14 @@ export async function listRoomsForUser(db: Db, userId: string) {
     .innerJoin(rooms, eq(roomMembers.roomId, rooms.id))
     .where(eq(roomMembers.userId, userId))
     .orderBy(desc(rooms.createdAt), desc(rooms.id));
+}
+
+export async function updateRoomName(db: Db, roomId: string, name: string) {
+  await db.update(rooms).set({ name }).where(eq(rooms.id, roomId));
+}
+
+export async function deleteRoom(db: Db, roomId: string) {
+  await db.delete(rooms).where(eq(rooms.id, roomId));
 }
 
 /**
