@@ -4,6 +4,7 @@ import { APP_NAME } from "@repo/shared";
 import { useRef, useState } from "react";
 import { AuthForm } from "@/components/auth-form";
 import { ChatRoom } from "@/components/chat-room";
+import { ProfileForm } from "@/components/profile-form";
 import { PushNotificationControl } from "@/components/push-notification-control";
 import { RoomList, type RoomListHandle } from "@/components/room-list";
 import { signOut, useSession } from "@/lib/auth-client";
@@ -35,6 +36,7 @@ export default function Home() {
             <span style={{ fontSize: "0.875rem" }}>
               {session.user.name} としてログイン中
             </span>
+            <ProfileForm currentName={session.user.name} />
             <PushNotificationControl />
             <button type="button" onClick={() => signOut()}>
               ログアウト
