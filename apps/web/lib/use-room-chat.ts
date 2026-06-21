@@ -55,6 +55,13 @@ export function useRoomChat(roomId: string) {
           setMessages(data.messages);
         } else if (data.type === "message") {
           setMessages((prev) => [...prev, data.message]);
+        } else if (data.type === "update") {
+          // 既存メッセージを id でマッチして差し替える（編集 / 論理削除）。
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === data.message.id ? data.message : m,
+            ),
+          );
         } else if (data.type === "error") {
           setErrorMessage(data.message);
         }

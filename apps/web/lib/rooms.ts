@@ -56,6 +56,38 @@ export async function markRoomRead(roomId: string, at: number): Promise<void> {
   if (!res.ok) throw new Error("既読更新に失敗しました");
 }
 
+/** メッセージ本文を編集する（本人のみ）。 */
+export async function editMessage(
+  roomId: string,
+  messageId: string,
+  body: string,
+): Promise<void> {
+  const res = await client.rooms[":roomId"].messages[":messageId"].$patch({
+    param: { roomId, messageId },
+    json: { body },
+  });
+  if (!res.ok) {
+    if (res.status === 403) throw new Error("本人のみ編集できます");
+    if (res.status === 400) throw new Error("メッセージ本文が不正です");
+    if (res.status === 410) throw new Error("削除済みのため編集できません");
+    throw new Error("メッセージの編集に失敗しました");
+  }
+}
+
+/** メッセージを削除する（本人のみ・論理削除）。 */
+export async function deleteMessage(
+  roomId: string,
+  messageId: string,
+): Promise<void> {
+  const res = await client.rooms[":roomId"].messages[":messageId"].$delete({
+    param: { roomId, messageId },
+  });
+  if (!res.ok) {
+    if (res.status === 403) throw new Error("本人のみ削除できます");
+    throw new Error("メッセージの削除に失敗しました");
+  }
+}
+
 /**
  * ルームのメッセージ履歴を古い順で取得する。
  * `before` を渡すと、その位置より古い 1 ページを取得する（過去ログ読み込み用）。

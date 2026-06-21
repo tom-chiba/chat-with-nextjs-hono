@@ -565,6 +565,112 @@ describe("API ルート", () => {
     expect(members).toHaveLength(0);
   });
 
+  test("PATCH /rooms/:roomId/messages/:messageId は本人のみ編集できる", async () => {
+    const ownerHeaders = await createSession("msg-edit-owner", "Owner");
+    const otherHeaders = await createSession("msg-edit-other", "Other");
+    await seedRoom({
+      roomId: "msg-edit-room",
+      ownerId: "msg-edit-owner",
+      memberIds: ["msg-edit-other"],
+    });
+
+    const db = createDb(env.DB);
+    const messageId = "msg-1";
+    await db.insert(rooms).values({ id: "msg-edit-room", name: "edit" }).onConflictDoNothing();
+    const { messages: messagesTable } = await import("../src/db/schema");
+    await db.insert(messagesTable).values({
+      id: messageId,
+      roomId: "msg-edit-room",
+      userId: "msg-edit-owner",
+      body: "before",
+      createdAt: new Date(),
+    });
+
+    // 他人は 403
+    const forbidden = await app.request(
+      `/rooms/msg-edit-room/messages/${messageId}`,
+      {
+        method: "PATCH",
+        headers: { ...otherHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "hijacked" }),
+      },
+      env,
+    );
+    expect(forbidden.status).toBe(403);
+
+    // 空本文は 400
+    const invalid = await app.request(
+      `/rooms/msg-edit-room/messages/${messageId}`,
+      {
+        method: "PATCH",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "  " }),
+      },
+      env,
+    );
+    expect(invalid.status).toBe(400);
+
+    const ok = await app.request(
+      `/rooms/msg-edit-room/messages/${messageId}`,
+      {
+        method: "PATCH",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "after" }),
+      },
+      env,
+    );
+    expect(ok.status).toBe(200);
+
+    const row = await db
+      .select()
+      .from(messagesTable)
+      .where(eq(messagesTable.id, messageId));
+    expect(row[0]?.body).toBe("after");
+    expect(row[0]?.editedAt).not.toBeNull();
+  });
+
+  test("DELETE /rooms/:roomId/messages/:messageId は本人のみ論理削除する", async () => {
+    const ownerHeaders = await createSession("msg-del-owner", "Owner");
+    const otherHeaders = await createSession("msg-del-other", "Other");
+    await seedRoom({
+      roomId: "msg-del-room",
+      ownerId: "msg-del-owner",
+      memberIds: ["msg-del-other"],
+    });
+
+    const db = createDb(env.DB);
+    const { messages: messagesTable } = await import("../src/db/schema");
+    await db.insert(messagesTable).values({
+      id: "msg-del-1",
+      roomId: "msg-del-room",
+      userId: "msg-del-owner",
+      body: "secret",
+      createdAt: new Date(),
+    });
+
+    // 他人は 403
+    const forbidden = await app.request(
+      "/rooms/msg-del-room/messages/msg-del-1",
+      { method: "DELETE", headers: otherHeaders },
+      env,
+    );
+    expect(forbidden.status).toBe(403);
+
+    const ok = await app.request(
+      "/rooms/msg-del-room/messages/msg-del-1",
+      { method: "DELETE", headers: ownerHeaders },
+      env,
+    );
+    expect(ok.status).toBe(200);
+
+    const row = await db
+      .select()
+      .from(messagesTable)
+      .where(eq(messagesTable.id, "msg-del-1"));
+    expect(row[0]?.body).toBe("");
+    expect(row[0]?.deletedAt).not.toBeNull();
+  });
+
   test("GET /rooms は myRole を返す", async () => {
     const ownerHeaders = await createSession("role-owner", "Role Owner");
     const memberHeaders = await createSession("role-member", "Role Member");

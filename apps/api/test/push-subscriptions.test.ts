@@ -128,6 +128,8 @@ describe("push subscription helpers", () => {
         userName: "Sender",
         body: "hello",
         createdAt: Date.now(),
+        editedAt: null,
+        deletedAt: null,
       },
       pushSender,
     });

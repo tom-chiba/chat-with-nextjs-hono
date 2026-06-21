@@ -23,6 +23,9 @@ export type Room = {
 /**
  * クライアントに配信する 1 メッセージ。
  * DB の `messages` 行に送信者名（`userName`）を付与した形。
+ *
+ * - `editedAt` は編集された時刻。未編集なら null。
+ * - `deletedAt` は論理削除された時刻。削除されていれば `body` は空文字で配信される。
  */
 export type ChatMessage = {
   id: string;
@@ -32,6 +35,10 @@ export type ChatMessage = {
   body: string;
   /** ミリ秒エポック（`messages.created_at`）。 */
   createdAt: number;
+  /** ミリ秒エポック。未編集なら null。 */
+  editedAt: number | null;
+  /** ミリ秒エポック。削除されていなければ null。 */
+  deletedAt: number | null;
 };
 
 /** クライアント → サーバ。 */
@@ -41,6 +48,8 @@ export type ClientMessage = { type: "message"; body: string };
 export type ServerMessage =
   | { type: "history"; messages: ChatMessage[] }
   | { type: "message"; message: ChatMessage }
+  /** 既存メッセージの更新（編集・論理削除）。クライアントは id でマッチして差し替える。 */
+  | { type: "update"; message: ChatMessage }
   | { type: "error"; code: ServerErrorCode; message: string };
 
 /** クライアントが分岐に使う想定のエラーコード。 */
