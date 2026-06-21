@@ -60,12 +60,15 @@ export async function sendMessagePushNotifications({
   env,
   message,
   excludeUserIds,
+  mentionedUserIds,
   pushSender = createWebCryptoPushSender(env) ?? undefined,
 }: {
   db: Db;
   env: AuthEnv;
   message: ChatMessage;
   excludeUserIds?: Set<string>;
+  /** メンションされた受信者 userId の集合。該当受信者は通知タイトルを差し替える。 */
+  mentionedUserIds?: Set<string>;
   pushSender?: PushSender;
 }) {
   if (!pushSender) return;
@@ -76,16 +79,22 @@ export async function sendMessagePushNotifications({
     excludeUserIds,
   });
 
-  const payload = JSON.stringify({
-    title: `${message.userName} さんから新着メッセージ`,
-    body: message.body,
-    roomId: message.roomId,
-    messageId: message.id,
-    url: `/?room=${encodeURIComponent(message.roomId)}`,
-  });
+  const defaultTitle = `${message.userName} さんから新着メッセージ`;
+  const mentionTitle = `${message.userName} さんからメンションされました`;
+  const buildPayload = (mentioned: boolean) =>
+    JSON.stringify({
+      title: mentioned ? mentionTitle : defaultTitle,
+      body: message.body,
+      roomId: message.roomId,
+      messageId: message.id,
+      url: `/?room=${encodeURIComponent(message.roomId)}`,
+      mentioned,
+    });
 
   await Promise.all(
     subscriptions.map(async (subscription) => {
+      const mentioned = mentionedUserIds?.has(subscription.userId) ?? false;
+      const payload = buildPayload(mentioned);
       let result: PushSendResult;
       try {
         result = await pushSender.send(subscription, payload);

@@ -1,6 +1,25 @@
 import { expect, test } from "vitest";
-import { APP_NAME } from "./index";
+import { APP_NAME, parseMentionCandidates } from "./index";
 
 test("APP_NAME はアプリ識別子を返す", () => {
   expect(APP_NAME).toBe("chat-with-nextjs-hono");
+});
+
+test("parseMentionCandidates は本文中の @<name> を順に拾う", () => {
+  expect(parseMentionCandidates("hello @alice and @bob.")).toEqual([
+    "alice",
+    "bob",
+  ]);
+});
+
+test("parseMentionCandidates は日本語名と全角句点を扱える", () => {
+  expect(parseMentionCandidates("@千葉さん、おはよう。")).toEqual(["千葉さん"]);
+});
+
+test("parseMentionCandidates はメールアドレスを誤検出しない", () => {
+  expect(parseMentionCandidates("メールは a@example.com です")).toEqual([]);
+});
+
+test("parseMentionCandidates はメンション無しなら空配列", () => {
+  expect(parseMentionCandidates("ふつうの本文")).toEqual([]);
 });
