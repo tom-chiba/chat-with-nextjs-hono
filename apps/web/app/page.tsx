@@ -17,43 +17,57 @@ export default function Home() {
   const roomListRef = useRef<RoomListHandle>(null);
 
   return (
-    <main style={{ padding: 24, display: "grid", gap: 16 }}>
-      <h1>{APP_NAME}</h1>
+    <main style={{ display: "grid", gap: 16 }}>
+      <h1 style={{ margin: 0, fontSize: "1.25rem" }}>{APP_NAME}</h1>
 
       {isPending ? (
         <p>読み込み中…</p>
       ) : session ? (
         <>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span>{session.user.name} としてログイン中</span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <span style={{ fontSize: "0.875rem" }}>
+              {session.user.name} としてログイン中
+            </span>
             <PushNotificationControl />
             <button type="button" onClick={() => signOut()}>
               ログアウト
             </button>
           </div>
-          <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
-            <RoomList
-              ref={roomListRef}
-              selectedRoomId={roomId}
-              onSelect={setRoomId}
-            />
-            {roomId ? (
-              // key でルーム切替時に ChatRoom を再マウントし、状態を初期化する。
-              <ChatRoom
-                key={roomId}
-                roomId={roomId}
-                currentUserId={session.user.id}
-                onRead={() => {
-                  // 自ルームの未読を 0 に楽観反映し、他ルーム分は再取得で同期する。
-                  roomListRef.current?.markRoomReadLocally(roomId);
-                  roomListRef.current?.refresh();
-                }}
+          <div className="app-shell" data-mobile-pane={roomId ? "chat" : "list"}>
+            <div className="roomlist-pane">
+              <RoomList
+                ref={roomListRef}
+                selectedRoomId={roomId}
+                onSelect={setRoomId}
               />
-            ) : (
-              <p style={{ color: "#999" }}>
-                ルームを選択するか、新しく作成してください。
-              </p>
-            )}
+            </div>
+            <div className="chat-pane">
+              {roomId ? (
+                // key でルーム切替時に ChatRoom を再マウントし、状態を初期化する。
+                <ChatRoom
+                  key={roomId}
+                  roomId={roomId}
+                  currentUserId={session.user.id}
+                  onBack={() => setRoomId(null)}
+                  onRead={() => {
+                    // 自ルームの未読を 0 に楽観反映し、他ルーム分は再取得で同期する。
+                    roomListRef.current?.markRoomReadLocally(roomId);
+                    roomListRef.current?.refresh();
+                  }}
+                />
+              ) : (
+                <p style={{ color: "#999" }}>
+                  ルームを選択するか、新しく作成してください。
+                </p>
+              )}
+            </div>
           </div>
         </>
       ) : (

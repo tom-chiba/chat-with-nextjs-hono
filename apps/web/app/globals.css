@@ -20,7 +20,51 @@ body {
 }
 
 main {
-  max-width: 40rem;
+  max-width: 72rem;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: 1rem;
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+/* ボタンとテキスト入力のタップターゲット最低サイズ。 */
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+button {
+  min-height: 36px;
+  padding: 6px 12px;
+}
+
+/* 1 ペインずつ切替するモバイルレイアウトと、横並びにするデスクトップレイアウト。 */
+.app-shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+.app-shell[data-mobile-pane="chat"] .roomlist-pane {
+  display: none;
+}
+.app-shell[data-mobile-pane="list"] .chat-pane {
+  display: none;
+}
+.mobile-only {
+  display: inline-flex;
+}
+@media (min-width: 48rem) {
+  .app-shell {
+    grid-template-columns: 16rem minmax(0, 1fr);
+  }
+  .app-shell .roomlist-pane,
+  .app-shell .chat-pane {
+    display: block;
+  }
+  .mobile-only {
+    display: none;
+  }
 }
