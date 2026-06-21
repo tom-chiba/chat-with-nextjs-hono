@@ -19,6 +19,9 @@ type SocketAttachment = {
 
 /** 接続直後に返す履歴の件数。 */
 const HISTORY_LIMIT = 50;
+const DISCONNECT_MEMBER_PATH = "/disconnect-member";
+const ROOM_MEMBER_REMOVED_CLOSE_CODE = 1008;
+const ROOM_MEMBER_REMOVED_CLOSE_REASON = "removed from room";
 
 /**
  * 1 ルーム = 1 インスタンスのチャットルーム Durable Object。
@@ -27,6 +30,11 @@ const HISTORY_LIMIT = 50;
  */
 export class RoomDO extends DurableObject<Env> {
   override async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === "POST" && url.pathname === DISCONNECT_MEMBER_PATH) {
+      return this.disconnectMember(request);
+    }
+
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected WebSocket upgrade", { status: 426 });
     }
@@ -140,5 +148,27 @@ export class RoomDO extends DurableObject<Env> {
   private async recentMessages(roomId: string): Promise<ChatMessage[]> {
     const db = createDb(this.env.DB);
     return listMessages(db, { roomId, limit: HISTORY_LIMIT });
+  }
+
+  private async disconnectMember(request: Request): Promise<Response> {
+    const json = (await request.json().catch(() => ({}))) as { userId?: unknown };
+    const userId = typeof json.userId === "string" ? json.userId : "";
+    if (!userId) {
+      return Response.json({ error: "invalid user id" } as const, { status: 400 });
+    }
+
+    let closed = 0;
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = socket.deserializeAttachment() as SocketAttachment | null;
+      if (attachment?.userId !== userId) continue;
+
+      socket.close(
+        ROOM_MEMBER_REMOVED_CLOSE_CODE,
+        ROOM_MEMBER_REMOVED_CLOSE_REASON,
+      );
+      closed += 1;
+    }
+
+    return Response.json({ closed } as const);
   }
 }

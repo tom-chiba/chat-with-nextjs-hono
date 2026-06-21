@@ -35,6 +35,29 @@ export type Bindings = AuthEnv;
 
 const app = new Hono<{ Bindings: Bindings }>();
 
+type RoomNamespaceBinding = {
+  idFromName(name: string): unknown;
+  get(id: unknown): { fetch(request: Request): Promise<Response> };
+};
+
+async function disconnectRoomMember(
+  env: Bindings,
+  roomId: string,
+  userId: string,
+) {
+  const room = (env as unknown as { ROOM?: RoomNamespaceBinding }).ROOM;
+  if (!room) return;
+
+  const stub = room.get(room.idFromName(roomId));
+  await stub.fetch(
+    new Request("https://room.internal/disconnect-member", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    }),
+  );
+}
+
 // Web（別サブドメイン = 別オリジン）からの Cookie 認証クロスオリジン呼び出しを許可する。
 // WebSocket の upgrade は CORS の対象外で、101 応答にヘッダを付けると干渉するためスキップする。
 app.use("*", (c, next) =>
@@ -220,6 +243,7 @@ const routes = app
           eq(roomMembers.userId, targetUserId),
         ),
       );
+    await disconnectRoomMember(c.env, roomId, targetUserId);
 
     return c.json({ ok: true } as const);
   })

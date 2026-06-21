@@ -1,4 +1,5 @@
 import { env } from "cloudflare:test";
+import type { ServerMessage } from "@repo/shared";
 import { eq } from "drizzle-orm";
 import { describe, expect, test } from "vitest";
 import { createDb } from "../src/db";
@@ -70,6 +71,29 @@ async function seedRoom({
       ...memberIds.map((userId) => ({ roomId, userId, role: "member" as const })),
     ])
     .onConflictDoNothing();
+}
+
+function readQueue(ws: WebSocket) {
+  const queue: ServerMessage[] = [];
+  const waiters: ((m: ServerMessage) => void)[] = [];
+  ws.addEventListener("message", (event) => {
+    const msg = JSON.parse(event.data as string) as ServerMessage;
+    const waiter = waiters.shift();
+    if (waiter) waiter(msg);
+    else queue.push(msg);
+  });
+  return () =>
+    new Promise<ServerMessage>((resolve) => {
+      const msg = queue.shift();
+      if (msg) resolve(msg);
+      else waiters.push(resolve);
+    });
+}
+
+function waitForClose(ws: WebSocket) {
+  return new Promise<CloseEvent>((resolve) => {
+    ws.addEventListener("close", (event) => resolve(event), { once: true });
+  });
 }
 
 describe("API ルート", () => {
@@ -294,5 +318,47 @@ describe("API ルート", () => {
     );
     expect(forbidden.status).toBe(403);
     expect(await forbidden.json()).toEqual({ error: "forbidden" });
+  });
+
+  test("DELETE /rooms/:roomId/members/:userId は対象ユーザーの既存 WS を close する", async () => {
+    const ownerHeaders = await createSession("delete-owner", "Owner");
+    const memberHeaders = await createSession("delete-member", "Member");
+    await seedRoom({
+      roomId: "delete-close-room",
+      ownerId: "delete-owner",
+      memberIds: ["delete-member"],
+    });
+
+    const connected = await workerApp.request(
+      "/ws/room/delete-close-room",
+      {
+        headers: {
+          ...memberHeaders,
+          Upgrade: "websocket",
+          Origin: env.WEB_URL,
+        },
+      },
+      env,
+    );
+    expect(connected.status).toBe(101);
+
+    const ws = connected.webSocket;
+    if (!ws) throw new Error("WebSocket がレスポンスに含まれていません");
+    const next = readQueue(ws);
+    const close = waitForClose(ws);
+    ws.accept();
+    expect((await next()).type).toBe("history");
+
+    const removed = await app.request(
+      "/rooms/delete-close-room/members/delete-member",
+      { method: "DELETE", headers: ownerHeaders },
+      env,
+    );
+    expect(removed.status).toBe(200);
+    expect(await removed.json()).toEqual({ ok: true });
+
+    const closeEvent = await close;
+    expect(closeEvent.code).toBe(1008);
+    expect(closeEvent.reason).toBe("removed from room");
   });
 });
