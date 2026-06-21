@@ -1,4 +1,6 @@
 import {
+  type ChatMessage,
+  MAX_MESSAGE_LENGTH,
   MAX_ROOM_NAME_LENGTH,
   MESSAGE_PAGE_SIZE,
   MESSAGE_PAGE_SIZE_MAX,
@@ -9,7 +11,12 @@ import { cors } from "hono/cors";
 import { validator } from "hono/validator";
 import { type AuthEnv, createAuth } from "./auth";
 import { createDb } from "./db";
-import { listMessages } from "./db/messages";
+import {
+  getMessageById,
+  listMessages,
+  softDeleteMessage,
+  updateMessageBody,
+} from "./db/messages";
 import {
   deletePushSubscription,
   upsertPushSubscription,
@@ -95,6 +102,25 @@ async function disconnectRoomAll(env: Bindings, roomId: string) {
     new Request("https://room.internal/disconnect-all", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
+/** メッセージ編集 / 削除を、対応する DO 経由で接続中の全 WebSocket に配信する。 */
+async function broadcastMessageUpdate(
+  env: Bindings,
+  roomId: string,
+  message: ChatMessage,
+) {
+  const room = (env as unknown as { ROOM?: RoomNamespaceBinding }).ROOM;
+  if (!room) return;
+
+  const stub = room.get(room.idFromName(roomId));
+  await stub.fetch(
+    new Request("https://room.internal/broadcast-update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
     }),
   );
 }
@@ -431,6 +457,108 @@ const routes = app
       );
     await disconnectRoomMember(c.env, roomId, targetUserId);
 
+    return c.json({ ok: true } as const);
+  })
+  // メッセージ編集。本人のみ。論理削除済みは編集不可。
+  .patch(
+    "/rooms/:roomId/messages/:messageId",
+    validator("json", (value: { body?: string }) => value),
+    async (c) => {
+      const auth = createAuth(c.env);
+      const session = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (!session) {
+        return c.json({ error: "unauthorized" } as const, 401);
+      }
+
+      const roomId = c.req.param("roomId");
+      const messageId = c.req.param("messageId");
+      const db = createDb(c.env.DB);
+      const membership = await getRoomMembership(db, roomId, session.user.id);
+      if (membership.status === "not_found") {
+        return c.json({ error: "room not found" } as const, 404);
+      }
+      if (membership.status === "forbidden") {
+        return c.json({ error: "forbidden" } as const, 403);
+      }
+
+      const json = c.req.valid("json");
+      const body = typeof json.body === "string" ? json.body.trim() : "";
+      if (body.length === 0 || body.length > MAX_MESSAGE_LENGTH) {
+        return c.json({ error: "invalid body" } as const, 400);
+      }
+
+      const existing = await getMessageById(db, messageId);
+      if (!existing || existing.roomId !== roomId) {
+        return c.json({ error: "message not found" } as const, 404);
+      }
+      if (existing.userId !== session.user.id) {
+        return c.json({ error: "forbidden" } as const, 403);
+      }
+      if (existing.deletedAt) {
+        return c.json({ error: "message is deleted" } as const, 410);
+      }
+
+      const editedAt = new Date();
+      await updateMessageBody(db, messageId, body, editedAt);
+
+      const updated: ChatMessage = {
+        id: existing.id,
+        roomId: existing.roomId,
+        userId: existing.userId,
+        userName: session.user.name,
+        body,
+        createdAt: existing.createdAt.getTime(),
+        editedAt: editedAt.getTime(),
+        deletedAt: null,
+      };
+      await broadcastMessageUpdate(c.env, roomId, updated);
+      return c.json({ message: updated } as const);
+    },
+  )
+  // メッセージ削除（論理削除）。本人のみ。
+  .delete("/rooms/:roomId/messages/:messageId", async (c) => {
+    const auth = createAuth(c.env);
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!session) {
+      return c.json({ error: "unauthorized" } as const, 401);
+    }
+
+    const roomId = c.req.param("roomId");
+    const messageId = c.req.param("messageId");
+    const db = createDb(c.env.DB);
+    const membership = await getRoomMembership(db, roomId, session.user.id);
+    if (membership.status === "not_found") {
+      return c.json({ error: "room not found" } as const, 404);
+    }
+    if (membership.status === "forbidden") {
+      return c.json({ error: "forbidden" } as const, 403);
+    }
+
+    const existing = await getMessageById(db, messageId);
+    if (!existing || existing.roomId !== roomId) {
+      return c.json({ error: "message not found" } as const, 404);
+    }
+    if (existing.userId !== session.user.id) {
+      return c.json({ error: "forbidden" } as const, 403);
+    }
+    if (existing.deletedAt) {
+      return c.json({ ok: true } as const);
+    }
+
+    const deletedAt = new Date();
+    await softDeleteMessage(db, messageId, deletedAt);
+
+    const updated: ChatMessage = {
+      id: existing.id,
+      roomId: existing.roomId,
+      userId: existing.userId,
+      userName: session.user.name,
+      body: "",
+      createdAt: existing.createdAt.getTime(),
+      editedAt: null,
+      deletedAt: deletedAt.getTime(),
+    };
+    await broadcastMessageUpdate(c.env, roomId, updated);
     return c.json({ ok: true } as const);
   })
   // ルームのメッセージ履歴（古い順）。`before`/`beforeId` で過去ページをたどる。要セッション。

@@ -7,7 +7,12 @@ import {
   tokenizeMessageBody,
 } from "@repo/shared";
 import { useEffect, useRef, useState } from "react";
-import { fetchMessages, markRoomRead } from "@/lib/rooms";
+import {
+  deleteMessage,
+  editMessage,
+  fetchMessages,
+  markRoomRead,
+} from "@/lib/rooms";
 import { useRoomChat } from "@/lib/use-room-chat";
 
 const STATUS_LABEL = {
@@ -15,7 +20,6 @@ const STATUS_LABEL = {
   open: "接続済み",
   closed: "切断（再接続中…）",
 } as const;
-
 
 /**
  * 単一ルームのチャット UI（一覧 + 入力 + 接続状態 + 過去ログ読み込み）。
@@ -42,6 +46,9 @@ export function ChatRoom({
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [draft, setDraft] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   /** 直近で最下部スクロール判定に使ったライブ末尾 ID。 */
@@ -49,32 +56,25 @@ export function ChatRoom({
   /** 最下部追従中かどうか（過去ログ閲覧中なら false）。スクロール中に追跡する。 */
   const stickToBottomRef = useRef(true);
 
-  // ユーザーのスクロール位置を監視し「最下部から閾値内にいるか」を更新する。
-  // 履歴受信や新着のたびに DOM 更新前の値を見たいので useLayoutEffect ではなく onScroll で更新する。
   const handleScroll = () => {
     const el = scrollContainerRef.current;
     if (!el) return;
     const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-    // 余裕を持って 80px 以内なら「下にいる」とみなす。
     stickToBottomRef.current = distance < 80;
   };
 
-  // ライブ末尾 ID が更新されたタイミングだけ最下部へ移す（追従中のみ）。
-  // history による全置換でも末尾 ID が変わらなければスクロールしない。
   useEffect(() => {
     const latestId = live[live.length - 1]?.id ?? null;
     if (latestId === lastSeenLiveIdRef.current) return;
     const isInitial = lastSeenLiveIdRef.current === null;
     lastSeenLiveIdRef.current = latestId;
     if (latestId && (isInitial || stickToBottomRef.current)) {
-      // 初回マウントは "auto" で即座に最下部へ、以降は "smooth" でなめらかに。
       bottomRef.current?.scrollIntoView({
         behavior: isInitial ? "auto" : "smooth",
       });
     }
   }, [live]);
 
-  // ライブ最新メッセージの createdAt を既読位置として送る。
   const onReadRef = useRef(onRead);
   onReadRef.current = onRead;
   useEffect(() => {
@@ -126,6 +126,41 @@ export function ChatRoom({
     if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
     e.preventDefault();
     submit(e);
+  };
+
+  const startEdit = (m: ChatMessage) => {
+    setEditingId(m.id);
+    setEditDraft(m.body);
+    setActionError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft("");
+  };
+
+  const submitEdit = async (m: ChatMessage) => {
+    const body = editDraft.trim();
+    if (body.length === 0 || body === m.body) {
+      cancelEdit();
+      return;
+    }
+    try {
+      await editMessage(roomId, m.id, body);
+      // WS の update 配信で自分にも反映されるため、ここではフォームを閉じるだけ。
+      cancelEdit();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "編集に失敗しました");
+    }
+  };
+
+  const submitDelete = async (m: ChatMessage) => {
+    if (!window.confirm("このメッセージを削除しますか？")) return;
+    try {
+      await deleteMessage(roomId, m.id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "削除に失敗しました");
+    }
   };
 
   return (
@@ -186,58 +221,156 @@ export function ChatRoom({
 
         {all.map((m) => {
           const mine = m.userId === currentUserId;
+          const isDeleted = m.deletedAt !== null;
+          const isEditing = editingId === m.id;
           return (
             <div key={m.id} style={{ textAlign: mine ? "right" : "left" }}>
               <span style={{ fontSize: 12, color: "#888" }}>{m.userName}</span>
-              <div
-                style={{
-                  display: "inline-block",
-                  background: mine ? "#dcf8c6" : "#f1f1f1",
-                  borderRadius: 8,
-                  padding: "4px 8px",
-                  wordBreak: "break-word",
-                  whiteSpace: "pre-wrap",
-                  textAlign: "left",
-                }}
-              >
-                {tokenizeMessageBody(m.body).map((seg, i) => {
-                  if (seg.type === "mention") {
-                    return (
-                      <span
-                        key={i}
-                        style={{
-                          background: "#fff3a0",
-                          color: "#5a4500",
-                          borderRadius: 4,
-                          padding: "0 2px",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {seg.value}
-                      </span>
-                    );
-                  }
-                  if (seg.type === "link") {
-                    return (
-                      <a
-                        key={i}
-                        href={seg.value}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: "#1e6fdf", textDecoration: "underline" }}
-                      >
-                        {seg.value}
-                      </a>
-                    );
-                  }
-                  return seg.value;
-                })}
-              </div>
+              {isEditing ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void submitEdit(m);
+                  }}
+                  style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}
+                >
+                  <textarea
+                    autoFocus
+                    value={editDraft}
+                    onChange={(e) => setEditDraft(e.target.value)}
+                    maxLength={MAX_MESSAGE_LENGTH}
+                    rows={2}
+                    style={{
+                      flex: 1,
+                      maxWidth: 400,
+                      resize: "vertical",
+                      fontFamily: "inherit",
+                      fontSize: "inherit",
+                    }}
+                  />
+                  <div style={{ display: "grid", gap: 2 }}>
+                    <button type="submit">保存</button>
+                    <button type="button" onClick={cancelEdit}>
+                      取消
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div
+                  style={{
+                    display: "inline-block",
+                    background: isDeleted
+                      ? "#f5f5f5"
+                      : mine
+                        ? "#dcf8c6"
+                        : "#f1f1f1",
+                    borderRadius: 8,
+                    padding: "4px 8px",
+                    wordBreak: "break-word",
+                    whiteSpace: "pre-wrap",
+                    textAlign: "left",
+                    color: isDeleted ? "#999" : "inherit",
+                    fontStyle: isDeleted ? "italic" : "normal",
+                  }}
+                >
+                  {isDeleted
+                    ? "（このメッセージは削除されました）"
+                    : tokenizeMessageBody(m.body).map((seg, i) => {
+                        if (seg.type === "mention") {
+                          return (
+                            <span
+                              key={i}
+                              style={{
+                                background: "#fff3a0",
+                                color: "#5a4500",
+                                borderRadius: 4,
+                                padding: "0 2px",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {seg.value}
+                            </span>
+                          );
+                        }
+                        if (seg.type === "link") {
+                          return (
+                            <a
+                              key={i}
+                              href={seg.value}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                color: "#1e6fdf",
+                                textDecoration: "underline",
+                              }}
+                            >
+                              {seg.value}
+                            </a>
+                          );
+                        }
+                        return seg.value;
+                      })}
+                  {m.editedAt !== null && !isDeleted && (
+                    <span
+                      style={{ fontSize: 10, color: "#888", marginLeft: 4 }}
+                      title="編集済み"
+                    >
+                      （編集済み）
+                    </span>
+                  )}
+                </div>
+              )}
+              {mine && !isDeleted && !isEditing && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 4,
+                    justifyContent: "flex-end",
+                    marginTop: 2,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => startEdit(m)}
+                    aria-label="メッセージを編集"
+                    style={{
+                      fontSize: 11,
+                      padding: "1px 6px",
+                      border: "1px solid #ddd",
+                      borderRadius: 4,
+                      background: "#fff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    編集
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void submitDelete(m)}
+                    aria-label="メッセージを削除"
+                    style={{
+                      fontSize: 11,
+                      padding: "1px 6px",
+                      border: "1px solid #ddd",
+                      borderRadius: 4,
+                      background: "#fff",
+                      cursor: "pointer",
+                      color: "#c00",
+                    }}
+                  >
+                    削除
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
         <div ref={bottomRef} />
       </div>
+
+      {actionError && (
+        <p style={{ color: "#c00", fontSize: 12, margin: 0 }}>{actionError}</p>
+      )}
 
       {errorMessage && (
         <div

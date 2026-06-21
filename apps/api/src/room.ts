@@ -25,6 +25,7 @@ type SocketAttachment = {
 const HISTORY_LIMIT = 50;
 const DISCONNECT_MEMBER_PATH = "/disconnect-member";
 const DISCONNECT_ALL_PATH = "/disconnect-all";
+const BROADCAST_UPDATE_PATH = "/broadcast-update";
 const ROOM_MEMBER_REMOVED_CLOSE_CODE = 1008;
 const ROOM_MEMBER_REMOVED_CLOSE_REASON = "removed from room";
 const ROOM_DELETED_CLOSE_CODE = 1001;
@@ -66,6 +67,9 @@ export class RoomDO extends DurableObject<Env> {
     }
     if (request.method === "POST" && url.pathname === DISCONNECT_ALL_PATH) {
       return this.disconnectAll();
+    }
+    if (request.method === "POST" && url.pathname === BROADCAST_UPDATE_PATH) {
+      return this.broadcastUpdate(request);
     }
 
     if (request.headers.get("Upgrade") !== "websocket") {
@@ -150,6 +154,8 @@ export class RoomDO extends DurableObject<Env> {
       userName,
       body: trimmed,
       createdAt: now,
+      editedAt: null,
+      deletedAt: null,
     };
 
     await db.insert(messages).values({
@@ -243,6 +249,35 @@ export class RoomDO extends DurableObject<Env> {
       closed += 1;
     }
     return Response.json({ closed } as const);
+  }
+
+  /**
+   * REST 経由のメッセージ編集 / 削除を、接続中の全 WebSocket に `update` として配信する。
+   * 同じルームに属するソケットだけが対象。
+   */
+  private async broadcastUpdate(request: Request): Promise<Response> {
+    const json = (await request.json().catch(() => ({}))) as {
+      message?: ChatMessage;
+    };
+    if (!json.message) {
+      return Response.json({ error: "invalid message" } as const, {
+        status: 400,
+      });
+    }
+    const payload = JSON.stringify({
+      type: "update",
+      message: json.message,
+    } satisfies ServerMessage);
+
+    let delivered = 0;
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment =
+        socket.deserializeAttachment() as SocketAttachment | null;
+      if (attachment?.roomId !== json.message.roomId) continue;
+      socket.send(payload);
+      delivered += 1;
+    }
+    return Response.json({ delivered } as const);
   }
 }
 

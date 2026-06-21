@@ -53,6 +53,9 @@ export const roomMembers = sqliteTable(
 
 /**
  * ルーム内のメッセージ。
+ *
+ * 編集すると `editedAt` に時刻が入る（初回投稿時は null）。
+ * 削除は論理削除で、`deletedAt` に時刻、`body` は空文字に書き換える。
  */
 export const messages = sqliteTable(
   "messages",
@@ -68,6 +71,8 @@ export const messages = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(CAST(unixepoch('subsec') * 1000 AS INTEGER))`),
+    editedAt: integer("edited_at", { mode: "timestamp_ms" }),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
   },
   (t) => [index("messages_room_id_created_at_idx").on(t.roomId, t.createdAt)],
 );

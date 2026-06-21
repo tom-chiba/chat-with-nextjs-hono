@@ -1,5 +1,5 @@
 import type { ChatMessage } from "@repo/shared";
-import { and, desc, eq, lt, or } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, or } from "drizzle-orm";
 import type { Db } from "./index";
 import { messages, user } from "./schema";
 
@@ -12,6 +12,10 @@ export type MessageCursor = { createdAt: number; id: string };
  * 並びは `(created_at, id)` のタイブレーク付き。同一ミリ秒のメッセージでも
  * 安定した順序になり、`cursor` を使ったキーセットページネーションが破綻しない。
  * `cursor` を渡すと、その位置より厳密に古いメッセージだけを返す。
+ *
+ * 論理削除されたメッセージ（`deleted_at` あり）はクライアントに「削除済み」として返す。
+ * 本文は空、`editedAt` も伏せる。チャット履歴に穴を作らないため、行ごと省くのではなく
+ * プレースホルダとして残す。
  */
 export async function listMessages(
   db: Db,
@@ -36,6 +40,8 @@ export async function listMessages(
       userId: messages.userId,
       body: messages.body,
       createdAt: messages.createdAt,
+      editedAt: messages.editedAt,
+      deletedAt: messages.deletedAt,
       userName: user.name,
     })
     .from(messages)
@@ -51,8 +57,48 @@ export async function listMessages(
       roomId: r.roomId,
       userId: r.userId,
       userName: r.userName,
-      body: r.body,
+      body: r.deletedAt ? "" : r.body,
       createdAt: r.createdAt.getTime(),
+      editedAt: r.deletedAt ? null : r.editedAt?.getTime() ?? null,
+      deletedAt: r.deletedAt?.getTime() ?? null,
     }))
     .toReversed();
+}
+
+/**
+ * 1 件のメッセージを取得する（編集 / 削除の所有者チェック用）。
+ * 行が無ければ null。
+ */
+export async function getMessageById(db: Db, messageId: string) {
+  const rows = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.id, messageId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** メッセージ本文を更新する。`editedAt` も同時に更新する。 */
+export async function updateMessageBody(
+  db: Db,
+  messageId: string,
+  body: string,
+  editedAt: Date,
+) {
+  await db
+    .update(messages)
+    .set({ body, editedAt })
+    .where(and(eq(messages.id, messageId), isNull(messages.deletedAt)));
+}
+
+/** メッセージを論理削除する。本文は空文字に書き換える。 */
+export async function softDeleteMessage(
+  db: Db,
+  messageId: string,
+  deletedAt: Date,
+) {
+  await db
+    .update(messages)
+    .set({ body: "", deletedAt })
+    .where(and(eq(messages.id, messageId), isNull(messages.deletedAt)));
 }
