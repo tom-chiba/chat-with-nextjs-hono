@@ -11,6 +11,7 @@
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "format": "oxlint --fix",
+    "format:check": "oxlint",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "test:e2e": "playwright test"
