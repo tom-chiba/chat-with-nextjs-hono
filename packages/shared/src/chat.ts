@@ -61,3 +61,59 @@ export const MENTION_PATTERN = /(?<=^|\s)@([^\s@、。,.!?！？]+)/g;
 export function parseMentionCandidates(body: string): string[] {
   return [...body.matchAll(MENTION_PATTERN)].map((m) => m[1] ?? "");
 }
+
+/**
+ * 本文中の URL を検出する正規表現。
+ *
+ * - `http://` または `https://` で始まり、空白に当たるまでを 1 つの URL として扱う。
+ * - 末尾に句読点や閉じ括弧が付いている可能性は tokenize 側で剥がす。
+ */
+export const URL_PATTERN = /https?:\/\/[^\s]+/g;
+
+const TRAILING_PUNCT = /[)\].,!?:;'"、。！？]+$/;
+
+export type MessageBodyToken =
+  | { type: "text"; value: string }
+  | { type: "mention"; value: string }
+  | { type: "link"; value: string };
+
+/**
+ * メッセージ本文をテキスト / メンション (`@<name>`) / リンク (`http(s)://...`) に分割する。
+ *
+ * URL に末尾の句読点（例: `https://example.com.` の `.`）が含まれていた場合は剥がして
+ * 後続の text トークンへ送る。同位置のメンションと URL は URL を優先する想定だが、現状の
+ * 正規表現では衝突しない（URL は空白で区切られ、メンションは `@` 開始のため）。
+ */
+export function tokenizeMessageBody(body: string): MessageBodyToken[] {
+  const tokens: MessageBodyToken[] = [];
+  // 両方の正規表現にマッチした位置を順序付きに集める。
+  type RawMatch = { start: number; end: number; type: "mention" | "link"; value: string };
+  const matches: RawMatch[] = [];
+  for (const m of body.matchAll(new RegExp(MENTION_PATTERN.source, "g"))) {
+    const start = m.index ?? 0;
+    matches.push({ start, end: start + m[0].length, type: "mention", value: m[0] });
+  }
+  for (const m of body.matchAll(new RegExp(URL_PATTERN.source, "g"))) {
+    const start = m.index ?? 0;
+    let value = m[0];
+    const trailing = value.match(TRAILING_PUNCT)?.[0] ?? "";
+    if (trailing) value = value.slice(0, value.length - trailing.length);
+    if (value.length === 0) continue;
+    matches.push({ start, end: start + value.length, type: "link", value });
+  }
+  matches.sort((a, b) => a.start - b.start);
+
+  let cursor = 0;
+  for (const m of matches) {
+    if (m.start < cursor) continue; // 重なりは先勝ち
+    if (m.start > cursor) {
+      tokens.push({ type: "text", value: body.slice(cursor, m.start) });
+    }
+    tokens.push({ type: m.type, value: m.value });
+    cursor = m.end;
+  }
+  if (cursor < body.length) {
+    tokens.push({ type: "text", value: body.slice(cursor) });
+  }
+  return tokens;
+}
