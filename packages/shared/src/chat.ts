@@ -11,6 +11,8 @@ export type Room = {
   name: string;
   /** ミリ秒エポック（`rooms.created_at`）。 */
   createdAt: number;
+  /** 自分が書いたものを除く、未読のメッセージ件数。 */
+  unreadCount: number;
 };
 
 /**

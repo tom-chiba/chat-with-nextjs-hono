@@ -3,7 +3,7 @@
 import type { ChatMessage } from "@repo/shared";
 import { MAX_MESSAGE_LENGTH, MESSAGE_PAGE_SIZE } from "@repo/shared";
 import { useEffect, useRef, useState } from "react";
-import { fetchMessages } from "@/lib/rooms";
+import { fetchMessages, markRoomRead } from "@/lib/rooms";
 import { useRoomChat } from "@/lib/use-room-chat";
 
 const STATUS_LABEL = {
@@ -21,9 +21,12 @@ const STATUS_LABEL = {
 export function ChatRoom({
   roomId,
   currentUserId,
+  onRead,
 }: {
   roomId: string;
   currentUserId: string;
+  /** 既読化が完了した際に呼ばれる（一覧側の未読バッジ更新用）。 */
+  onRead?: () => void;
 }) {
   const { messages: live, status, send } = useRoomChat(roomId);
   const [older, setOlder] = useState<ChatMessage[]>([]);
@@ -36,6 +39,25 @@ export function ChatRoom({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [live]);
+
+  // ライブ最新メッセージの createdAt を既読位置として送る。
+  const onReadRef = useRef(onRead);
+  onReadRef.current = onRead;
+  useEffect(() => {
+    const latest = live[live.length - 1];
+    if (!latest) return;
+    let cancelled = false;
+    void markRoomRead(roomId, latest.createdAt)
+      .then(() => {
+        if (!cancelled) onReadRef.current?.();
+      })
+      .catch(() => {
+        // 既読更新失敗は致命ではないので握りつぶす（次の更新でリカバリされる）。
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId, live]);
 
   const all = [...older, ...live];
 

@@ -1,11 +1,11 @@
 "use client";
 
 import { APP_NAME } from "@repo/shared";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AuthForm } from "@/components/auth-form";
 import { ChatRoom } from "@/components/chat-room";
 import { PushNotificationControl } from "@/components/push-notification-control";
-import { RoomList } from "@/components/room-list";
+import { RoomList, type RoomListHandle } from "@/components/room-list";
 import { signOut, useSession } from "@/lib/auth-client";
 
 export default function Home() {
@@ -14,6 +14,7 @@ export default function Home() {
     if (typeof window === "undefined") return null;
     return new URLSearchParams(window.location.search).get("room");
   });
+  const roomListRef = useRef<RoomListHandle>(null);
 
   return (
     <main style={{ padding: 24, display: "grid", gap: 16 }}>
@@ -31,13 +32,22 @@ export default function Home() {
             </button>
           </div>
           <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
-            <RoomList selectedRoomId={roomId} onSelect={setRoomId} />
+            <RoomList
+              ref={roomListRef}
+              selectedRoomId={roomId}
+              onSelect={setRoomId}
+            />
             {roomId ? (
               // key でルーム切替時に ChatRoom を再マウントし、状態を初期化する。
               <ChatRoom
                 key={roomId}
                 roomId={roomId}
                 currentUserId={session.user.id}
+                onRead={() => {
+                  // 自ルームの未読を 0 に楽観反映し、他ルーム分は再取得で同期する。
+                  roomListRef.current?.markRoomReadLocally(roomId);
+                  roomListRef.current?.refresh();
+                }}
               />
             ) : (
               <p style={{ color: "#999" }}>

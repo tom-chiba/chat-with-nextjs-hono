@@ -23,6 +23,10 @@ export const rooms = sqliteTable("rooms", {
 
 /**
  * ルームの所属メンバー。
+ *
+ * `lastReadAt` は当該メンバーがそのルームで「最後に既読化した時刻」。これより
+ * 新しい他人のメッセージを未読としてカウントする。新規参加直後は `joinedAt`
+ * と同値で未読 0 となる。
  */
 export const roomMembers = sqliteTable(
   "room_members",
@@ -37,6 +41,9 @@ export const roomMembers = sqliteTable(
     joinedAt: integer("joined_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(CAST(unixepoch('subsec') * 1000 AS INTEGER))`),
+    lastReadAt: integer("last_read_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`0`),
   },
   (t) => [
     primaryKey({ columns: [t.roomId, t.userId] }),
