@@ -22,11 +22,14 @@ export function ChatRoom({
   roomId,
   currentUserId,
   onRead,
+  onBack,
 }: {
   roomId: string;
   currentUserId: string;
   /** 既読化が完了した際に呼ばれる（一覧側の未読バッジ更新用）。 */
   onRead?: () => void;
+  /** モバイル時の「← 一覧へ」ボタン押下で呼ばれる（デスクトップでは表示されない）。 */
+  onBack?: () => void;
 }) {
   const { messages: live, status, send } = useRoomChat(roomId);
   const [older, setOlder] = useState<ChatMessage[]>([]);
@@ -95,15 +98,36 @@ export function ChatRoom({
   };
 
   return (
-    <div style={{ display: "grid", gap: 8, maxWidth: 520 }}>
-      <div style={{ fontSize: 12, color: "#666" }}>状態: {STATUS_LABEL[status]}</div>
+    <div style={{ display: "grid", gap: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        {onBack && (
+          <button
+            type="button"
+            className="mobile-only"
+            onClick={onBack}
+            aria-label="ルーム一覧へ戻る"
+          >
+            ← 一覧
+          </button>
+        )}
+        <div style={{ fontSize: 12, color: "#666" }}>
+          状態: {STATUS_LABEL[status]}
+        </div>
+      </div>
 
       <div
         style={{
           border: "1px solid #ddd",
           borderRadius: 8,
           padding: 12,
-          height: 360,
+          height: "min(60vh, 360px)",
           overflowY: "auto",
           display: "grid",
           gap: 6,
