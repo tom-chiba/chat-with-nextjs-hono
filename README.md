@@ -120,3 +120,7 @@ const data = await res.json(); // 型は API 側の定義から推論（{ status
 - **Root Directory**: `apps/web`
 - Framework Preset: Next.js（自動検出）
 - ビルド/インストールは Vercel がワークスペースを認識して実行（`pnpm install` / `next build`）
+
+## Architecture Decision Records
+
+アーキテクチャ上の意思決定は [docs/adr](./docs/adr/) に記録する。
