@@ -7,6 +7,9 @@
     "enabled": true,
     "allowUnsandboxedCommands": false,
     "failIfUnavailable": true,
+    "network": {
+      "allowLocalBinding": true
+    },
     "filesystem": {
       "allowWrite": [
         "~/.claude/plugins/data/",
@@ -15,8 +18,6 @@
     },
     "excludedCommands": [
       "playwright-cli *",
-      "curl *localhost*",
-      "curl *127.0.0.1*",
       "node *codex-companion.mjs*",
       "git *",
       "gh *"
