@@ -3,40 +3,6 @@
     "ENABLE_TOOL_SEARCH": "true",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
-  "sandbox": {
-    "enabled": true,
-    "allowUnsandboxedCommands": false,
-    "failIfUnavailable": true,
-    "network": {
-      "allowLocalBinding": true
-    },
-    "filesystem": {
-      "allowWrite": [
-        "~/.claude/plugins/data/",
-        "~/.codex/",
-        "~/Library/Preferences/.wrangler/"
-      ]
-    },
-    "excludedCommands": [
-      "playwright-cli *",
-      "node *codex-companion.mjs*",
-      "git *",
-      "gh *"
-    ]
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && pnpm typecheck && pnpm lint && pnpm format:check || exit 2"
-          }
-        ]
-      }
-    ]
-  },
   "permissions": {
     "allow": [
       "Bash(ls *)",
@@ -74,6 +40,13 @@
       "Skill(playwright-cli)",
       "Bash(playwright-cli *)"
     ],
+    "deny": [
+      "Bash(git switch -C *)",
+      "Bash(git switch --force-create *)",
+      "Bash(git switch -f *)",
+      "Bash(git switch --force *)",
+      "Bash(git switch --discard-changes *)"
+    ],
     "ask": [
       "Bash(playwright-cli eval *)",
       "Bash(playwright-cli delete-data *)",
@@ -82,13 +55,43 @@
       "Bash(playwright-cli localstorage-delete *)",
       "Bash(playwright-cli localstorage-clear *)",
       "Bash(playwright-cli run-code *)"
-    ],
-    "deny": [
-      "Bash(git switch -C *)",
-      "Bash(git switch --force-create *)",
-      "Bash(git switch -f *)",
-      "Bash(git switch --force *)",
-      "Bash(git switch --discard-changes *)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && pnpm typecheck && pnpm lint && pnpm format:check || exit 2"
+          }
+        ]
+      }
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "network": {
+      "allowLocalBinding": true
+    },
+    "filesystem": {
+      "allowWrite": [
+        "~/.claude/plugins/data/",
+        "~/.codex/",
+        "~/Library/Preferences/.wrangler/"
+      ]
+    },
+    "excludedCommands": [
+      "playwright-cli *",
+      "node *codex-companion.mjs*",
+      "git *",
+      "gh *"
+    ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true
   }
 }
