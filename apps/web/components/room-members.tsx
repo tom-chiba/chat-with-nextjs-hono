@@ -16,7 +16,7 @@ export function RoomMembers({
   currentUserId: string;
 }) {
   const [members, setMembers] = useState<RoomMember[]>([]);
-  const [draftUserId, setDraftUserId] = useState("");
+  const [draftEmail, setDraftEmail] = useState("");
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
@@ -54,14 +54,14 @@ export function RoomMembers({
 
   const submitAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const userId = draftUserId.trim();
-    if (!userId || adding) return;
+    const email = draftEmail.trim();
+    if (!email || adding) return;
 
     setAdding(true);
     setError(null);
     try {
-      await addRoomMember(roomId, userId);
-      setDraftUserId("");
+      await addRoomMember(roomId, email);
+      setDraftEmail("");
       await loadMembers({ active: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "メンバーの追加に失敗しました");
@@ -127,10 +127,6 @@ export function RoomMembers({
                 >
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ fontWeight: 600 }}>{member.userName}</span>
-                    <span style={{ color: "#777", fontSize: 12 }}>
-                      {" "}
-                      / {member.userId}
-                    </span>
                   </span>
                   <span style={{ color: "#777", fontSize: 12 }}>{member.role}</span>
                   {canRemove && (
@@ -160,13 +156,13 @@ export function RoomMembers({
         {isOwner && (
           <form onSubmit={submitAdd} style={{ display: "flex", gap: 4 }}>
             <input
-              type="text"
-              value={draftUserId}
-              onChange={(e) => setDraftUserId(e.target.value)}
-              placeholder="追加するユーザーID"
+              type="email"
+              value={draftEmail}
+              onChange={(e) => setDraftEmail(e.target.value)}
+              placeholder="追加するメンバーのメールアドレス"
               style={{ flex: 1, minWidth: 0 }}
             />
-            <button type="submit" disabled={adding || draftUserId.trim().length === 0}>
+            <button type="submit" disabled={adding || draftEmail.trim().length === 0}>
               追加
             </button>
           </form>

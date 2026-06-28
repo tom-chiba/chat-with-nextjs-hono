@@ -11,3 +11,13 @@ export const MAX_PASSWORD_LENGTH = 128;
 export const WS_RATE_LIMIT_WINDOW_MS = 10_000;
 /** ウィンドウ内で許可される 1 ユーザーあたりの最大送信件数。 */
 export const WS_RATE_LIMIT_MAX = 20;
+
+/**
+ * メールアドレスらしさの最小チェック用パターン。
+ * 厳密な RFC 検証はせず、「空白を含まない local@domain.tld」程度に留める
+ * （存在確認は別途行う前提で、明らかな誤入力を弾く目的）。
+ */
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** 値が {@link EMAIL_PATTERN} に一致すれば true。FE/BE 双方の入力検証で共有する。 */
+export const isEmailLike = (value: string) => EMAIL_PATTERN.test(value);

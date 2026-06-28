@@ -331,40 +331,49 @@ describe("API ルート", () => {
     expect(await missing.json()).toEqual({ error: "room not found" });
   });
 
-  test("オーナーだけがメンバーを追加でき、追加されたメンバーは履歴を取得できる", async () => {
+  test("オーナーだけがメンバーをメールアドレスで追加でき、追加されたメンバーは履歴を取得できる", async () => {
     const ownerHeaders = await createSession("member-owner", "Owner");
     const memberHeaders = await createSession("member-new", "Member");
     const otherHeaders = await createSession("member-other", "Other");
     await seedRoom({ roomId: "member-room", ownerId: "member-owner" });
 
+    // createSession はメールを `${userId}@example.com` で作る。
     const denied = await app.request(
       "/rooms/member-room/members",
       {
         method: "POST",
         headers: { ...otherHeaders, "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: "member-new" }),
+        body: JSON.stringify({ email: "member-new@example.com" }),
       },
       env,
     );
     expect(denied.status).toBe(403);
 
+    // 大文字を混ぜても case-insensitive で解決できる。
     const added = await app.request(
       "/rooms/member-room/members",
       {
         method: "POST",
         headers: { ...ownerHeaders, "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: "member-new" }),
+        body: JSON.stringify({ email: "Member-New@Example.com" }),
       },
       env,
     );
     expect(added.status).toBe(201);
+    expect(await added.json()).toEqual({
+      member: {
+        userId: "member-new",
+        role: "member",
+        joinedAt: expect.any(Number),
+      },
+    });
 
     const duplicate = await app.request(
       "/rooms/member-room/members",
       {
         method: "POST",
         headers: { ...ownerHeaders, "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: "member-new" }),
+        body: JSON.stringify({ email: "member-new@example.com" }),
       },
       env,
     );
@@ -381,6 +390,35 @@ describe("API ルート", () => {
     );
     expect(history.status).toBe(200);
     expect(await history.json()).toEqual({ messages: [] });
+  });
+
+  test("メンバー追加は不正なメール形式を 400、未登録メールを 404 にする", async () => {
+    const ownerHeaders = await createSession("addmember-owner", "Owner");
+    await seedRoom({ roomId: "addmember-room", ownerId: "addmember-owner" });
+
+    const invalid = await app.request(
+      "/rooms/addmember-room/members",
+      {
+        method: "POST",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "not-an-email" }),
+      },
+      env,
+    );
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toEqual({ error: "invalid email" });
+
+    const notFound = await app.request(
+      "/rooms/addmember-room/members",
+      {
+        method: "POST",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "nobody@example.com" }),
+      },
+      env,
+    );
+    expect(notFound.status).toBe(404);
+    expect(await notFound.json()).toEqual({ error: "user not found" });
   });
 
   test("WS /ws/room/:id は存在しないルームと未所属ユーザーを拒否する", async () => {

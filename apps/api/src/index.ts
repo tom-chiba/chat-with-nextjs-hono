@@ -1,5 +1,6 @@
 import {
   type ChatMessage,
+  isEmailLike,
   MAX_MESSAGE_LENGTH,
   MAX_ROOM_NAME_LENGTH,
   MESSAGE_PAGE_SIZE,
@@ -24,13 +25,13 @@ import {
 import {
   createRoomWithOwner,
   deleteRoom,
+  findUserByEmail,
   getRoomMembership,
   listRoomMembers,
   listRoomsForUser,
   markRoomRead,
   requireRoomOwner,
   updateRoomName,
-  userExists,
 } from "./db/rooms";
 import { roomMembers } from "./db/schema";
 import { hasPushConfig } from "./push";
@@ -370,11 +371,11 @@ const routes = app
       })),
     });
   })
-  // オーナーが既存ユーザーをルームへ追加する。
+  // オーナーがメールアドレスで登録済みユーザーをルームへ追加する。
   .post(
     "/rooms/:roomId/members",
     // RPC クライアントに json ボディ型を伝えるため validator を通す。
-    validator("json", (value: { userId?: string }) => value),
+    validator("json", (value: { email?: string }) => value),
     async (c) => {
       const auth = createAuth(c.env);
       const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -393,13 +394,15 @@ const routes = app
       }
 
       const json = c.req.valid("json");
-      const userId = typeof json.userId === "string" ? json.userId.trim() : "";
-      if (userId.length === 0) {
-        return c.json({ error: "invalid user id" } as const, 400);
+      const email = typeof json.email === "string" ? json.email.trim() : "";
+      if (!isEmailLike(email)) {
+        return c.json({ error: "invalid email" } as const, 400);
       }
-      if (!(await userExists(db, userId))) {
+      const target = await findUserByEmail(db, email);
+      if (!target) {
         return c.json({ error: "user not found" } as const, 404);
       }
+      const userId = target.id;
 
       const existing = await getRoomMembership(db, roomId, userId);
       if (existing.status === "member") {

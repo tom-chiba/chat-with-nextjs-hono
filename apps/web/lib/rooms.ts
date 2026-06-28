@@ -70,20 +70,21 @@ export async function listRoomMembers(roomId: string): Promise<RoomMember[]> {
   return data.members;
 }
 
-/** ルームへ既存ユーザーを追加する（オーナー専用）。 */
+/** ルームへ登録済みユーザーをメールアドレスで追加する（オーナー専用）。 */
 export async function addRoomMember(
   roomId: string,
-  userId: string,
+  email: string,
 ): Promise<void> {
   const res = await client.rooms[":roomId"].members.$post({
     param: { roomId },
-    json: { userId },
+    json: { email },
   });
   if (!res.ok) {
     if (res.status === 403) throw new Error("オーナーのみ追加できます");
-    if (res.status === 404) throw new Error("ユーザーまたはルームが見つかりません");
+    if (res.status === 404)
+      throw new Error("そのメールアドレスのユーザーが見つかりません");
     if (res.status === 409) throw new Error("このユーザーは既にメンバーです");
-    if (res.status === 400) throw new Error("ユーザーIDが不正です");
+    if (res.status === 400) throw new Error("メールアドレスの形式が正しくありません");
     throw new Error("メンバーの追加に失敗しました");
   }
 }

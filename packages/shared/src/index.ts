@@ -26,6 +26,8 @@ export {
   tokenizeMessageBody,
 } from "./chat";
 export {
+  EMAIL_PATTERN,
+  isEmailLike,
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_LENGTH,
   WS_RATE_LIMIT_WINDOW_MS,

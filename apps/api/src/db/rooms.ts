@@ -130,7 +130,16 @@ export async function listRoomMembers(db: Db, roomId: string) {
     .orderBy(desc(roomMembers.joinedAt), desc(roomMembers.userId));
 }
 
-export async function userExists(db: Db, userId: string) {
-  const rows = await db.select({ id: user.id }).from(user).where(eq(user.id, userId)).limit(1);
-  return rows.length > 0;
+/**
+ * メールアドレスから登録済みユーザーを 1 件引く（見つからなければ null）。
+ * 大文字小文字を無視して照合する（メールはローカル部以外が実質 case-insensitive で、
+ * Better Auth も小文字で保存するため、入力差異で取りこぼさないようにする）。
+ */
+export async function findUserByEmail(db: Db, email: string) {
+  const rows = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(sql`lower(${user.email})`, email.toLowerCase()))
+    .limit(1);
+  return rows[0] ?? null;
 }
