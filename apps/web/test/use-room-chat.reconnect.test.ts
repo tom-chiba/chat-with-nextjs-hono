@@ -1,5 +1,5 @@
 import type { ChatMessage, ServerMessage } from "@repo/shared";
-import { MESSAGE_PAGE_SIZE } from "@repo/shared";
+import { HISTORY_LIMIT, MESSAGE_PAGE_SIZE } from "@repo/shared";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -176,24 +176,99 @@ test("loadOlder は先頭より古い分を取得してマージする", async (
   fetchMessages.mockResolvedValue([msg("m0", 0)]);
   const { result } = renderHook(() => useRoomChat("room-1"));
 
+  // 初回 history を満杯(HISTORY_LIMIT)にして hasMore=true を確立し、
+  // loadOlder が MESSAGE_PAGE_SIZE 未満のページを引いて false 化する分岐を検証する。
   act(() => {
     MockWebSocket.latest.open();
     MockWebSocket.latest.receive({
       type: "history",
-      messages: [msg("m1", 1), msg("m2", 2)],
+      messages: seq(1, HISTORY_LIMIT), // m1..m50
     });
   });
+  expect(result.current.hasMore).toBe(true);
 
   await act(async () => {
     await result.current.loadOlder();
   });
 
+  // 先頭(最古)の m1 を起点に古い分を取得し、先頭へ m0 がマージされる。
   expect(fetchMessages).toHaveBeenCalledWith("room-1", {
     createdAt: 1,
     id: "m1",
   });
-  expect(result.current.messages.map((m) => m.id)).toEqual(["m0", "m1", "m2"]);
+  expect(result.current.messages[0]?.id).toBe("m0");
+  expect(result.current.messages).toHaveLength(HISTORY_LIMIT + 1);
   // 1 ページが MESSAGE_PAGE_SIZE 未満なので、これ以上の履歴なしとする。
+  expect(result.current.hasMore).toBe(false);
+});
+
+test("初回 history が HISTORY_LIMIT 未満なら hasMore は false（過去ログ無し）", () => {
+  const { result } = renderHook(() => useRoomChat("room-1"));
+
+  act(() => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({
+      type: "history",
+      messages: seq(1, HISTORY_LIMIT - 1),
+    });
+  });
+
+  expect(result.current.hasMore).toBe(false);
+});
+
+test("初回 history が空なら hasMore は false", () => {
+  const { result } = renderHook(() => useRoomChat("room-1"));
+
+  act(() => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({ type: "history", messages: [] });
+  });
+
+  expect(result.current.hasMore).toBe(false);
+});
+
+test("初回 history が HISTORY_LIMIT 件ちょうどなら hasMore は true（古い履歴あり得る）", () => {
+  const { result } = renderHook(() => useRoomChat("room-1"));
+
+  act(() => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({
+      type: "history",
+      messages: seq(1, HISTORY_LIMIT),
+    });
+  });
+
+  expect(result.current.hasMore).toBe(true);
+});
+
+test("再接続の history 再送は loadOlder 済みの hasMore=false を巻き戻さない", async () => {
+  // 初回は満杯（HISTORY_LIMIT）で hasMore=true。loadOlder が空ページを引いて false 化。
+  fetchMessages.mockResolvedValue([]);
+  const { result } = renderHook(() => useRoomChat("room-1"));
+
+  act(() => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({
+      type: "history",
+      messages: seq(1, HISTORY_LIMIT),
+    });
+  });
+  expect(result.current.hasMore).toBe(true);
+
+  await act(async () => {
+    await result.current.loadOlder();
+  });
+  expect(result.current.hasMore).toBe(false);
+
+  // 再接続で同じ満杯 history が再送されても hasMore は false のまま。
+  await reconnect();
+  act(() => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({
+      type: "history",
+      messages: seq(1, HISTORY_LIMIT),
+    });
+  });
   expect(result.current.hasMore).toBe(false);
 });
 
