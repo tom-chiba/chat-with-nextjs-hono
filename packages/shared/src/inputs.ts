@@ -20,7 +20,7 @@ export const memberAddSchema = z.object({ email: emailSchema });
 
 /**
  * POST /rooms/:roomId/read のボディ。
- * `at` は既読化したい時刻のミリ秒。省略時はサーバが現在時刻を使う。
+ * `at` は既読化したい時刻のミリ秒。省略可（既定値の補完はハンドラ側で現在時刻を使う）。
  */
 export const roomReadSchema = z.object({
   at: z.number().finite().nonnegative().optional(),
