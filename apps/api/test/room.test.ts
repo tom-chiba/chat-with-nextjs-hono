@@ -150,6 +150,34 @@ describe("RoomDO", () => {
     expect(rows).toHaveLength(1);
   });
 
+  test("WS 送信の長さ判定は書記素数で行う（絵文字は 1 文字）", async () => {
+    await seedRoom("room-emoji-len", ["alice"]);
+    const a = await connect("room-emoji-len", "alice");
+    expect((await a.next()).type).toBe("history");
+
+    // 絵文字は String.length では上限の 2 倍だが、書記素数では 1 文字あたり 1。
+    // 超過（MAX+1）は無視され、境界ちょうど（MAX）は配信・保存される。
+    a.ws.send(
+      JSON.stringify({ type: "message", body: "😀".repeat(MAX_MESSAGE_LENGTH + 1) }),
+    );
+    a.ws.send(
+      JSON.stringify({ type: "message", body: "😀".repeat(MAX_MESSAGE_LENGTH) }),
+    );
+
+    const received = await a.next();
+    expect(received.type).toBe("message");
+    if (received.type === "message") {
+      expect(received.message.body).toBe("😀".repeat(MAX_MESSAGE_LENGTH));
+    }
+
+    const db = createDb(env.DB);
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.roomId, "room-emoji-len"));
+    expect(rows).toHaveLength(1);
+  });
+
   test("接続後にメンバーから外れたユーザーの発言は保存しない", async () => {
     await seedRoom("room-removed-member", ["alice", "bob"]);
     const b = await connect("room-removed-member", "bob");

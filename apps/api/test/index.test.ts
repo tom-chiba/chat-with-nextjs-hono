@@ -884,6 +884,60 @@ describe("API ルート", () => {
     expect(renameTooLong.status).toBe(400);
   });
 
+  test("ルーム作成・改名の長さ判定は書記素数で行う（絵文字は 1 文字）", async () => {
+    // 絵文字は String.length では上限の 2 倍だが、書記素数では 1 文字あたり 1。
+    // 旧実装（UTF-16 長）では境界ちょうどでも弾かれていたケースを許可することを保証する。
+    const ownerHeaders = await createSession("emoji-owner", "Owner");
+
+    const boundary = await app.request(
+      "/rooms",
+      {
+        method: "POST",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "😀".repeat(MAX_ROOM_NAME_LENGTH) }),
+      },
+      env,
+    );
+    expect(boundary.status).toBe(201);
+
+    const tooLong = await app.request(
+      "/rooms",
+      {
+        method: "POST",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "😀".repeat(MAX_ROOM_NAME_LENGTH + 1) }),
+      },
+      env,
+    );
+    expect(tooLong.status).toBe(400);
+
+    // 改名（PATCH）も作成と同じスキーマを共有するが、別ルートのため境界（許可）/
+    // 超過（拒否）の両方向を経路として確認する。
+    await seedRoom({ roomId: "emoji-rename-room", ownerId: "emoji-owner" });
+
+    const renameBoundary = await app.request(
+      "/rooms/emoji-rename-room",
+      {
+        method: "PATCH",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "😀".repeat(MAX_ROOM_NAME_LENGTH) }),
+      },
+      env,
+    );
+    expect(renameBoundary.status).toBe(200);
+
+    const renameTooLong = await app.request(
+      "/rooms/emoji-rename-room",
+      {
+        method: "PATCH",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "😀".repeat(MAX_ROOM_NAME_LENGTH + 1) }),
+      },
+      env,
+    );
+    expect(renameTooLong.status).toBe(400);
+  });
+
   test("メッセージ編集は本文の上限超過を 400、境界長を許可する", async () => {
     const ownerHeaders = await createSession("editlen-owner", "Owner");
     await seedRoom({ roomId: "editlen-room", ownerId: "editlen-owner" });
@@ -920,6 +974,45 @@ describe("API ルート", () => {
       env,
     );
     expect(boundary.status).toBe(200);
+  });
+
+  test("メッセージ編集の長さ判定は書記素数で行う（絵文字は 1 文字）", async () => {
+    // 絵文字は String.length では上限の 2 倍だが、書記素数では 1 文字あたり 1。
+    // 旧実装（UTF-16 長）では境界ちょうどでも弾かれていたケースを許可することを保証する。
+    const ownerHeaders = await createSession("emojiedit-owner", "Owner");
+    await seedRoom({ roomId: "emojiedit-room", ownerId: "emojiedit-owner" });
+
+    const db = createDb(env.DB);
+    const { messages: messagesTable } = await import("../src/db/schema");
+    await db.insert(messagesTable).values({
+      id: "emojiedit-msg",
+      roomId: "emojiedit-room",
+      userId: "emojiedit-owner",
+      body: "before",
+      createdAt: new Date(),
+    });
+
+    const boundary = await app.request(
+      "/rooms/emojiedit-room/messages/emojiedit-msg",
+      {
+        method: "PATCH",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "😀".repeat(MAX_MESSAGE_LENGTH) }),
+      },
+      env,
+    );
+    expect(boundary.status).toBe(200);
+
+    const tooLong = await app.request(
+      "/rooms/emojiedit-room/messages/emojiedit-msg",
+      {
+        method: "PATCH",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "😀".repeat(MAX_MESSAGE_LENGTH + 1) }),
+      },
+      env,
+    );
+    expect(tooLong.status).toBe(400);
   });
 
   test("POST /rooms/:roomId/read は at を検証し既読位置を進める", async () => {
