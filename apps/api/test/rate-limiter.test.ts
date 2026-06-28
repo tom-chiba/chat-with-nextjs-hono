@@ -20,6 +20,13 @@ describe("RateLimiter", () => {
     expect(limiter.allow("u", 1001)).toBe(true);
   });
 
+  test("ちょうど windowMs 経過した記録は窓の外（半開区間）", () => {
+    const limiter = new RateLimiter(1000, 1);
+    expect(limiter.allow("u", 0)).toBe(true);
+    // now=1000 では cutoff=0、t=0 は t>cutoff を満たさず間引かれて 1 枠空く。
+    expect(limiter.allow("u", 1000)).toBe(true);
+  });
+
   test("ユーザーごとに独立してカウントする", () => {
     const limiter = new RateLimiter(1000, 1);
     expect(limiter.allow("a", 0)).toBe(true);

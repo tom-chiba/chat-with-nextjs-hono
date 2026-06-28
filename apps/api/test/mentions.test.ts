@@ -18,6 +18,12 @@ describe("resolveMentions", () => {
     expect(resolveMentions(["千葉"], members)).toEqual(new Set(["u-chiba"]));
   });
 
+  test("前方一致で解決する（候補がメンバー名で始まれば採用）", () => {
+    expect(resolveMentions(["千葉さんへ"], members)).toEqual(
+      new Set(["u-chiba-san"]),
+    );
+  });
+
   test("複数候補をまとめて解決する", () => {
     expect(resolveMentions(["Bob", "千葉さん"], members)).toEqual(
       new Set(["u-bob", "u-chiba-san"]),
