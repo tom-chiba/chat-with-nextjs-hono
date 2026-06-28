@@ -130,7 +130,16 @@ export async function listRoomMembers(db: Db, roomId: string) {
     .orderBy(desc(roomMembers.joinedAt), desc(roomMembers.userId));
 }
 
-export async function userExists(db: Db, userId: string) {
-  const rows = await db.select({ id: user.id }).from(user).where(eq(user.id, userId)).limit(1);
-  return rows.length > 0;
+/**
+ * メールアドレスから登録済みユーザーを 1 件引く（見つからなければ null）。
+ * Better Auth がサインアップ時に email を小文字化して保存するため、入力も小文字化して
+ * 突き合わせる。列を関数で包まずそのまま比較することで email の UNIQUE インデックスを活かす。
+ */
+export async function findUserByEmail(db: Db, email: string) {
+  const rows = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(user.email, email.toLowerCase()))
+    .limit(1);
+  return rows[0] ?? null;
 }

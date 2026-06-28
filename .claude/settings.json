@@ -13,7 +13,8 @@
     "filesystem": {
       "allowWrite": [
         "~/.claude/plugins/data/",
-        "~/.codex/"
+        "~/.codex/",
+        "~/Library/Preferences/.wrangler/"
       ]
     },
     "excludedCommands": [

@@ -55,16 +55,53 @@ test("オーナーはメンバーを追加して一覧を再取得できる", as
   render(<RoomMembers roomId="room-1" currentUserId="owner-1" />);
 
   fireEvent.click(await screen.findByText("メンバー (1)"));
-  fireEvent.change(screen.getByPlaceholderText("追加するユーザーID"), {
-    target: { value: "member-1" },
-  });
+  fireEvent.change(
+    screen.getByPlaceholderText("追加するメンバーのメールアドレス"),
+    {
+      target: { value: "member@example.com" },
+    },
+  );
   fireEvent.click(screen.getByRole("button", { name: "追加" }));
 
   await waitFor(() => {
-    expect(mockedAddRoomMember).toHaveBeenCalledWith("room-1", "member-1");
+    expect(mockedAddRoomMember).toHaveBeenCalledWith(
+      "room-1",
+      "member@example.com",
+    );
   });
   expect(await screen.findByText("Member")).toBeInTheDocument();
   expect(mockedListRoomMembers).toHaveBeenCalledTimes(2);
+});
+
+test("追加に失敗するとエラー文言を表示する", async () => {
+  mockedListRoomMembers.mockResolvedValue([
+    {
+      userId: "owner-1",
+      userName: "Owner",
+      role: "owner",
+      joinedAt: 1,
+    },
+  ]);
+  mockedAddRoomMember.mockRejectedValue(
+    new Error("そのメールアドレスのユーザーが見つかりません"),
+  );
+
+  render(<RoomMembers roomId="room-1" currentUserId="owner-1" />);
+
+  fireEvent.click(await screen.findByText("メンバー (1)"));
+  fireEvent.change(
+    screen.getByPlaceholderText("追加するメンバーのメールアドレス"),
+    {
+      target: { value: "ghost@example.com" },
+    },
+  );
+  fireEvent.click(screen.getByRole("button", { name: "追加" }));
+
+  expect(
+    await screen.findByText("そのメールアドレスのユーザーが見つかりません"),
+  ).toBeInTheDocument();
+  // 一覧の再取得は初回のみ（追加失敗時はリロードしない）。
+  expect(mockedListRoomMembers).toHaveBeenCalledTimes(1);
 });
 
 test("オーナーは owner 以外のメンバーを削除できる", async () => {
@@ -115,6 +152,8 @@ test("一般メンバーには追加フォームと削除ボタンを表示し�
 
   fireEvent.click(await screen.findByText("メンバー (2)"));
 
-  expect(screen.queryByPlaceholderText("追加するユーザーID")).not.toBeInTheDocument();
+  expect(
+    screen.queryByPlaceholderText("追加するメンバーのメールアドレス"),
+  ).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "削除" })).not.toBeInTheDocument();
 });
