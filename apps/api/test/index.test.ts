@@ -977,5 +977,18 @@ describe("API ルート", () => {
       env,
     );
     expect(added.status).toBe(201);
+
+    // trim 後のメールで実ユーザーが解決され、メンバー行が追加されたことを確認する。
+    const db = createDb(env.DB);
+    const rows = await db
+      .select()
+      .from(roomMembers)
+      .where(
+        and(
+          eq(roomMembers.roomId, "trim-room"),
+          eq(roomMembers.userId, "trim-target"),
+        ),
+      );
+    expect(rows).toHaveLength(1);
   });
 });
