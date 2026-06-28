@@ -10,8 +10,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "PWA を使った軽量チャットツール",
     start_url: "/",
     display: "standalone",
-    background_color: "#ffffff",
-    theme_color: "#4f46e5",
+    background_color: "#f7f6f3",
+    theme_color: "#2f4fd6",
     lang: "ja",
     icons: [
       {
