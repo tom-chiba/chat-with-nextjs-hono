@@ -370,8 +370,16 @@ test("スキーマ検証に通らない受信データは無視する", () => {
     MockWebSocket.latest.receiveRaw(
       JSON.stringify({ type: "message", message: { id: 1 } }),
     );
+    // update でも壊れた message は無視する。
+    MockWebSocket.latest.receiveRaw(
+      JSON.stringify({ type: "update", message: { id: "m1" } }),
+    );
+    // history 配列内に壊れた要素が 1 つでもあれば配列全体を無視する。
+    MockWebSocket.latest.receiveRaw(
+      JSON.stringify({ type: "history", messages: [msg("m2", 2), { id: 1 }] }),
+    );
   });
 
-  // いずれも反映されず、既存の表示を保つ。
+  // いずれも反映されず、既存の表示を保つ（m1 のまま、m2 も入らない）。
   expect(result.current.messages.map((m) => m.id)).toEqual(["m1"]);
 });

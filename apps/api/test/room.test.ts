@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import type { ServerMessage } from "@repo/shared";
-import { WS_RATE_LIMIT_MAX } from "@repo/shared";
+import { MAX_MESSAGE_LENGTH, WS_RATE_LIMIT_MAX } from "@repo/shared";
 import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createDb } from "../src/db";
@@ -130,9 +130,12 @@ describe("RoomDO", () => {
 
     a.ws.send(JSON.stringify({ type: "message", body: "   " }));
     a.ws.send(JSON.stringify({ type: "ping" }));
+    a.ws.send(
+      JSON.stringify({ type: "message", body: "a".repeat(MAX_MESSAGE_LENGTH + 1) }),
+    );
     a.ws.send(JSON.stringify({ type: "message", body: "有効" }));
 
-    // 無視された 2 件は配信されず、有効な 1 件だけが届く。
+    // 無視された 3 件は配信されず、有効な 1 件だけが届く。
     const received = await a.next();
     expect(received.type).toBe("message");
     if (received.type === "message") {
