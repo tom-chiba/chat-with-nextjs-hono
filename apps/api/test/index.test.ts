@@ -332,6 +332,67 @@ describe("API ルート", () => {
     expect(await missing.json()).toEqual({ error: "room not found" });
   });
 
+  test("GET /rooms/:roomId/messages は before/beforeId の部分指定を 400 にし、両方指定でカーソルが効く", async () => {
+    const ownerHeaders = await createSession("cursor-owner", "Owner");
+    await seedRoom({ roomId: "cursor-room", ownerId: "cursor-owner" });
+
+    const db = createDb(env.DB);
+    const { messages: messagesTable } = await import("../src/db/schema");
+    await db.insert(messagesTable).values([
+      { id: "c1", roomId: "cursor-room", userId: "cursor-owner", body: "1", createdAt: new Date(1000) },
+      { id: "c2", roomId: "cursor-room", userId: "cursor-owner", body: "2", createdAt: new Date(2000) },
+      { id: "c3", roomId: "cursor-room", userId: "cursor-owner", body: "3", createdAt: new Date(3000) },
+    ]);
+
+    // before だけ → 400（カーソルを黙って無視せずエラーにする）。
+    const beforeOnly = await app.request(
+      "/rooms/cursor-room/messages?before=3000",
+      { headers: ownerHeaders },
+      env,
+    );
+    expect(beforeOnly.status).toBe(400);
+    expect(await beforeOnly.json()).toEqual({ error: "invalid query" });
+
+    // beforeId だけ → 400。
+    const beforeIdOnly = await app.request(
+      "/rooms/cursor-room/messages?beforeId=c3",
+      { headers: ownerHeaders },
+      env,
+    );
+    expect(beforeIdOnly.status).toBe(400);
+    expect(await beforeIdOnly.json()).toEqual({ error: "invalid query" });
+
+    // before が空文字（実質欠如）+ beforeId → 400。
+    // 空文字はハンドラで falsy としてカーソル無効になるため、未指定と同じく欠如扱いで弾く。
+    const emptyBefore = await app.request(
+      "/rooms/cursor-room/messages?before=&beforeId=c3",
+      { headers: ownerHeaders },
+      env,
+    );
+    expect(emptyBefore.status).toBe(400);
+    expect(await emptyBefore.json()).toEqual({ error: "invalid query" });
+
+    // 両方未指定 → 200 で最新ページ（全件昇順）。
+    const noCursor = await app.request(
+      "/rooms/cursor-room/messages",
+      { headers: ownerHeaders },
+      env,
+    );
+    expect(noCursor.status).toBe(200);
+    const noCursorBody = await noCursor.json<{ messages: { id: string }[] }>();
+    expect(noCursorBody.messages.map((m) => m.id)).toEqual(["c1", "c2", "c3"]);
+
+    // 両方指定 → 200 でカーソルより古いページが返る。
+    const paged = await app.request(
+      "/rooms/cursor-room/messages?before=3000&beforeId=c3",
+      { headers: ownerHeaders },
+      env,
+    );
+    expect(paged.status).toBe(200);
+    const pagedBody = await paged.json<{ messages: { id: string }[] }>();
+    expect(pagedBody.messages.map((m) => m.id)).toEqual(["c1", "c2"]);
+  });
+
   test("オーナーだけがメンバーをメールアドレスで追加でき、追加されたメンバーは履歴を取得できる", async () => {
     const ownerHeaders = await createSession("member-owner", "Owner");
     const memberHeaders = await createSession("member-new", "Member");
