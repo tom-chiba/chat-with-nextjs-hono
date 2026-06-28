@@ -11,7 +11,6 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { validator } from "hono/validator";
 import { type AuthEnv, createAuth } from "./auth";
-import { createDb } from "./db";
 import {
   getMessageById,
   listMessages,
@@ -31,10 +30,10 @@ import {
   listRoomMembers,
   listRoomsForUser,
   markRoomRead,
-  requireRoomOwner,
   updateRoomName,
 } from "./db/rooms";
 import { roomMembers } from "./db/schema";
+import { requireMember, requireOwner, requireSession } from "./guards";
 import { hasPushConfig } from "./push";
 
 /** クエリ値（string | string[] | undefined）から単一の文字列だけを取り出す。 */
@@ -149,6 +148,8 @@ app.on(["GET", "POST"], "/api/auth/*", (c) =>
 // フォワード）を使うため、FE が型解決しない `worker.ts` 側で `app` に登録する。
 
 // RPC 用に型を共有するルートはチェーンして定義し、その型をエクスポートする。
+// 認証・認可は `guards.ts` の関数で行う。失敗時の応答はハンドラが return するため
+// RPC 型（AppType）に 401/403/404 が保持される（ミドルウェア化すると型から落ちる）。
 const routes = app
   .get("/health", (c) => c.json({ status: "ok" } as const))
   .get("/push/vapid-public-key", (c) => {
@@ -159,39 +160,29 @@ const routes = app
   })
   // 保護ルートの例：有効なセッションが無ければ 401。
   .get("/me", async (c) => {
-    const auth = createAuth(c.env);
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (!session) {
-      return c.json({ error: "unauthorized" } as const, 401);
-    }
-    return c.json({ user: session.user });
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
+    return c.json({ user: s.user });
   })
   .post("/push/subscriptions", async (c) => {
+    // 設定不備（503）はセッション検証より先に返す。
     if (!hasPushConfig(c.env)) {
       return c.json({ error: "push is not configured" } as const, 503);
     }
-
-    const auth = createAuth(c.env);
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (!session) {
-      return c.json({ error: "unauthorized" } as const, 401);
-    }
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
 
     const json = await c.req.json().catch(() => undefined);
     if (!isPushSubscriptionInput(json)) {
       return c.json({ error: "invalid push subscription" } as const, 400);
     }
 
-    const db = createDb(c.env.DB);
-    await upsertPushSubscription(db, session.user.id, json);
+    await upsertPushSubscription(s.db, s.user.id, json);
     return c.json({ ok: true } as const, 201);
   })
   .delete("/push/subscriptions", async (c) => {
-    const auth = createAuth(c.env);
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (!session) {
-      return c.json({ error: "unauthorized" } as const, 401);
-    }
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
 
     const json = (await c.req.json().catch(() => ({}))) as { endpoint?: unknown };
     const endpoint = typeof json.endpoint === "string" ? json.endpoint : "";
@@ -199,19 +190,14 @@ const routes = app
       return c.json({ error: "invalid endpoint" } as const, 400);
     }
 
-    const db = createDb(c.env.DB);
-    await deletePushSubscription(db, session.user.id, endpoint);
+    await deletePushSubscription(s.db, s.user.id, endpoint);
     return c.json({ ok: true } as const);
   })
   // 自分が所属するルーム一覧（新しい順）。要セッション。
   .get("/rooms", async (c) => {
-    const auth = createAuth(c.env);
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (!session) {
-      return c.json({ error: "unauthorized" } as const, 401);
-    }
-    const db = createDb(c.env.DB);
-    const rows = await listRoomsForUser(db, session.user.id);
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
+    const rows = await listRoomsForUser(s.db, s.user.id);
     return c.json({
       rooms: rows.map((r) => ({
         id: r.id,
@@ -224,11 +210,8 @@ const routes = app
   })
   // ルーム作成。要セッション。id はサーバ採番（UUID）。
   .post("/rooms", async (c) => {
-    const auth = createAuth(c.env);
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (!session) {
-      return c.json({ error: "unauthorized" } as const, 401);
-    }
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
     const json = (await c.req.json().catch(() => ({}))) as { name?: unknown };
     const name = typeof json.name === "string" ? json.name.trim() : "";
     if (name.length === 0 || name.length > MAX_ROOM_NAME_LENGTH) {
@@ -237,11 +220,10 @@ const routes = app
     // createdAt は明示採番し、DB 既定値への往復なしで正確な値を返す。
     const createdAt = Date.now();
     const id = crypto.randomUUID();
-    const db = createDb(c.env.DB);
-    await createRoomWithOwner(db, {
+    await createRoomWithOwner(s.db, {
       id,
       name,
-      ownerId: session.user.id,
+      ownerId: s.user.id,
       createdAt: new Date(createdAt),
     });
     return c.json(
@@ -263,21 +245,11 @@ const routes = app
     // RPC クライアントに json ボディ型を伝えるため validator を通す。
     validator("json", (value: { name?: string }) => value),
     async (c) => {
-      const auth = createAuth(c.env);
-      const session = await auth.api.getSession({ headers: c.req.raw.headers });
-      if (!session) {
-        return c.json({ error: "unauthorized" } as const, 401);
-      }
-
+      const s = await requireSession(c);
+      if (!s.ok) return s.res;
       const roomId = c.req.param("roomId");
-      const db = createDb(c.env.DB);
-      const owner = await requireRoomOwner(db, roomId, session.user.id);
-      if (owner.status === "not_found") {
-        return c.json({ error: "room not found" } as const, 404);
-      }
-      if (owner.status !== "owner") {
-        return c.json({ error: "forbidden" } as const, 403);
-      }
+      const own = await requireOwner(c, s.db, s.user.id, roomId);
+      if (!own.ok) return own.res;
 
       const json = c.req.valid("json");
       const name = typeof json.name === "string" ? json.name.trim() : "";
@@ -285,29 +257,19 @@ const routes = app
         return c.json({ error: "invalid room name" } as const, 400);
       }
 
-      await updateRoomName(db, roomId, name);
+      await updateRoomName(s.db, roomId, name);
       return c.json({ room: { id: roomId, name } } as const);
     },
   )
   // ルーム削除。オーナーのみ。messages/room_members は FK の CASCADE で削除される。
   .delete("/rooms/:roomId", async (c) => {
-    const auth = createAuth(c.env);
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (!session) {
-      return c.json({ error: "unauthorized" } as const, 401);
-    }
-
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
-    const db = createDb(c.env.DB);
-    const owner = await requireRoomOwner(db, roomId, session.user.id);
-    if (owner.status === "not_found") {
-      return c.json({ error: "room not found" } as const, 404);
-    }
-    if (owner.status !== "owner") {
-      return c.json({ error: "forbidden" } as const, 403);
-    }
+    const own = await requireOwner(c, s.db, s.user.id, roomId);
+    if (!own.ok) return own.res;
 
-    await deleteRoom(db, roomId);
+    await deleteRoom(s.db, roomId);
     // 既存接続を切る（FK CASCADE 後の WS が古い状態のままになるのを防ぐ）。
     await disconnectRoomAll(c.env, roomId);
     return c.json({ ok: true } as const);
@@ -318,21 +280,11 @@ const routes = app
     // RPC クライアントに json ボディ型を伝えるため validator を通す。
     validator("json", (value: { at?: number }) => value),
     async (c) => {
-      const auth = createAuth(c.env);
-      const session = await auth.api.getSession({ headers: c.req.raw.headers });
-      if (!session) {
-        return c.json({ error: "unauthorized" } as const, 401);
-      }
-
+      const s = await requireSession(c);
+      if (!s.ok) return s.res;
       const roomId = c.req.param("roomId");
-      const db = createDb(c.env.DB);
-      const membership = await getRoomMembership(db, roomId, session.user.id);
-      if (membership.status === "not_found") {
-        return c.json({ error: "room not found" } as const, 404);
-      }
-      if (membership.status === "forbidden") {
-        return c.json({ error: "forbidden" } as const, 403);
-      }
+      const mem = await requireMember(c, s.db, s.user.id, roomId);
+      if (!mem.ok) return mem.res;
 
       const json = c.req.valid("json");
       const atMs = typeof json.at === "number" ? json.at : Date.now();
@@ -340,29 +292,19 @@ const routes = app
         return c.json({ error: "invalid at" } as const, 400);
       }
 
-      await markRoomRead(db, roomId, session.user.id, new Date(atMs));
+      await markRoomRead(s.db, roomId, s.user.id, new Date(atMs));
       return c.json({ ok: true } as const);
     },
   )
   // ルームメンバー一覧。所属メンバーのみ閲覧可。
   .get("/rooms/:roomId/members", async (c) => {
-    const auth = createAuth(c.env);
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (!session) {
-      return c.json({ error: "unauthorized" } as const, 401);
-    }
-
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
-    const db = createDb(c.env.DB);
-    const membership = await getRoomMembership(db, roomId, session.user.id);
-    if (membership.status === "not_found") {
-      return c.json({ error: "room not found" } as const, 404);
-    }
-    if (membership.status === "forbidden") {
-      return c.json({ error: "forbidden" } as const, 403);
-    }
+    const mem = await requireMember(c, s.db, s.user.id, roomId);
+    if (!mem.ok) return mem.res;
 
-    const members = await listRoomMembers(db, roomId);
+    const members = await listRoomMembers(s.db, roomId);
     return c.json({
       members: members.map((m) => ({
         userId: m.userId,
@@ -378,34 +320,24 @@ const routes = app
     // RPC クライアントに json ボディ型を伝えるため validator を通す。
     validator("json", (value: { email?: string }) => value),
     async (c) => {
-      const auth = createAuth(c.env);
-      const session = await auth.api.getSession({ headers: c.req.raw.headers });
-      if (!session) {
-        return c.json({ error: "unauthorized" } as const, 401);
-      }
-
+      const s = await requireSession(c);
+      if (!s.ok) return s.res;
       const roomId = c.req.param("roomId");
-      const db = createDb(c.env.DB);
-      const owner = await requireRoomOwner(db, roomId, session.user.id);
-      if (owner.status === "not_found") {
-        return c.json({ error: "room not found" } as const, 404);
-      }
-      if (owner.status !== "owner") {
-        return c.json({ error: "forbidden" } as const, 403);
-      }
+      const own = await requireOwner(c, s.db, s.user.id, roomId);
+      if (!own.ok) return own.res;
 
       const json = c.req.valid("json");
       const email = typeof json.email === "string" ? json.email.trim() : "";
       if (!isEmailLike(email)) {
         return c.json({ error: "invalid email" } as const, 400);
       }
-      const target = await findUserByEmail(db, email);
+      const target = await findUserByEmail(s.db, email);
       if (!target) {
         return c.json({ error: "user not found" } as const, 404);
       }
       const userId = target.id;
 
-      const existing = await getRoomMembership(db, roomId, userId);
+      const existing = await getRoomMembership(s.db, roomId, userId);
       if (existing.status === "member") {
         return c.json(
           { error: "user is already a member", role: existing.role } as const,
@@ -414,7 +346,7 @@ const routes = app
       }
 
       const joinedAt = Date.now();
-      await db
+      await s.db
         .insert(roomMembers)
         .values({
           roomId,
@@ -431,24 +363,14 @@ const routes = app
   )
   // オーナーがメンバーを外す。自分自身の owner 権限削除は拒否する。
   .delete("/rooms/:roomId/members/:userId", async (c) => {
-    const auth = createAuth(c.env);
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (!session) {
-      return c.json({ error: "unauthorized" } as const, 401);
-    }
-
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
     const targetUserId = c.req.param("userId");
-    const db = createDb(c.env.DB);
-    const owner = await requireRoomOwner(db, roomId, session.user.id);
-    if (owner.status === "not_found") {
-      return c.json({ error: "room not found" } as const, 404);
-    }
-    if (owner.status !== "owner") {
-      return c.json({ error: "forbidden" } as const, 403);
-    }
+    const own = await requireOwner(c, s.db, s.user.id, roomId);
+    if (!own.ok) return own.res;
 
-    const target = await getRoomMembership(db, roomId, targetUserId);
+    const target = await getRoomMembership(s.db, roomId, targetUserId);
     if (target.status !== "member") {
       return c.json({ error: "member not found" } as const, 404);
     }
@@ -456,7 +378,7 @@ const routes = app
       return c.json({ error: "owner cannot be removed" } as const, 400);
     }
 
-    await db
+    await s.db
       .delete(roomMembers)
       .where(
         and(
@@ -473,22 +395,12 @@ const routes = app
     "/rooms/:roomId/messages/:messageId",
     validator("json", (value: { body?: string }) => value),
     async (c) => {
-      const auth = createAuth(c.env);
-      const session = await auth.api.getSession({ headers: c.req.raw.headers });
-      if (!session) {
-        return c.json({ error: "unauthorized" } as const, 401);
-      }
-
+      const s = await requireSession(c);
+      if (!s.ok) return s.res;
       const roomId = c.req.param("roomId");
       const messageId = c.req.param("messageId");
-      const db = createDb(c.env.DB);
-      const membership = await getRoomMembership(db, roomId, session.user.id);
-      if (membership.status === "not_found") {
-        return c.json({ error: "room not found" } as const, 404);
-      }
-      if (membership.status === "forbidden") {
-        return c.json({ error: "forbidden" } as const, 403);
-      }
+      const mem = await requireMember(c, s.db, s.user.id, roomId);
+      if (!mem.ok) return mem.res;
 
       const json = c.req.valid("json");
       const body = typeof json.body === "string" ? json.body.trim() : "";
@@ -496,11 +408,11 @@ const routes = app
         return c.json({ error: "invalid body" } as const, 400);
       }
 
-      const existing = await getMessageById(db, messageId);
+      const existing = await getMessageById(s.db, messageId);
       if (!existing || existing.roomId !== roomId) {
         return c.json({ error: "message not found" } as const, 404);
       }
-      if (existing.userId !== session.user.id) {
+      if (existing.userId !== s.user.id) {
         return c.json({ error: "forbidden" } as const, 403);
       }
       if (existing.deletedAt) {
@@ -508,11 +420,11 @@ const routes = app
       }
 
       const editedAt = new Date();
-      await updateMessageBody(db, messageId, body, editedAt);
+      await updateMessageBody(s.db, messageId, body, editedAt);
 
       const updated = toChatMessage({
         ...existing,
-        userName: session.user.name,
+        userName: s.user.name,
         body,
         editedAt,
       });
@@ -522,28 +434,18 @@ const routes = app
   )
   // メッセージ削除（論理削除）。本人のみ。
   .delete("/rooms/:roomId/messages/:messageId", async (c) => {
-    const auth = createAuth(c.env);
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (!session) {
-      return c.json({ error: "unauthorized" } as const, 401);
-    }
-
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
     const messageId = c.req.param("messageId");
-    const db = createDb(c.env.DB);
-    const membership = await getRoomMembership(db, roomId, session.user.id);
-    if (membership.status === "not_found") {
-      return c.json({ error: "room not found" } as const, 404);
-    }
-    if (membership.status === "forbidden") {
-      return c.json({ error: "forbidden" } as const, 403);
-    }
+    const mem = await requireMember(c, s.db, s.user.id, roomId);
+    if (!mem.ok) return mem.res;
 
-    const existing = await getMessageById(db, messageId);
+    const existing = await getMessageById(s.db, messageId);
     if (!existing || existing.roomId !== roomId) {
       return c.json({ error: "message not found" } as const, 404);
     }
-    if (existing.userId !== session.user.id) {
+    if (existing.userId !== s.user.id) {
       return c.json({ error: "forbidden" } as const, 403);
     }
     if (existing.deletedAt) {
@@ -551,11 +453,11 @@ const routes = app
     }
 
     const deletedAt = new Date();
-    await softDeleteMessage(db, messageId, deletedAt);
+    await softDeleteMessage(s.db, messageId, deletedAt);
 
     const updated = toChatMessage({
       ...existing,
-      userName: session.user.name,
+      userName: s.user.name,
       body: "",
       deletedAt,
     });
@@ -572,14 +474,13 @@ const routes = app
       limit: pickQuery(value.limit),
     })),
     async (c) => {
-      const auth = createAuth(c.env);
-      const session = await auth.api.getSession({ headers: c.req.raw.headers });
-      if (!session) {
-        return c.json({ error: "unauthorized" } as const, 401);
-      }
+      const s = await requireSession(c);
+      if (!s.ok) return s.res;
       const roomId = c.req.param("roomId");
-      const q = c.req.valid("query");
+      const mem = await requireMember(c, s.db, s.user.id, roomId);
+      if (!mem.ok) return mem.res;
 
+      const q = c.req.valid("query");
       const rawLimit = Number(q.limit);
       const limit =
         Number.isFinite(rawLimit) && rawLimit > 0
@@ -592,16 +493,7 @@ const routes = app
           ? { createdAt: beforeMs, id: q.beforeId }
           : undefined;
 
-      const db = createDb(c.env.DB);
-      const membership = await getRoomMembership(db, roomId, session.user.id);
-      if (membership.status === "not_found") {
-        return c.json({ error: "room not found" } as const, 404);
-      }
-      if (membership.status === "forbidden") {
-        return c.json({ error: "forbidden" } as const, 403);
-      }
-
-      const list = await listMessages(db, { roomId, limit, before });
+      const list = await listMessages(s.db, { roomId, limit, before });
       return c.json({ messages: list });
     },
   );
