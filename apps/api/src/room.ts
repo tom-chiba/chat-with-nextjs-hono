@@ -4,16 +4,15 @@ import {
   type ServerMessage,
   clientMessageSchema,
   HISTORY_LIMIT,
-  parseMentionCandidates,
-  WS_RATE_LIMIT_MAX,
-  WS_RATE_LIMIT_WINDOW_MS,
 } from "@repo/shared";
 import { eq } from "drizzle-orm";
-import { createDb } from "./db";
+import { createDb, type Db } from "./db";
 import { listMessages } from "./db/messages";
-import { getRoomMembership, listRoomMembers } from "./db/rooms";
+import { getRoomMembership } from "./db/rooms";
 import { messages, user } from "./db/schema";
+import { resolveMentionedUserIds } from "./mentions";
 import { sendMessagePushNotifications } from "./push";
+import { RateLimiter } from "./rate-limiter";
 
 /** 接続ごとに WebSocket へ添付する送信者情報（ハイバネ復帰後も保持される）。 */
 type SocketAttachment = {
@@ -37,27 +36,9 @@ const ROOM_DELETED_CLOSE_REASON = "room deleted";
  */
 export class RoomDO extends DurableObject<Env> {
   /**
-   * ユーザーごとの直近メッセージ送信時刻（ミリ秒エポック）。
-   * `WS_RATE_LIMIT_WINDOW_MS` 内に `WS_RATE_LIMIT_MAX` 件を超えると拒否する。
-   * DO は単一インスタンスのため、Map による in-memory 管理で十分。
+   * ユーザーごとの送信レート制限。DO は単一インスタンスのため in-memory で十分。
    */
-  private readonly recentSendsByUser = new Map<string, number[]>();
-
-  /**
-   * `userId` がレート制限に達していなければ true。同時に履歴へ now を記録する。
-   */
-  private allowSend(userId: string, now: number): boolean {
-    const cutoff = now - WS_RATE_LIMIT_WINDOW_MS;
-    const history = this.recentSendsByUser.get(userId) ?? [];
-    const recent = history.filter((t) => t > cutoff);
-    if (recent.length >= WS_RATE_LIMIT_MAX) {
-      this.recentSendsByUser.set(userId, recent);
-      return false;
-    }
-    recent.push(now);
-    this.recentSendsByUser.set(userId, recent);
-    return true;
-  }
+  private readonly rateLimiter = new RateLimiter();
 
   override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -132,7 +113,7 @@ export class RoomDO extends DurableObject<Env> {
     }
 
     const now = Date.now();
-    if (!this.allowSend(userId, now)) {
+    if (!this.rateLimiter.allow(userId, now)) {
       // 自分にだけエラーを返し、メッセージは破棄する（接続は維持）。
       ws.send(
         JSON.stringify({
@@ -176,16 +157,43 @@ export class RoomDO extends DurableObject<Env> {
       socket.send(payload);
     }
 
-    // 本文の `@<name>` をルームメンバー名と突き合わせ、メンションされた userId を解決する。
-    const mentionedUserIds = await resolveMentionedUserIds(db, roomId, trimmed);
+    // 通知（メンション解決 + Push 送信）は配信完了後にバックグラウンドで起動する。
+    this.firePushNotifications(db, message, activeUserIds);
+  }
 
-    await sendMessagePushNotifications({
-      db,
-      env: this.env,
-      message,
-      excludeUserIds: activeUserIds,
-      mentionedUserIds,
-    });
+  /**
+   * メンション解決と Push 送信を WS ハンドラから切り離してバックグラウンド実行する。
+   *
+   * 発言の保存・配信はこの時点で完了しており、通知はベストエフォート。`ctx.waitUntil` で
+   * ハンドラをブロックせずに走らせ、失敗してもクライアントへは何も返せないため例外は
+   * 握りつぶす（個別の Push 失敗は `sendMessagePushNotifications` 内でログ済み）。
+   */
+  private firePushNotifications(
+    db: Db,
+    message: ChatMessage,
+    excludeUserIds: Set<string>,
+  ): void {
+    this.ctx.waitUntil(
+      (async () => {
+        try {
+          // 本文の `@<name>` をルームメンバー名と突き合わせ、メンション先を解決する。
+          const mentionedUserIds = await resolveMentionedUserIds(
+            db,
+            message.roomId,
+            message.body,
+          );
+          await sendMessagePushNotifications({
+            db,
+            env: this.env,
+            message,
+            excludeUserIds,
+            mentionedUserIds,
+          });
+        } catch (error) {
+          console.error("Push notification pipeline failed", error);
+        }
+      })(),
+    );
   }
 
   override async webSocketClose(ws: WebSocket, code: number): Promise<void> {
@@ -276,37 +284,4 @@ export class RoomDO extends DurableObject<Env> {
     }
     return Response.json({ delivered } as const);
   }
-}
-
-/**
- * 本文の `@<name>` をルームメンバー名と突き合わせ、メンションされた userId を返す。
- * 完全一致のみ。最長一致のためメンバー名は長い順に評価する。
- */
-async function resolveMentionedUserIds(
-  db: ReturnType<typeof createDb>,
-  roomId: string,
-  body: string,
-): Promise<Set<string>> {
-  const candidates = parseMentionCandidates(body);
-  if (candidates.length === 0) return new Set();
-
-  const members = await listRoomMembers(db, roomId);
-  // 表示名 → userId のマップ。同名は最初の 1 件のみ採用（任意性に依存しない MVP）。
-  const nameToUserId = new Map<string, string>();
-  for (const m of members) {
-    if (!nameToUserId.has(m.userName)) nameToUserId.set(m.userName, m.userId);
-  }
-  // 最長一致: 長いメンバー名から順にスキャンして本文にあるか確かめる。
-  const sortedNames = [...nameToUserId.keys()].toSorted(
-    (a, b) => b.length - a.length,
-  );
-
-  const hits = new Set<string>();
-  for (const cand of candidates) {
-    const matched = sortedNames.find((name) => cand.startsWith(name));
-    if (!matched) continue;
-    const userId = nameToUserId.get(matched);
-    if (userId) hits.add(userId);
-  }
-  return hits;
 }
