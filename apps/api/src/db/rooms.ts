@@ -132,14 +132,14 @@ export async function listRoomMembers(db: Db, roomId: string) {
 
 /**
  * メールアドレスから登録済みユーザーを 1 件引く（見つからなければ null）。
- * 大文字小文字を無視して照合する（メールはローカル部以外が実質 case-insensitive で、
- * Better Auth も小文字で保存するため、入力差異で取りこぼさないようにする）。
+ * Better Auth がサインアップ時に email を小文字化して保存するため、入力も小文字化して
+ * 突き合わせる。列を関数で包まずそのまま比較することで email の UNIQUE インデックスを活かす。
  */
 export async function findUserByEmail(db: Db, email: string) {
   const rows = await db
     .select({ id: user.id })
     .from(user)
-    .where(eq(sql`lower(${user.email})`, email.toLowerCase()))
+    .where(eq(user.email, email.toLowerCase()))
     .limit(1);
   return rows[0] ?? null;
 }
