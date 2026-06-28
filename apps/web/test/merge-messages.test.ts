@@ -1,6 +1,6 @@
 import type { ChatMessage } from "@repo/shared";
 import { expect, test } from "vitest";
-import { mergeMessages } from "@/lib/use-room-chat";
+import { mergeMessages } from "@/lib/messages";
 
 function msg(
   id: string,
