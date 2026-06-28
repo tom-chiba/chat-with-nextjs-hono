@@ -20,8 +20,18 @@ function reconnectDelay(attempts: number): number {
 }
 
 /**
- * 既存メッセージへ受信分を id で一意化しながらマージし、
- * `(createdAt, id)` 昇順（サーバのソート規則と同じ）で返す。
+ * メッセージの `(createdAt, id)` 昇順比較。
+ * サーバ `listMessages`（apps/api db/messages.ts）のソート規則と同一に保つこと。
+ * 規則がずれると表示順やマージ・欠落検出が静かに破綻する。
+ */
+export function compareMessages(a: ChatMessage, b: ChatMessage): number {
+  return (
+    a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  );
+}
+
+/**
+ * 既存メッセージへ受信分を id で一意化しながらマージし、`compareMessages`（昇順）で返す。
  * 同一 id は受信分（incoming）を優先し、編集・削除の最新版を反映する。
  */
 export function mergeMessages(
@@ -32,11 +42,7 @@ export function mergeMessages(
   const byId = new Map<string, ChatMessage>();
   for (const m of existing) byId.set(m.id, m);
   for (const m of incoming) byId.set(m.id, m);
-  return [...byId.values()].toSorted(
-    (a, b) =>
-      a.createdAt - b.createdAt ||
-      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-  );
+  return [...byId.values()].toSorted(compareMessages);
 }
 
 /**
@@ -95,8 +101,8 @@ export function useRoomChat(roomId: string) {
         setMessages((prev) => mergeMessages(prev, page));
         const oldestPage = page[0];
         if (!oldestPage) return;
-        // boundary の時刻に到達したら欠落区間をカバー済み。
-        if (oldestPage.createdAt <= boundary.createdAt) return;
+        // boundary（再接続前の最新）に到達したら欠落区間をカバー済み。
+        if (compareMessages(oldestPage, boundary) <= 0) return;
         // これ以上履歴がない、またはカーソルが前進しないなら停止。
         if (page.length < MESSAGE_PAGE_SIZE) return;
         if (
@@ -132,20 +138,24 @@ export function useRoomChat(roomId: string) {
           // 全置換せずマージし、再接続時に旧表示の前方が落ちないようにする。
           setMessages((m) => mergeMessages(m, incoming));
           // history（直近 N 件）が旧最新と重ならない場合は欠落区間を補完する。
+          // 比較は (createdAt, id) 複合で行い、同一ミリ秒境界の取りこぼしを防ぐ。
           const newestPrev = prev[prev.length - 1];
           const oldestIncoming = incoming[0];
           if (
             newestPrev &&
             oldestIncoming &&
-            oldestIncoming.createdAt > newestPrev.createdAt
+            compareMessages(oldestIncoming, newestPrev) > 0
           ) {
             void backfillGap(newestPrev, oldestIncoming);
           }
         } else if (data.type === "message") {
           setMessages((prev) => mergeMessages(prev, [data.message]));
         } else if (data.type === "update") {
-          // 編集 / 論理削除。既存メッセージを id で一意化して差し替える。
-          setMessages((prev) => mergeMessages(prev, [data.message]));
+          // 編集 / 論理削除。既存メッセージを id でマッチして差し替える。
+          // 未ロード（表示範囲外）の id は無視し、孤立挿入しない。
+          setMessages((prev) =>
+            prev.map((m) => (m.id === data.message.id ? data.message : m)),
+          );
         } else if (data.type === "error") {
           setErrorMessage(data.message);
         }

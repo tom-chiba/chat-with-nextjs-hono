@@ -18,7 +18,8 @@ const STATUS_LABEL = {
  * 単一ルームのチャット UI（一覧 + 入力 + 接続状態 + 過去ログ読み込み）。
  *
  * 親は `key={roomId}` で本コンポーネントを再マウントし、ルーム切替時に状態を初期化する。
- * ライブ分（履歴 + 新着）は WebSocket フックから、それより古い分は REST で取得して前方に連結する。
+ * メッセージ（履歴・新着・過去ログ）は `useRoomChat` が id 一意・時系列ソートの
+ * 単一リストとして一元管理し、本コンポーネントはそれを描画するだけ。
  */
 export function ChatRoom({
   roomId,
@@ -75,9 +76,14 @@ export function ChatRoom({
 
   const onReadRef = useRef(onRead);
   onReadRef.current = onRead;
+  /** 直近で既読化した末尾メッセージ ID。同じ末尾での冗長な既読 POST を防ぐ。 */
+  const lastReadIdRef = useRef<string | null>(null);
   useEffect(() => {
     const latest = messages[messages.length - 1];
     if (!latest) return;
+    // 過去ログ読み込み・欠落補完で先頭が増えても末尾が同じなら既読は不要。
+    if (latest.id === lastReadIdRef.current) return;
+    lastReadIdRef.current = latest.id;
     let cancelled = false;
     void markRoomRead(roomId, latest.createdAt)
       .then(() => {
