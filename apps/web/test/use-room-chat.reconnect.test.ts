@@ -228,6 +228,31 @@ test("欠落区間が複数ページに跨る場合は boundary までページ�
   expect(ids.at(-1)).toBe("m100");
 });
 
+test("補完で同一ページが返り続けてもカーソル不前進ガードで停止する", async () => {
+  // サーバが退行して常に同じ満杯ページを返す異常系。無限ループしないこと。
+  fetchMessages.mockResolvedValue(seq(70, MESSAGE_PAGE_SIZE)); // 毎回 m70..m99
+  const { result } = renderHook(() => useRoomChat("room-1"));
+
+  act(() => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({ type: "history", messages: [msg("m1", 1)] });
+  });
+
+  await reconnect();
+  await act(async () => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({
+      type: "history",
+      messages: [msg("m100", 100)],
+    });
+  });
+  await flush();
+
+  // 1 回目で m70 までカーソル前進、2 回目は同じ m70 が先頭で不前進 → 停止。
+  expect(fetchMessages).toHaveBeenCalledTimes(2);
+  expect(result.current.messages.at(-1)?.id).toBe("m100");
+});
+
 test("同一ミリ秒・id 違いの境界でも欠落を検出して補完する", async () => {
   // a と c は同じ createdAt=100。間の b（同 createdAt）が切断中に投稿された想定。
   fetchMessages.mockResolvedValue([msg("b", 100)]);
