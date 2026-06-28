@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChatMessage, ClientMessage } from "@repo/shared";
-import { MESSAGE_PAGE_SIZE, serverMessageSchema } from "@repo/shared";
+import { HISTORY_LIMIT, MESSAGE_PAGE_SIZE, serverMessageSchema } from "@repo/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { compareMessages, mergeMessages } from "@/lib/messages";
 import { fetchMessages } from "@/lib/rooms";
@@ -116,6 +116,10 @@ export function useRoomChat(roomId: string) {
           const incoming = data.messages;
           // 全置換せずマージし、再接続時に旧表示の前方が落ちないようにする。
           setMessages((m) => mergeMessages(m, incoming));
+          // 初回履歴（最新 HISTORY_LIMIT 件）が上限未満なら、これ以上古い履歴は
+          // 存在しないので過去ログ読み込みを無効化する。再接続時の history 再送で
+          // loadOlder 済みの hasMore を巻き戻さないよう、初回（prev が空）に限る。
+          if (prev.length === 0) setHasMore(incoming.length >= HISTORY_LIMIT);
           // history（直近 N 件）が旧最新と重ならない場合は欠落区間を補完する。
           // 比較は (createdAt, id) 複合で行い、同一ミリ秒境界の取りこぼしを防ぐ。
           const newestPrev = prev[prev.length - 1];
