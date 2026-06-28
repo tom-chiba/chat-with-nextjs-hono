@@ -50,7 +50,7 @@ export function ProfileForm({ currentName }: { currentName: string }) {
           setDraft(currentName);
           setEditing(true);
         }}
-        style={{ fontSize: "0.75rem" }}
+        className="btn-quiet"
         aria-label="表示名を編集"
       >
         表示名を変更
@@ -59,10 +59,7 @@ export function ProfileForm({ currentName }: { currentName: string }) {
   }
 
   return (
-    <form
-      onSubmit={save}
-      style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}
-    >
+    <form onSubmit={save} className="profile-form">
       <input
         type="text"
         value={draft}
@@ -78,9 +75,7 @@ export function ProfileForm({ currentName }: { currentName: string }) {
       <button type="button" onClick={cancel} disabled={saving}>
         キャンセル
       </button>
-      {error && (
-        <span style={{ color: "#c00", fontSize: 12 }}>{error}</span>
-      )}
+      {error && <span className="action-error">{error}</span>}
     </form>
   );
 }

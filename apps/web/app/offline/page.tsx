@@ -6,9 +6,9 @@ export const metadata = {
 
 export default function Offline() {
   return (
-    <main style={{ padding: 24, display: "grid", gap: 12 }}>
-      <h1>オフラインです</h1>
-      <p>
+    <main className="page">
+      <h1 className="page-title">オフラインです</h1>
+      <p className="muted">
         ネットワークに接続できませんでした。接続が回復したら、ページを再読み込みしてください。
       </p>
     </main>

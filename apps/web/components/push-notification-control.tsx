@@ -73,7 +73,7 @@ export function PushNotificationControl() {
     status === "subscribed" ? "通知を解除" : busy ? "処理中…" : "通知を有効化";
 
   return (
-    <div style={{ display: "grid", gap: 4 }}>
+    <div className="push-control">
       <button
         type="button"
         onClick={status === "subscribed" ? unsubscribe : subscribe}
@@ -82,15 +82,17 @@ export function PushNotificationControl() {
         {label}
       </button>
       {capability === "denied" ? (
-        <span style={{ color: "#c00", fontSize: 12 }}>
+        <span className="action-error">
           ブラウザ設定で通知がブロックされています
         </span>
       ) : capability === "unsupported" ? (
-        <span style={{ color: "#999", fontSize: 12 }}>
+        <span className="faint" style={{ fontSize: "var(--text-xs)" }}>
           このブラウザは通知に対応していません
         </span>
       ) : message ? (
-        <span style={{ color: "#666", fontSize: 12 }}>{message}</span>
+        <span className="muted" style={{ fontSize: "var(--text-xs)" }}>
+          {message}
+        </span>
       ) : null}
     </div>
   );

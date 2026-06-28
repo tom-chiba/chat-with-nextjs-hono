@@ -14,9 +14,9 @@ import { resetPassword } from "@/lib/auth-client";
  */
 export default function ResetPasswordPage() {
   return (
-    <main style={{ display: "grid", gap: 16 }}>
-      <h1 style={{ margin: 0, fontSize: "1.25rem" }}>パスワード再設定</h1>
-      <Suspense fallback={<p>読み込み中…</p>}>
+    <main className="page">
+      <h1 className="page-title">パスワード再設定</h1>
+      <Suspense fallback={<p className="muted">読み込み中…</p>}>
         <ResetPasswordForm />
       </Suspense>
     </main>
@@ -37,8 +37,8 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div style={{ display: "grid", gap: 8 }}>
-        <p style={{ color: "crimson" }}>
+      <div style={{ display: "grid", gap: "var(--space-2)" }}>
+        <p className="form-error">
           token が見つかりません。メール内のリンクから開き直してください。
         </p>
         <Link href="/">トップへ戻る</Link>
@@ -48,8 +48,8 @@ function ResetPasswordForm() {
 
   if (done) {
     return (
-      <div style={{ display: "grid", gap: 8 }}>
-        <p style={{ color: "green" }}>パスワードを再設定しました。</p>
+      <div style={{ display: "grid", gap: "var(--space-2)" }}>
+        <p className="form-success">パスワードを再設定しました。</p>
         <Link href="/">ログインへ</Link>
       </div>
     );
@@ -73,7 +73,7 @@ function ResetPasswordForm() {
   };
 
   return (
-    <form onSubmit={submit} style={{ display: "grid", gap: 8, maxWidth: 320 }}>
+    <form onSubmit={submit} className="form-card">
       <input
         type="password"
         placeholder={`新しいパスワード（${MIN_PASSWORD_LENGTH}文字以上）`}
@@ -95,7 +95,7 @@ function ResetPasswordForm() {
       <button type="submit" disabled={pending}>
         {pending ? "送信中…" : "パスワードを再設定"}
       </button>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+      {error && <p className="form-error">{error}</p>}
     </form>
   );
 }

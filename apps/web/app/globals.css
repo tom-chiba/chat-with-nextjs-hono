@@ -1,50 +1,297 @@
+/* =========================================================================
+   デザイントークン
+   方針: 静かでプロ仕様。温かいニュートラル下地 × 単一の冷たいアクセント。
+   全コンポーネントはここで定義したトークンを参照し、色のハードコードは持たない。
+   ========================================================================= */
 :root {
   color-scheme: light dark;
+
+  /* --- Color (Light) --- */
+  --canvas: #f7f6f3; /* アプリ背景（薄い温かオフホワイト） */
+  --surface: #ffffff; /* パネル・他者バブル */
+  --surface-sunken: #efede8; /* 入力欄トラック・引っ込んだ面 */
+  --ink: #1f1d1b; /* 主要テキスト（温かい黒） */
+  --ink-muted: #6b6760; /* 名前・時刻・補助テキスト */
+  --ink-faint: #9c978e; /* プレースホルダ・区切り */
+  --line: #e5e2db; /* 境界線・ヘアライン */
+  --accent: #2f4fd6; /* アクティブ・送信・リンク・フォーカス */
+  --accent-hover: #2540b5; /* ホバー／押下 */
+  --accent-weak: #eceefb; /* アクティブ行背景・自分のメッセージ面 */
+  --accent-weak-border: #d5daf6; /* 上記の縁取り */
+  --on-accent: #ffffff; /* アクセント面上のボタン文字 */
+  --mention-bg: #fbf1c7;
+  --mention-ink: #6b5400;
+  --danger: #c0392b;
+  --danger-hover: #a93226;
+  --success: #2e7d52;
+  --warn-bg: #fbf1c7;
+  --warn-ink: #6b5400;
+  --warn-line: #ead9a0;
+
+  /* --- Type --- */
+  --font-display: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+  --font-body:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN",
+    "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+  --font-mono:
+    var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
+  --text-xs: 0.75rem; /* 12px 時刻・バッジ・eyebrow */
+  --text-sm: 0.8125rem; /* 13px 補助テキスト */
+  --text-base: 0.9375rem; /* 15px 本文・入力 */
+  --text-md: 1.0625rem; /* 17px ルームヘッダ */
+  --text-lg: 1.375rem; /* 22px ワードマーク／h1 */
+
+  /* --- Space --- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* --- Radius --- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* --- Shadow（繊細） --- */
+  --shadow-1: 0 1px 2px rgba(20, 18, 16, 0.06);
+  --shadow-2: 0 4px 16px rgba(20, 18, 16, 0.1);
+
+  /* --- Motion --- */
+  --ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #161518;
+    --surface: #201f24;
+    --surface-sunken: #131214;
+    --ink: #eceae6;
+    --ink-muted: #a6a199;
+    --ink-faint: #6f6b64;
+    --line: #302e34;
+    --accent: #8a9bf2; /* 暗面で AA を満たすよう明度を上げる */
+    --accent-hover: #a1aff6;
+    --accent-weak: #23253a;
+    --accent-weak-border: #343a5c;
+    --on-accent: #14141a; /* 明アクセント上のボタン文字 */
+    --mention-bg: #3a3320;
+    --mention-ink: #f2e2a8;
+    --danger: #e07a6e;
+    --danger-hover: #e8978d;
+    --success: #6fcf97;
+    --warn-bg: #3a3320;
+    --warn-ink: #f2e2a8;
+    --warn-line: #5a4e2e;
+    /* 繊細な陰影は暗面では沈むため少し強める。 */
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* =========================================================================
+   リセット / ベース
+   ========================================================================= */
 * {
   box-sizing: border-box;
 }
 
-html,
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   padding: 0;
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    "Hiragino Kaku Gothic ProN",
-    "Noto Sans JP",
-    sans-serif;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.6;
 }
 
 main {
   max-width: 72rem;
   margin: 0 auto;
-  padding: 1rem;
-  padding-left: max(1rem, env(safe-area-inset-left));
-  padding-right: max(1rem, env(safe-area-inset-right));
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding: var(--space-4);
+  padding-left: max(var(--space-4), env(safe-area-inset-left));
+  padding-right: max(var(--space-4), env(safe-area-inset-right));
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
 }
 
-/* ボタンとテキスト入力のタップターゲット最低サイズ。 */
+/* キーボードフォーカスのみリングを出す（マウス操作では出さない）。 */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* --- フォーム要素 --- */
 button,
 input,
 textarea,
 select {
   font: inherit;
+  color: inherit;
 }
+
+input,
+textarea,
+select {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-faint);
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 0;
+  border-color: var(--accent);
+}
+
+/* ボタン既定。タップターゲット最小 36px を維持。 */
 button {
   min-height: 36px;
-  padding: 6px 12px;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+button:hover:not(:disabled) {
+  background: var(--surface-sunken);
+  border-color: var(--ink-faint);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* =========================================================================
+   タイポ・汎用ヘルパ
+   ========================================================================= */
+.wordmark {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0;
+}
+/* セクション見出しの eyebrow ラベル（「ルーム」「メンバー」など）。 */
+.eyebrow {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}
+.muted {
+  color: var(--ink-muted);
+}
+.faint {
+  color: var(--ink-faint);
+}
+
+/* ボタンのバリアント */
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+/* .btn-danger は「危険色」のみを担い、背景/枠線は基底（または併用する
+   .btn-quiet）に委ねる。hover で背景/枠線を触らないことで併用時の順序依存を避ける。 */
+.btn-danger {
+  color: var(--danger);
+}
+.btn-danger:hover:not(:disabled) {
+  color: var(--danger-hover);
+}
+.btn-link {
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  text-decoration: underline;
+  font-size: var(--text-xs);
+  justify-self: start;
+}
+.btn-link:hover:not(:disabled) {
+  color: var(--accent-hover);
+  background: transparent;
+  border-color: transparent;
+}
+/* 控えめなインライン小ボタン（ホバー時に前面化）。 */
+.btn-quiet {
+  min-height: 28px;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  background: transparent;
+  border-color: transparent;
+}
+.btn-quiet:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+/* =========================================================================
+   レイアウト：トップページ / 2 ペインシェル
+   ========================================================================= */
+.page {
+  display: grid;
+  gap: var(--space-4);
+}
+/* ログイン情報・ユーティリティ操作の静かな行。 */
+.util-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
 }
 
 /* 1 ペインずつ切替するモバイルレイアウトと、横並びにするデスクトップレイアウト。 */
 .app-shell {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1rem;
+  gap: var(--space-4);
   align-items: start;
 }
 .app-shell[data-mobile-pane="chat"] .roomlist-pane {
@@ -66,5 +313,430 @@ button {
   }
   .mobile-only {
     display: none;
+  }
+}
+
+/* =========================================================================
+   ルーム一覧
+   ========================================================================= */
+.roomlist {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 180px;
+  align-content: start;
+}
+.roomlist-create {
+  display: flex;
+  gap: var(--space-1);
+}
+.room-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.room-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+.room-edit {
+  display: flex;
+  gap: var(--space-1);
+}
+.room-link {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-weight: 400;
+  overflow: hidden;
+}
+.room-link:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--line);
+}
+.room-link.is-active {
+  background: var(--accent-weak);
+  border-color: var(--accent-weak-border);
+  font-weight: 600;
+}
+/* アクティブ行の左端 2px アクセントマーカー。 */
+.room-link.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+.room-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.unread-badge {
+  flex-shrink: 0;
+  min-width: 18px;
+  padding: 1px 6px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: var(--radius-pill);
+}
+/* owner 用の編集／削除はホバー時に前面化する控えめボタン。 */
+.room-action {
+  opacity: 0.55;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.room-row:hover .room-action,
+.room-row:focus-within .room-action {
+  opacity: 1;
+}
+
+/* =========================================================================
+   メンバー
+   ========================================================================= */
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: var(--space-2) var(--space-3);
+}
+.members-summary {
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}
+.members-body {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.member-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 30px;
+}
+.member-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+}
+.role-tag {
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+}
+.member-add {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* =========================================================================
+   チャット
+   ========================================================================= */
+.chat {
+  display: grid;
+  gap: var(--space-2);
+}
+.chat-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.chat-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+/* 接続状態の breathing presence dot。open のときだけ明滅する。 */
+.presence-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  background: var(--ink-faint);
+}
+.presence-dot.is-open {
+  background: var(--success);
+  animation: presence-breathe 2s var(--ease) infinite;
+}
+@keyframes presence-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.msg-scroll {
+  height: min(60vh, 360px);
+  padding: var(--space-3);
+  overflow-y: auto;
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.load-more {
+  justify-self: center;
+  min-height: 28px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+.history-end {
+  margin: 0;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+}
+.empty-note {
+  margin: 0;
+  color: var(--ink-muted);
+}
+/* 実在する時系列構造を示す日付区切り。 */
+.date-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+.date-divider::before,
+.date-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* シグネチャ：二層の会話面（彩度の高いベタ塗りバブルは使わない）。 */
+.msg {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}
+.msg.is-mine {
+  justify-items: end;
+}
+/* 連続する同一送信者ではメッセージ間を詰める。 */
+.msg.is-grouped {
+  margin-top: -4px;
+}
+.msg-author {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.bubble {
+  display: inline-block;
+  max-width: min(90%, 520px);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-1);
+  border-radius: var(--radius-md);
+  word-break: break-word;
+  white-space: pre-wrap;
+  text-align: left;
+}
+.bubble.is-mine {
+  background: var(--accent-weak);
+  border-color: transparent;
+  box-shadow: none;
+}
+.bubble.is-deleted {
+  background: var(--surface-sunken);
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ink-muted);
+  font-style: italic;
+}
+.mention {
+  padding: 0 2px;
+  font-weight: 600;
+  background: var(--mention-bg);
+  color: var(--mention-ink);
+  border-radius: var(--radius-sm);
+}
+.msg-link {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.msg-edited {
+  margin-left: var(--space-1);
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+.msg-actions {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: 2px;
+}
+.msg-action {
+  min-height: 0;
+  padding: 1px 6px;
+  font-size: var(--text-xs);
+}
+.edit-form {
+  display: flex;
+  gap: var(--space-1);
+  justify-content: flex-end;
+}
+.edit-form textarea {
+  flex: 1;
+  max-width: 400px;
+  resize: vertical;
+}
+.edit-actions {
+  display: grid;
+  gap: 2px;
+}
+
+.composer {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+}
+.composer textarea {
+  flex: 1;
+  resize: vertical;
+  background: var(--surface-sunken);
+}
+
+/* WS エラー等の警告。 */
+.warn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  border: 1px solid var(--warn-line);
+  border-radius: var(--radius-sm);
+}
+.warn-close {
+  min-height: 0;
+  padding: 0;
+  font-size: var(--text-md);
+  background: transparent;
+  border: none;
+  color: inherit;
+}
+.warn-close:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+}
+.action-error {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--danger);
+}
+
+/* =========================================================================
+   認証・フォーム系カード
+   ========================================================================= */
+.form-card {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 360px;
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+.auth-tabs {
+  display: flex;
+  gap: var(--space-2);
+}
+.tab {
+  flex: 1;
+  background: transparent;
+}
+.tab.is-active {
+  background: var(--accent-weak);
+  border-color: var(--accent-weak-border);
+  color: var(--accent);
+  font-weight: 600;
+}
+/* アクティブタブはホバー時もアクティブ表示を維持する
+   （グローバルの button:hover に勝つよう詳細度を上げる）。 */
+.tab.is-active:hover:not(:disabled) {
+  background: var(--accent-weak);
+  border-color: var(--accent-weak-border);
+}
+.form-success {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--success);
+}
+.form-error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--danger);
+}
+.profile-form {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.push-control {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* =========================================================================
+   モーション抑制
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }

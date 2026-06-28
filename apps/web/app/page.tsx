@@ -18,24 +18,15 @@ export default function Home() {
   const roomListRef = useRef<RoomListHandle>(null);
 
   return (
-    <main style={{ display: "grid", gap: 16 }}>
-      <h1 style={{ margin: 0, fontSize: "1.25rem" }}>{APP_NAME}</h1>
+    <main className="page">
+      <h1 className="wordmark">{APP_NAME}</h1>
 
       {isPending ? (
-        <p>読み込み中…</p>
+        <p className="muted">読み込み中…</p>
       ) : session ? (
         <>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <span style={{ fontSize: "0.875rem" }}>
-              {session.user.name} としてログイン中
-            </span>
+          <div className="util-row">
+            <span>{session.user.name} としてログイン中</span>
             <ProfileForm currentName={session.user.name} />
             <PushNotificationControl />
             <button type="button" onClick={() => signOut()}>
@@ -65,7 +56,7 @@ export default function Home() {
                   }}
                 />
               ) : (
-                <p style={{ color: "#999" }}>
+                <p className="muted">
                   ルームを選択するか、新しく作成してください。
                 </p>
               )}

@@ -8,7 +8,7 @@ describe("manifest", () => {
   test("standalone 表示・start_url・テーマ色を持つ", () => {
     expect(m.display).toBe("standalone");
     expect(m.start_url).toBe("/");
-    expect(m.theme_color).toBe("#4f46e5");
+    expect(m.theme_color).toBe("#2f4fd6");
     expect(m.name).toBeTruthy();
   });
 
