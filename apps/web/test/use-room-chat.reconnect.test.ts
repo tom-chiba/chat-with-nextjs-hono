@@ -97,6 +97,29 @@ async function reconnect() {
   });
 }
 
+test("close の二重発火でも再接続タイマーは clear され重複接続しない", async () => {
+  renderHook(() => useRoomChat("room-1"));
+
+  act(() => {
+    MockWebSocket.latest.open();
+  });
+  // 初回接続のみ。
+  expect(MockWebSocket.instances).toHaveLength(1);
+
+  // error → close の二重発火を模す。各 close が setTimeout(connect) を登録するが、
+  // 後勝ちで前のタイマーを clear するため、タイマー進行後の再接続は 1 回だけ。
+  act(() => {
+    MockWebSocket.latest.close();
+    MockWebSocket.latest.close();
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(20_000);
+  });
+
+  // clear していなければ 2 本のタイマーが発火し instances は 3 になる。
+  expect(MockWebSocket.instances).toHaveLength(2);
+});
+
 test("再接続 history が重なる場合はマージで前方を保持し補完しない", async () => {
   const { result } = renderHook(() => useRoomChat("room-1"));
 

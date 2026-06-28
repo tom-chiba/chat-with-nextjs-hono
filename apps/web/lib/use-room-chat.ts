@@ -151,6 +151,9 @@ export function useRoomChat(roomId: string) {
         if (!active) return;
         setStatus("closed");
         attempts += 1;
+        // error → close の二重発火など、複数 close で前のタイマーが参照を失って
+        // リークし再接続が重複しないよう、スケジュール前に必ず clear する。
+        if (reconnectTimer) clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(connect, reconnectDelay(attempts));
       });
 
