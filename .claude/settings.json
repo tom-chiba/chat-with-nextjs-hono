@@ -3,6 +3,26 @@
     "ENABLE_TOOL_SEARCH": "true",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
+  "sandbox": {
+    "enabled": true,
+    "allowUnsandboxedCommands": false,
+    "failIfUnavailable": true,
+    "network": {
+      "allowLocalBinding": true
+    },
+    "filesystem": {
+      "allowWrite": [
+        "~/.claude/plugins/data/",
+        "~/.codex/"
+      ]
+    },
+    "excludedCommands": [
+      "playwright-cli *",
+      "node *codex-companion.mjs*",
+      "git *",
+      "gh *"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
@@ -14,11 +34,6 @@
           }
         ]
       }
-    ]
-  },
-  "autoMode": {
-    "environment": [
-      "$defaults"
     ]
   },
   "permissions": {
