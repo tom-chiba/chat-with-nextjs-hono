@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import type { ServerMessage } from "@repo/shared";
-import { eq } from "drizzle-orm";
+import { MAX_MESSAGE_LENGTH, MAX_ROOM_NAME_LENGTH } from "@repo/shared";
+import { and, eq } from "drizzle-orm";
 import { describe, expect, test } from "vitest";
 import { createDb } from "../src/db";
 import { createRoomWithOwner } from "../src/db/rooms";
@@ -737,5 +738,257 @@ describe("API ルート", () => {
     expect(
       memberBody.rooms.find((r) => r.id === "role-room")?.myRole,
     ).toBe("member");
+  });
+
+  test("ルーム作成/改名は名前の上限超過を 400、境界長を許可する", async () => {
+    const ownerHeaders = await createSession("len-owner", "Owner");
+
+    const tooLong = await app.request(
+      "/rooms",
+      {
+        method: "POST",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "あ".repeat(MAX_ROOM_NAME_LENGTH + 1) }),
+      },
+      env,
+    );
+    expect(tooLong.status).toBe(400);
+    expect(await tooLong.json()).toEqual({ error: "invalid room name" });
+
+    const boundary = await app.request(
+      "/rooms",
+      {
+        method: "POST",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "あ".repeat(MAX_ROOM_NAME_LENGTH) }),
+      },
+      env,
+    );
+    expect(boundary.status).toBe(201);
+
+    await seedRoom({ roomId: "len-room", ownerId: "len-owner" });
+    const renameTooLong = await app.request(
+      "/rooms/len-room",
+      {
+        method: "PATCH",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "い".repeat(MAX_ROOM_NAME_LENGTH + 1) }),
+      },
+      env,
+    );
+    expect(renameTooLong.status).toBe(400);
+  });
+
+  test("メッセージ編集は本文の上限超過を 400、境界長を許可する", async () => {
+    const ownerHeaders = await createSession("editlen-owner", "Owner");
+    await seedRoom({ roomId: "editlen-room", ownerId: "editlen-owner" });
+
+    const db = createDb(env.DB);
+    const { messages: messagesTable } = await import("../src/db/schema");
+    await db.insert(messagesTable).values({
+      id: "editlen-msg",
+      roomId: "editlen-room",
+      userId: "editlen-owner",
+      body: "before",
+      createdAt: new Date(),
+    });
+
+    const tooLong = await app.request(
+      "/rooms/editlen-room/messages/editlen-msg",
+      {
+        method: "PATCH",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "a".repeat(MAX_MESSAGE_LENGTH + 1) }),
+      },
+      env,
+    );
+    expect(tooLong.status).toBe(400);
+    expect(await tooLong.json()).toEqual({ error: "invalid body" });
+
+    const boundary = await app.request(
+      "/rooms/editlen-room/messages/editlen-msg",
+      {
+        method: "PATCH",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "a".repeat(MAX_MESSAGE_LENGTH) }),
+      },
+      env,
+    );
+    expect(boundary.status).toBe(200);
+  });
+
+  test("POST /rooms/:roomId/read は at を検証し既読位置を進める", async () => {
+    const memberHeaders = await createSession("read-user", "Reader");
+    await createSession("read-owner", "Owner");
+    await seedRoom({
+      roomId: "read-room",
+      ownerId: "read-owner",
+      memberIds: ["read-user"],
+    });
+
+    // at 指定 → その時刻が保存される。
+    const at = 1_000_000;
+    const withAt = await app.request(
+      "/rooms/read-room/read",
+      {
+        method: "POST",
+        headers: { ...memberHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ at }),
+      },
+      env,
+    );
+    expect(withAt.status).toBe(200);
+
+    const db = createDb(env.DB);
+    const afterAt = await db
+      .select()
+      .from(roomMembers)
+      .where(
+        and(
+          eq(roomMembers.roomId, "read-room"),
+          eq(roomMembers.userId, "read-user"),
+        ),
+      );
+    expect(afterAt[0]?.lastReadAt?.getTime()).toBe(at);
+
+    // at 省略 → 現在時刻にフォールバックして進む。
+    const omitted = await app.request(
+      "/rooms/read-room/read",
+      {
+        method: "POST",
+        headers: { ...memberHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      },
+      env,
+    );
+    expect(omitted.status).toBe(200);
+    const afterOmit = await db
+      .select()
+      .from(roomMembers)
+      .where(
+        and(
+          eq(roomMembers.roomId, "read-room"),
+          eq(roomMembers.userId, "read-user"),
+        ),
+      );
+    expect(afterOmit[0]?.lastReadAt?.getTime() ?? 0).toBeGreaterThan(at);
+
+    // 不正な at（負数・非数値）は 400。
+    for (const bad of [{ at: -1 }, { at: "now" }]) {
+      const res = await app.request(
+        "/rooms/read-room/read",
+        {
+          method: "POST",
+          headers: { ...memberHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify(bad),
+        },
+        env,
+      );
+      expect(res.status).toBe(400);
+    }
+
+    // 未所属ユーザーは 403。
+    const outsiderHeaders = await createSession("read-outsider", "Outsider");
+    const forbidden = await app.request(
+      "/rooms/read-room/read",
+      {
+        method: "POST",
+        headers: { ...outsiderHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ at }),
+      },
+      env,
+    );
+    expect(forbidden.status).toBe(403);
+  });
+
+  test("Push 購読は不正ボディを 400 にし、未設定は検証より先に 503 を返す", async () => {
+    const configuredEnv = {
+      ...env,
+      VAPID_PUBLIC_KEY: "test-public-key",
+      VAPID_PRIVATE_KEY: "test-private-key",
+    };
+    const headers = await createSession("push-invalid-user", "Push User");
+
+    // keys 欠落 → 400。
+    const missingKeys = await app.request(
+      "/push/subscriptions",
+      {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: "https://push.example.com/x" }),
+      },
+      configuredEnv,
+    );
+    expect(missingKeys.status).toBe(400);
+    expect(await missingKeys.json()).toEqual({
+      error: "invalid push subscription",
+    });
+
+    // endpoint 空文字 → 400。
+    const emptyEndpoint = await app.request(
+      "/push/subscriptions",
+      {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: "", keys: { p256dh: "k", auth: "a" } }),
+      },
+      configuredEnv,
+    );
+    expect(emptyEndpoint.status).toBe(400);
+
+    // 未設定 env では不正ボディでも 503（設定不備）を先に返す。
+    const unconfigured = await app.request(
+      "/push/subscriptions",
+      {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ bogus: true }),
+      },
+      { ...env, VAPID_PUBLIC_KEY: undefined, VAPID_PRIVATE_KEY: undefined },
+    );
+    expect(unconfigured.status).toBe(503);
+
+    // DELETE は endpoint 欠落で 400。
+    const badDelete = await app.request(
+      "/push/subscriptions",
+      {
+        method: "DELETE",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      },
+      configuredEnv,
+    );
+    expect(badDelete.status).toBe(400);
+    expect(await badDelete.json()).toEqual({ error: "invalid endpoint" });
+  });
+
+  test("メンバー追加は前後空白付きメールを trim して解決する", async () => {
+    const ownerHeaders = await createSession("trim-owner", "Owner");
+    await createSession("trim-target", "Target");
+    await seedRoom({ roomId: "trim-room", ownerId: "trim-owner" });
+
+    const added = await app.request(
+      "/rooms/trim-room/members",
+      {
+        method: "POST",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "  trim-target@example.com  " }),
+      },
+      env,
+    );
+    expect(added.status).toBe(201);
+
+    // trim 後のメールで実ユーザーが解決され、メンバー行が追加されたことを確認する。
+    const db = createDb(env.DB);
+    const rows = await db
+      .select()
+      .from(roomMembers)
+      .where(
+        and(
+          eq(roomMembers.roomId, "trim-room"),
+          eq(roomMembers.userId, "trim-target"),
+        ),
+      );
+    expect(rows).toHaveLength(1);
   });
 });

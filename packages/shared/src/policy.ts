@@ -2,6 +2,8 @@
  * セキュリティ・レート制限関連の定数。FE/BE で共有する。
  */
 
+import { z } from "zod";
+
 /** パスワードの最小長。 */
 export const MIN_PASSWORD_LENGTH = 12;
 /** パスワードの最大長。誤入力 / DoS 防止のため上限を設ける。 */
@@ -21,3 +23,9 @@ export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** 値が {@link EMAIL_PATTERN} に一致すれば true。FE/BE 双方の入力検証で共有する。 */
 export const isEmailLike = (value: string) => EMAIL_PATTERN.test(value);
+
+/**
+ * メールアドレス入力（メンバー追加など）の検証スキーマ。
+ * 前後空白を除去し、{@link EMAIL_PATTERN} に一致しない値を弾く。出力は trim 済み。
+ */
+export const emailSchema = z.string().trim().refine(isEmailLike);

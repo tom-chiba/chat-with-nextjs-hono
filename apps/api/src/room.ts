@@ -2,11 +2,11 @@ import { DurableObject } from "cloudflare:workers";
 import {
   type ChatMessage,
   type ServerMessage,
+  clientMessageSchema,
   HISTORY_LIMIT,
-  MAX_MESSAGE_LENGTH,
+  parseMentionCandidates,
   WS_RATE_LIMIT_MAX,
   WS_RATE_LIMIT_WINDOW_MS,
-  parseMentionCandidates,
 } from "@repo/shared";
 import { eq } from "drizzle-orm";
 import { createDb } from "./db";
@@ -112,18 +112,16 @@ export class RoomDO extends DurableObject<Env> {
     if (!attachment) return;
 
     const text = typeof raw === "string" ? raw : new TextDecoder().decode(raw);
-    let body: unknown;
+    let json: unknown;
     try {
-      const parsed = JSON.parse(text) as { type?: unknown; body?: unknown };
-      if (parsed.type !== "message") return;
-      body = parsed.body;
+      json = JSON.parse(text);
     } catch {
       return;
     }
-
-    if (typeof body !== "string") return;
-    const trimmed = body.trim();
-    if (trimmed.length === 0 || trimmed.length > MAX_MESSAGE_LENGTH) return;
+    // スキーマで実検証する。body は trim 済み・長さ検証済みで返る。
+    const parsed = clientMessageSchema.safeParse(json);
+    if (!parsed.success) return;
+    const trimmed = parsed.data.body;
 
     const { userId, userName, roomId } = attachment;
     const db = createDb(this.env.DB);

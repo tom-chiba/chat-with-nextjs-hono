@@ -1,6 +1,11 @@
 /**
  * チャットの共有型。FE / BE（Worker・Durable Object）で共有する。
+ *
+ * 型・検証・パースは zod スキーマを単一情報源とし、公開型は `z.infer` で導出する。
+ * 入力制約（最大長など）の定数もスキーマに織り込み、検証の二重管理を避ける。
  */
+
+import { z } from "zod";
 
 /** ルーム内のメンバーロール。owner は編集・削除・メンバー管理が可能。 */
 export type RoomRole = "owner" | "member";
@@ -29,40 +34,7 @@ export type RoomMember = {
   joinedAt: number;
 };
 
-/**
- * クライアントに配信する 1 メッセージ。
- * DB の `messages` 行に送信者名（`userName`）を付与した形。
- *
- * - `editedAt` は編集された時刻。未編集なら null。
- * - `deletedAt` は論理削除された時刻。削除されていれば `body` は空文字で配信される。
- */
-export type ChatMessage = {
-  id: string;
-  roomId: string;
-  userId: string;
-  userName: string;
-  body: string;
-  /** ミリ秒エポック（`messages.created_at`）。 */
-  createdAt: number;
-  /** ミリ秒エポック。未編集なら null。 */
-  editedAt: number | null;
-  /** ミリ秒エポック。削除されていなければ null。 */
-  deletedAt: number | null;
-};
-
-/** クライアント → サーバ。 */
-export type ClientMessage = { type: "message"; body: string };
-
-/** サーバ → クライアント。 */
-export type ServerMessage =
-  | { type: "history"; messages: ChatMessage[] }
-  | { type: "message"; message: ChatMessage }
-  /** 既存メッセージの更新（編集・論理削除）。クライアントは id でマッチして差し替える。 */
-  | { type: "update"; message: ChatMessage }
-  | { type: "error"; code: ServerErrorCode; message: string };
-
-/** クライアントが分岐に使う想定のエラーコード。 */
-export type ServerErrorCode = "rate_limited";
+/* ===== 入力制約の定数（スキーマと共有する単一情報源） ===== */
 
 /** WebSocket で送る body の最大長（文字数）。 */
 export const MAX_MESSAGE_LENGTH = 2000;
@@ -76,6 +48,76 @@ export const MESSAGE_PAGE_SIZE_MAX = 100;
 
 /** WebSocket 接続直後にサーバが送る初期履歴の件数。 */
 export const HISTORY_LIMIT = 50;
+
+/* ===== 共有スキーマ（型・検証の単一情報源） ===== */
+
+/**
+ * クライアントに配信する 1 メッセージのスキーマ。
+ * DB の `messages` 行に送信者名（`userName`）を付与した形。
+ */
+export const chatMessageSchema = z.object({
+  id: z.string(),
+  roomId: z.string(),
+  userId: z.string(),
+  userName: z.string(),
+  body: z.string(),
+  /** ミリ秒エポック（`messages.created_at`）。 */
+  createdAt: z.number(),
+  /** ミリ秒エポック。未編集なら null。 */
+  editedAt: z.number().nullable(),
+  /** ミリ秒エポック。削除されていなければ null。 */
+  deletedAt: z.number().nullable(),
+});
+
+/**
+ * クライアントに配信する 1 メッセージ。
+ *
+ * - `editedAt` は編集された時刻。未編集なら null。
+ * - `deletedAt` は論理削除された時刻。削除されていれば `body` は空文字で配信される。
+ */
+export type ChatMessage = z.infer<typeof chatMessageSchema>;
+
+/**
+ * メッセージ本文（WS 送信 / REST 編集）の検証スキーマ。
+ * 前後空白を除去し、空・上限超過を弾く。出力は trim 済みの本文。
+ */
+export const messageBodySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(MAX_MESSAGE_LENGTH);
+
+/** ルーム名（作成 / 改名）の検証スキーマ。trim 済みを返す。 */
+export const roomNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(MAX_ROOM_NAME_LENGTH);
+
+/** クライアント → サーバ。 */
+export const clientMessageSchema = z.object({
+  type: z.literal("message"),
+  body: messageBodySchema,
+});
+export type ClientMessage = z.infer<typeof clientMessageSchema>;
+
+/** クライアントが分岐に使う想定のエラーコード。 */
+export const serverErrorCodeSchema = z.enum(["rate_limited"]);
+export type ServerErrorCode = z.infer<typeof serverErrorCodeSchema>;
+
+/** サーバ → クライアント。 */
+export const serverMessageSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("history"), messages: z.array(chatMessageSchema) }),
+  z.object({ type: z.literal("message"), message: chatMessageSchema }),
+  /** 既存メッセージの更新（編集・論理削除）。クライアントは id でマッチして差し替える。 */
+  z.object({ type: z.literal("update"), message: chatMessageSchema }),
+  z.object({
+    type: z.literal("error"),
+    code: serverErrorCodeSchema,
+    message: z.string(),
+  }),
+]);
+export type ServerMessage = z.infer<typeof serverMessageSchema>;
 
 /**
  * 本文中の `@<name>` を検出する正規表現。

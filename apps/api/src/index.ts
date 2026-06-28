@@ -1,15 +1,20 @@
+import { zValidator } from "@hono/zod-validator";
 import {
   type ChatMessage,
-  isEmailLike,
-  MAX_MESSAGE_LENGTH,
-  MAX_ROOM_NAME_LENGTH,
+  memberAddSchema,
+  messageEditSchema,
+  messagesQuerySchema,
   MESSAGE_PAGE_SIZE,
   MESSAGE_PAGE_SIZE_MAX,
+  pushSubscriptionSchema,
+  pushUnsubscribeSchema,
+  roomNameInputSchema,
+  roomReadSchema,
 } from "@repo/shared";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { validator } from "hono/validator";
+import type { ZodType } from "zod";
 import { type AuthEnv, createAuth } from "./auth";
 import {
   getMessageById,
@@ -36,9 +41,20 @@ import { roomMembers } from "./db/schema";
 import { requireMember, requireOwner, requireSession } from "./guards";
 import { hasPushConfig } from "./push";
 
-/** クエリ値（string | string[] | undefined）から単一の文字列だけを取り出す。 */
-const pickQuery = (v: string | string[] | undefined) =>
-  typeof v === "string" ? v : undefined;
+/**
+ * JSON ボディを zod で実検証する validator。検証失敗時は既存の応答形に合わせて
+ * `{ error: message }` を 400 で返す（RPC 型にも 400 応答が保持される）。
+ */
+const jsonValidator = <T extends ZodType>(schema: T, message: string) =>
+  zValidator("json", schema, (result, c) =>
+    result.success ? undefined : c.json({ error: message } as const, 400),
+  );
+
+/** クエリを zod で実検証する validator。失敗時は 400 を返す。 */
+const queryValidator = <T extends ZodType>(schema: T) =>
+  zValidator("query", schema, (result, c) =>
+    result.success ? undefined : c.json({ error: "invalid query" } as const, 400),
+  );
 
 /**
  * Cloudflare Workers の環境バインディング。
@@ -50,25 +66,6 @@ const pickQuery = (v: string | string[] | undefined) =>
 export type Bindings = AuthEnv;
 
 const app = new Hono<{ Bindings: Bindings }>();
-
-function isPushSubscriptionInput(value: unknown): value is {
-  endpoint: string;
-  keys: { p256dh: string; auth: string };
-} {
-  if (!value || typeof value !== "object") return false;
-  const record = value as Record<string, unknown>;
-  const keys = record.keys;
-  if (!keys || typeof keys !== "object") return false;
-  const keyRecord = keys as Record<string, unknown>;
-  return (
-    typeof record.endpoint === "string" &&
-    record.endpoint.length > 0 &&
-    typeof keyRecord.p256dh === "string" &&
-    keyRecord.p256dh.length > 0 &&
-    typeof keyRecord.auth === "string" &&
-    keyRecord.auth.length > 0
-  );
-}
 
 type RoomNamespaceBinding = {
   idFromName(name: string): unknown;
@@ -172,25 +169,29 @@ const routes = app
     const s = await requireSession(c);
     if (!s.ok) return s.res;
 
-    const json = await c.req.json().catch(() => undefined);
-    if (!isPushSubscriptionInput(json)) {
+    // 設定不備（503）・未認証（401）を先に返したいので、検証はハンドラ内で行う。
+    const parsed = pushSubscriptionSchema.safeParse(
+      await c.req.json().catch(() => undefined),
+    );
+    if (!parsed.success) {
       return c.json({ error: "invalid push subscription" } as const, 400);
     }
 
-    await upsertPushSubscription(s.db, s.user.id, json);
+    await upsertPushSubscription(s.db, s.user.id, parsed.data);
     return c.json({ ok: true } as const, 201);
   })
   .delete("/push/subscriptions", async (c) => {
     const s = await requireSession(c);
     if (!s.ok) return s.res;
 
-    const json = (await c.req.json().catch(() => ({}))) as { endpoint?: unknown };
-    const endpoint = typeof json.endpoint === "string" ? json.endpoint : "";
-    if (!endpoint) {
+    const parsed = pushUnsubscribeSchema.safeParse(
+      await c.req.json().catch(() => undefined),
+    );
+    if (!parsed.success) {
       return c.json({ error: "invalid endpoint" } as const, 400);
     }
 
-    await deletePushSubscription(s.db, s.user.id, endpoint);
+    await deletePushSubscription(s.db, s.user.id, parsed.data.endpoint);
     return c.json({ ok: true } as const);
   })
   // 自分が所属するルーム一覧（新しい順）。要セッション。
@@ -209,14 +210,10 @@ const routes = app
     });
   })
   // ルーム作成。要セッション。id はサーバ採番（UUID）。
-  .post("/rooms", async (c) => {
+  .post("/rooms", jsonValidator(roomNameInputSchema, "invalid room name"), async (c) => {
     const s = await requireSession(c);
     if (!s.ok) return s.res;
-    const json = (await c.req.json().catch(() => ({}))) as { name?: unknown };
-    const name = typeof json.name === "string" ? json.name.trim() : "";
-    if (name.length === 0 || name.length > MAX_ROOM_NAME_LENGTH) {
-      return c.json({ error: "invalid room name" } as const, 400);
-    }
+    const { name } = c.req.valid("json");
     // createdAt は明示採番し、DB 既定値への往復なしで正確な値を返す。
     const createdAt = Date.now();
     const id = crypto.randomUUID();
@@ -242,8 +239,7 @@ const routes = app
   // ルーム名変更。オーナーのみ。
   .patch(
     "/rooms/:roomId",
-    // RPC クライアントに json ボディ型を伝えるため validator を通す。
-    validator("json", (value: { name?: string }) => value),
+    jsonValidator(roomNameInputSchema, "invalid room name"),
     async (c) => {
       const s = await requireSession(c);
       if (!s.ok) return s.res;
@@ -251,12 +247,7 @@ const routes = app
       const own = await requireOwner(c, s.db, s.user.id, roomId);
       if (!own.ok) return own.res;
 
-      const json = c.req.valid("json");
-      const name = typeof json.name === "string" ? json.name.trim() : "";
-      if (name.length === 0 || name.length > MAX_ROOM_NAME_LENGTH) {
-        return c.json({ error: "invalid room name" } as const, 400);
-      }
-
+      const { name } = c.req.valid("json");
       await updateRoomName(s.db, roomId, name);
       return c.json({ room: { id: roomId, name } } as const);
     },
@@ -277,8 +268,7 @@ const routes = app
   // 自分の lastReadAt を進める。`at` は既読化したい時刻のミリ秒。
   .post(
     "/rooms/:roomId/read",
-    // RPC クライアントに json ボディ型を伝えるため validator を通す。
-    validator("json", (value: { at?: number }) => value),
+    jsonValidator(roomReadSchema, "invalid at"),
     async (c) => {
       const s = await requireSession(c);
       if (!s.ok) return s.res;
@@ -286,13 +276,9 @@ const routes = app
       const mem = await requireMember(c, s.db, s.user.id, roomId);
       if (!mem.ok) return mem.res;
 
-      const json = c.req.valid("json");
-      const atMs = typeof json.at === "number" ? json.at : Date.now();
-      if (!Number.isFinite(atMs) || atMs < 0) {
-        return c.json({ error: "invalid at" } as const, 400);
-      }
-
-      await markRoomRead(s.db, roomId, s.user.id, new Date(atMs));
+      // 省略時は現在時刻を既読位置にする。
+      const { at } = c.req.valid("json");
+      await markRoomRead(s.db, roomId, s.user.id, new Date(at ?? Date.now()));
       return c.json({ ok: true } as const);
     },
   )
@@ -317,8 +303,7 @@ const routes = app
   // オーナーがメールアドレスで登録済みユーザーをルームへ追加する。
   .post(
     "/rooms/:roomId/members",
-    // RPC クライアントに json ボディ型を伝えるため validator を通す。
-    validator("json", (value: { email?: string }) => value),
+    jsonValidator(memberAddSchema, "invalid email"),
     async (c) => {
       const s = await requireSession(c);
       if (!s.ok) return s.res;
@@ -326,11 +311,7 @@ const routes = app
       const own = await requireOwner(c, s.db, s.user.id, roomId);
       if (!own.ok) return own.res;
 
-      const json = c.req.valid("json");
-      const email = typeof json.email === "string" ? json.email.trim() : "";
-      if (!isEmailLike(email)) {
-        return c.json({ error: "invalid email" } as const, 400);
-      }
+      const { email } = c.req.valid("json");
       const target = await findUserByEmail(s.db, email);
       if (!target) {
         return c.json({ error: "user not found" } as const, 404);
@@ -393,7 +374,7 @@ const routes = app
   // メッセージ編集。本人のみ。論理削除済みは編集不可。
   .patch(
     "/rooms/:roomId/messages/:messageId",
-    validator("json", (value: { body?: string }) => value),
+    jsonValidator(messageEditSchema, "invalid body"),
     async (c) => {
       const s = await requireSession(c);
       if (!s.ok) return s.res;
@@ -402,12 +383,7 @@ const routes = app
       const mem = await requireMember(c, s.db, s.user.id, roomId);
       if (!mem.ok) return mem.res;
 
-      const json = c.req.valid("json");
-      const body = typeof json.body === "string" ? json.body.trim() : "";
-      if (body.length === 0 || body.length > MAX_MESSAGE_LENGTH) {
-        return c.json({ error: "invalid body" } as const, 400);
-      }
-
+      const { body } = c.req.valid("json");
       const existing = await getMessageById(s.db, messageId);
       if (!existing || existing.roomId !== roomId) {
         return c.json({ error: "message not found" } as const, 404);
@@ -467,12 +443,7 @@ const routes = app
   // ルームのメッセージ履歴（古い順）。`before`/`beforeId` で過去ページをたどる。要セッション。
   .get(
     "/rooms/:roomId/messages",
-    // query を明示バリデートして RPC クライアントに型を伝える（未バリデートだと hc が query を受け取れない）。
-    validator("query", (value) => ({
-      before: pickQuery(value.before),
-      beforeId: pickQuery(value.beforeId),
-      limit: pickQuery(value.limit),
-    })),
+    queryValidator(messagesQuerySchema),
     async (c) => {
       const s = await requireSession(c);
       if (!s.ok) return s.res;

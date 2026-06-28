@@ -11,6 +11,9 @@
     "typecheck": "tsc",
     "test": "vitest run"
   },
+  "dependencies": {
+    "zod": "catalog:"
+  },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "typescript": "catalog:",

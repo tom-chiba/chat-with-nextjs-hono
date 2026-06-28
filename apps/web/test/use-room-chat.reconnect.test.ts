@@ -71,6 +71,10 @@ class MockWebSocket {
   receive(data: ServerMessage) {
     this.emit("message", { data: JSON.stringify(data) });
   }
+  /** スキーマ検証の対象外データ（破損 JSON・想定外形状）を流し込む。 */
+  receiveRaw(data: string) {
+    this.emit("message", { data });
+  }
 }
 
 beforeEach(() => {
@@ -348,4 +352,34 @@ test("新着 message は時系列位置に挿入し、重複 id は排除する"
   });
 
   expect(result.current.messages.map((m) => m.id)).toEqual(["m1", "m2", "m3"]);
+});
+
+test("スキーマ検証に通らない受信データは無視する", () => {
+  const { result } = renderHook(() => useRoomChat("room-1"));
+
+  act(() => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({ type: "history", messages: [msg("m1", 1)] });
+  });
+  act(() => {
+    // 破損 JSON。
+    MockWebSocket.latest.receiveRaw("not json");
+    // 想定外の type。
+    MockWebSocket.latest.receiveRaw(JSON.stringify({ type: "bogus" }));
+    // type は正しいが message 形状が壊れている（createdAt 欠落・id が数値）。
+    MockWebSocket.latest.receiveRaw(
+      JSON.stringify({ type: "message", message: { id: 1 } }),
+    );
+    // update でも壊れた message は無視する。
+    MockWebSocket.latest.receiveRaw(
+      JSON.stringify({ type: "update", message: { id: "m1" } }),
+    );
+    // history 配列内に壊れた要素が 1 つでもあれば配列全体を無視する。
+    MockWebSocket.latest.receiveRaw(
+      JSON.stringify({ type: "history", messages: [msg("m2", 2), { id: 1 }] }),
+    );
+  });
+
+  // いずれも反映されず、既存の表示を保つ（m1 のまま、m2 も入らない）。
+  expect(result.current.messages.map((m) => m.id)).toEqual(["m1"]);
 });

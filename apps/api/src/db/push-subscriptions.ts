@@ -1,14 +1,7 @@
+import type { PushSubscriptionInput } from "@repo/shared";
 import { and, eq, ne } from "drizzle-orm";
 import type { Db } from "./index";
 import { pushSubscriptions, roomMembers } from "./schema";
-
-export type PushSubscriptionInput = {
-  endpoint: string;
-  keys: {
-    p256dh: string;
-    auth: string;
-  };
-};
 
 export async function upsertPushSubscription(
   db: Db,
