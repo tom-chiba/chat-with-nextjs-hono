@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { type Auth, type AuthEnv, createAuth } from "./auth";
+import { type AuthEnv, createAuth } from "./auth";
 import { type Db, createDb } from "./db";
 import { getRoomMembership, requireRoomOwner } from "./db/rooms";
 
@@ -9,15 +9,13 @@ import { getRoomMembership, requireRoomOwner } from "./db/rooms";
  * Hono のミドルウェア（`createMiddleware`）が返すレスポンスは RPC の型（`AppType`）に
  * 含まれず、クライアント側の `res.status` narrowing が壊れる。そこで「ハンドラ内で呼び、
  * 失敗時の `c.json(...)` をハンドラ自身が return する」関数として提供し、401/403/404 を
- * RPC 型に残す。成功時は後続が使う値（user / db / membership）を返す。
+ * RPC 型に残す。成功時は後続が使う値（user / db）を返す。
+ *
+ * 注: ガードの呼び出しは型では強制されない。新しい保護ルートでは必ず `requireSession`
+ * を先頭で呼び、必要に応じて `requireMember` / `requireOwner` を続けること。
  */
 
 type GuardCtx = Context<{ Bindings: AuthEnv }>;
-
-/** Better Auth のセッションから得られるユーザー。 */
-type SessionUser = NonNullable<
-  Awaited<ReturnType<Auth["api"]["getSession"]>>
->["user"];
 
 /**
  * 有効なセッションを要求する。未認証なら 401 レスポンスを `res` で返す。
@@ -49,7 +47,7 @@ export async function requireMember(
   if (membership.status === "forbidden") {
     return { ok: false as const, res: c.json({ error: "forbidden" } as const, 403) };
   }
-  return { ok: true as const, membership };
+  return { ok: true as const };
 }
 
 /**
@@ -71,5 +69,3 @@ export async function requireOwner(
   }
   return { ok: true as const };
 }
-
-export type { SessionUser };
