@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
 import { markRoomRead } from "@/lib/rooms";
 import { useMessageActions } from "@/lib/use-message-actions";
@@ -13,6 +13,9 @@ const STATUS_LABEL = {
   open: "接続済み",
   closed: "切断（再接続中…）",
 } as const;
+
+/** 既読化 POST のデバウンス遅延（ミリ秒）。連投・履歴ロード時の冗長な POST を抑える。 */
+const READ_DEBOUNCE_MS = 200;
 
 /**
  * 単一ルームのチャット UI（一覧 + 入力 + 接続状態 + 過去ログ読み込み）。
@@ -58,26 +61,57 @@ export function ChatRoom({
 
   const onReadRef = useRef(onRead);
   onReadRef.current = onRead;
-  /** 直近で既読化した末尾メッセージ ID。同じ末尾での冗長な既読 POST を防ぐ。 */
-  const lastReadIdRef = useRef<string | null>(null);
+  /** 直近でサーバへ送った既読位置（末尾メッセージの createdAt, ミリ秒）。 */
+  const lastReadAtRef = useRef(0);
+  /** 直近で観測した末尾メッセージの createdAt。デバウンス発火時に最新値を送る。 */
+  const latestAtRef = useRef(0);
+  const readTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * 保留中の既読化を送出する。タブ非表示中は送らず保留し、既読位置が進んで
+   * いなければ何もしない。連投・初回履歴ロードでの冗長な POST を抑制する。
+   */
+  const flushRead = useCallback(() => {
+    if (readTimerRef.current) {
+      clearTimeout(readTimerRef.current);
+      readTimerRef.current = null;
+    }
+    // 非表示中は送らず保留（visibilitychange で復帰時に最新値で 1 回送る）。
+    if (typeof document !== "undefined" && document.hidden) return;
+    const at = latestAtRef.current;
+    if (at <= lastReadAtRef.current) return;
+    const prev = lastReadAtRef.current;
+    lastReadAtRef.current = at;
+    void markRoomRead(roomId, at)
+      .then(() => onReadRef.current?.())
+      .catch(() => {
+        // 既読更新失敗は致命ではない。次回送れるよう送信位置を巻き戻す。
+        if (lastReadAtRef.current === at) lastReadAtRef.current = prev;
+      });
+  }, [roomId]);
+
+  // ライブ更新ごとに即時 POST せず、200ms デバウンスでまとめて 1 回だけ送る。
   useEffect(() => {
     const latest = messages[messages.length - 1];
     if (!latest) return;
-    // 過去ログ読み込み・欠落補完で先頭が増えても末尾が同じなら既読は不要。
-    if (latest.id === lastReadIdRef.current) return;
-    lastReadIdRef.current = latest.id;
-    let cancelled = false;
-    void markRoomRead(roomId, latest.createdAt)
-      .then(() => {
-        if (!cancelled) onReadRef.current?.();
-      })
-      .catch(() => {
-        // 既読更新失敗は致命ではないので握りつぶす（次の更新でリカバリされる）。
-      });
-    return () => {
-      cancelled = true;
+    latestAtRef.current = latest.createdAt;
+    // 過去ログ読み込み・欠落補完で先頭が増えても末尾が進んでいなければ不要。
+    if (latest.createdAt <= lastReadAtRef.current) return;
+    if (readTimerRef.current) clearTimeout(readTimerRef.current);
+    readTimerRef.current = setTimeout(flushRead, READ_DEBOUNCE_MS);
+  }, [messages, flushRead]);
+
+  // タブ復帰時に保留分を送出し、アンマウント時にも残った既読を送り切る。
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (!document.hidden) flushRead();
     };
-  }, [roomId, messages]);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      flushRead();
+    };
+  }, [flushRead]);
 
   // 長さ判定はサーバと同じく書記素数で行う（絵文字・結合文字を 1 文字として数える）。
   const draftTooLong = isMessageTooLong(draft);
