@@ -152,10 +152,10 @@ export const RoomList = forwardRef<
   };
 
   return (
-    <div style={{ display: "grid", gap: 8, minWidth: 180, alignContent: "start" }}>
-      <strong style={{ fontSize: 14 }}>ルーム</strong>
+    <div className="roomlist">
+      <strong className="eyebrow">ルーム</strong>
 
-      <form onSubmit={submit} style={{ display: "flex", gap: 4 }}>
+      <form onSubmit={submit} className="roomlist-create">
         <input
           type="text"
           value={draft}
@@ -169,19 +169,19 @@ export const RoomList = forwardRef<
         </button>
       </form>
 
-      {error && <p style={{ color: "#c00", fontSize: 12 }}>{error}</p>}
-      {actionError && (
-        <p style={{ color: "#c00", fontSize: 12 }}>{actionError}</p>
-      )}
+      {error && <p className="action-error">{error}</p>}
+      {actionError && <p className="action-error">{actionError}</p>}
 
       {loading ? (
-        <p style={{ color: "#999", fontSize: 12 }}>読み込み中…</p>
+        <p className="muted" style={{ fontSize: "var(--text-sm)" }}>
+          読み込み中…
+        </p>
       ) : rooms.length === 0 ? (
-        <p style={{ color: "#999", fontSize: 12 }}>
+        <p className="muted" style={{ fontSize: "var(--text-sm)" }}>
           ルームがありません。作成してください。
         </p>
       ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 2 }}>
+        <ul className="room-items">
           {rooms.map((room) => {
             const active = room.id === selectedRoomId;
             const isOwner = room.myRole === "owner";
@@ -194,7 +194,7 @@ export const RoomList = forwardRef<
                       e.preventDefault();
                       void submitEdit(room);
                     }}
-                    style={{ display: "flex", gap: 4 }}
+                    className="room-edit"
                   >
                     <input
                       type="text"
@@ -210,50 +210,17 @@ export const RoomList = forwardRef<
                     </button>
                   </form>
                 ) : (
-                  <div style={{ display: "flex", alignItems: "stretch", gap: 2 }}>
+                  <div className="room-row">
                     <button
                       type="button"
                       onClick={() => onSelect(room.id)}
-                      style={{
-                        flex: 1,
-                        textAlign: "left",
-                        padding: "6px 8px",
-                        borderRadius: 6,
-                        border: "1px solid",
-                        borderColor: active ? "#4a90d9" : "#ddd",
-                        background: active ? "#eaf3fb" : "#fff",
-                        cursor: "pointer",
-                        fontWeight: active ? 600 : 400,
-                        overflow: "hidden",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
+                      className={`room-link${active ? " is-active" : ""}`}
                     >
-                      <span
-                        style={{
-                          flex: 1,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {room.name}
-                      </span>
+                      <span className="room-name">{room.name}</span>
                       {room.unreadCount > 0 && (
                         <span
+                          className="unread-badge"
                           aria-label={`未読 ${room.unreadCount} 件`}
-                          style={{
-                            background: "#e74c3c",
-                            color: "#fff",
-                            borderRadius: 999,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            padding: "1px 6px",
-                            minWidth: 18,
-                            textAlign: "center",
-                            flexShrink: 0,
-                          }}
                         >
                           {room.unreadCount > 99 ? "99+" : room.unreadCount}
                         </span>
@@ -266,14 +233,7 @@ export const RoomList = forwardRef<
                           aria-label="ルーム名を編集"
                           title="ルーム名を編集"
                           onClick={() => startEdit(room)}
-                          style={{
-                            padding: "2px 6px",
-                            border: "1px solid #ddd",
-                            borderRadius: 6,
-                            background: "#fff",
-                            cursor: "pointer",
-                            fontSize: 12,
-                          }}
+                          className="btn-quiet room-action"
                         >
                           編集
                         </button>
@@ -282,15 +242,7 @@ export const RoomList = forwardRef<
                           aria-label="ルームを削除"
                           title="ルームを削除"
                           onClick={() => void submitDelete(room)}
-                          style={{
-                            padding: "2px 6px",
-                            border: "1px solid #ddd",
-                            borderRadius: 6,
-                            background: "#fff",
-                            cursor: "pointer",
-                            fontSize: 12,
-                            color: "#c00",
-                          }}
+                          className="btn-quiet btn-danger room-action"
                         >
                           削除
                         </button>

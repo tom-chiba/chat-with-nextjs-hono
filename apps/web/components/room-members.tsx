@@ -86,63 +86,32 @@ export function RoomMembers({
   };
 
   return (
-    <details
-      style={{
-        border: "1px solid #ddd",
-        borderRadius: 8,
-        padding: "8px 10px",
-        background: "#fff",
-      }}
-    >
-      <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
+    <details className="card">
+      <summary className="members-summary">
         メンバー {loading ? "" : `(${members.length})`}
       </summary>
 
-      <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-        {error && <p style={{ color: "#c00", fontSize: 12, margin: 0 }}>{error}</p>}
+      <div className="members-body">
+        {error && <p className="action-error">{error}</p>}
 
         {loading ? (
-          <p style={{ color: "#999", fontSize: 12, margin: 0 }}>読み込み中…</p>
+          <p className="muted" style={{ fontSize: "var(--text-sm)", margin: 0 }}>
+            読み込み中…
+          </p>
         ) : (
-          <ul
-            style={{
-              listStyle: "none",
-              margin: 0,
-              padding: 0,
-              display: "grid",
-              gap: 4,
-            }}
-          >
+          <ul className="member-items">
             {members.map((member) => {
               const canRemove = isOwner && member.role !== "owner";
               return (
-                <li
-                  key={member.userId}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    minHeight: 30,
-                  }}
-                >
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontWeight: 600 }}>{member.userName}</span>
-                  </span>
-                  <span style={{ color: "#777", fontSize: 12 }}>{member.role}</span>
+                <li key={member.userId} className="member-row">
+                  <span className="member-name">{member.userName}</span>
+                  <span className="role-tag">{member.role}</span>
                   {canRemove && (
                     <button
                       type="button"
                       onClick={() => void submitRemove(member)}
                       disabled={removingUserId === member.userId}
-                      style={{
-                        padding: "2px 6px",
-                        border: "1px solid #ddd",
-                        borderRadius: 6,
-                        background: "#fff",
-                        color: "#c00",
-                        cursor: "pointer",
-                        fontSize: 12,
-                      }}
+                      className="btn-quiet btn-danger"
                     >
                       削除
                     </button>
@@ -154,7 +123,7 @@ export function RoomMembers({
         )}
 
         {isOwner && (
-          <form onSubmit={submitAdd} style={{ display: "flex", gap: 4 }}>
+          <form onSubmit={submitAdd} className="member-add">
             <input
               type="email"
               value={draftEmail}
@@ -162,7 +131,10 @@ export function RoomMembers({
               placeholder="追加するメンバーのメールアドレス"
               style={{ flex: 1, minWidth: 0 }}
             />
-            <button type="submit" disabled={adding || draftEmail.trim().length === 0}>
+            <button
+              type="submit"
+              disabled={adding || draftEmail.trim().length === 0}
+            >
               追加
             </button>
           </form>
