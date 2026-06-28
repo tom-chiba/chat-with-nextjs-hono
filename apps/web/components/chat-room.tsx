@@ -6,13 +6,14 @@ import {
   MESSAGE_PAGE_SIZE,
   tokenizeMessageBody,
 } from "@repo/shared";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   deleteMessage,
   editMessage,
   fetchMessages,
   markRoomRead,
 } from "@/lib/rooms";
+import { formatDay } from "@/lib/datetime";
 import { useRoomChat } from "@/lib/use-room-chat";
 import { RoomMembers } from "./room-members";
 
@@ -165,15 +166,8 @@ export function ChatRoom({
   };
 
   return (
-    <div style={{ display: "grid", gap: 8 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          flexWrap: "wrap",
-        }}
-      >
+    <div className="chat">
+      <div className="chat-top">
         {onBack && (
           <button
             type="button"
@@ -184,231 +178,159 @@ export function ChatRoom({
             ← 一覧
           </button>
         )}
-        <div style={{ fontSize: 12, color: "#666" }}>
+        <div className="chat-status">
+          <span
+            className={`presence-dot${status === "open" ? " is-open" : ""}`}
+            aria-hidden="true"
+          />
           状態: {STATUS_LABEL[status]}
         </div>
       </div>
 
       <RoomMembers roomId={roomId} currentUserId={currentUserId} />
 
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 8,
-          padding: 12,
-          height: "min(60vh, 360px)",
-          overflowY: "auto",
-          display: "grid",
-          gap: 6,
-          alignContent: "start",
-        }}
-      >
+      <div ref={scrollContainerRef} onScroll={handleScroll} className="msg-scroll">
         {all.length === 0 ? (
-          <p style={{ color: "#999" }}>まだメッセージはありません。</p>
+          <p className="empty-note">まだメッセージはありません。</p>
         ) : hasMore ? (
           <button
             type="button"
             onClick={loadOlder}
             disabled={loadingMore}
-            style={{ justifySelf: "center", fontSize: 12 }}
+            className="load-more"
           >
             {loadingMore ? "読み込み中…" : "過去のメッセージを読み込む"}
           </button>
         ) : (
-          <p style={{ textAlign: "center", color: "#bbb", fontSize: 12 }}>
-            これ以上の履歴はありません
-          </p>
+          <p className="history-end">これ以上の履歴はありません</p>
         )}
 
-        {all.map((m) => {
+        {all.map((m, idx) => {
           const mine = m.userId === currentUserId;
           const isDeleted = m.deletedAt !== null;
           const isEditing = editingId === m.id;
+          const prev = all[idx - 1];
+          // 日付が変わる境目に区切りを挿入する（実在する時系列構造のみ）。
+          const showDivider =
+            !prev || formatDay(prev.createdAt) !== formatDay(m.createdAt);
+          // 同一送信者の連続メッセージは名前を先頭のみに集約する。
+          const grouped =
+            !showDivider && prev !== undefined && prev.userId === m.userId;
           return (
-            <div key={m.id} style={{ textAlign: mine ? "right" : "left" }}>
-              <span style={{ fontSize: 12, color: "#888" }}>{m.userName}</span>
-              {isEditing ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void submitEdit(m);
-                  }}
-                  style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}
-                >
-                  <textarea
-                    autoFocus
-                    value={editDraft}
-                    onChange={(e) => setEditDraft(e.target.value)}
-                    maxLength={MAX_MESSAGE_LENGTH}
-                    rows={2}
-                    style={{
-                      flex: 1,
-                      maxWidth: 400,
-                      resize: "vertical",
-                      fontFamily: "inherit",
-                      fontSize: "inherit",
+            <Fragment key={m.id}>
+              {showDivider && (
+                <div className="date-divider">{formatDay(m.createdAt)}</div>
+              )}
+              <div
+                className={`msg${mine ? " is-mine" : ""}${
+                  grouped ? " is-grouped" : ""
+                }`}
+              >
+                {!grouped && <span className="msg-author">{m.userName}</span>}
+                {isEditing ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void submitEdit(m);
                     }}
-                  />
-                  <div style={{ display: "grid", gap: 2 }}>
-                    <button type="submit">保存</button>
-                    <button type="button" onClick={cancelEdit}>
-                      取消
+                    className="edit-form"
+                  >
+                    <textarea
+                      autoFocus
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      maxLength={MAX_MESSAGE_LENGTH}
+                      rows={2}
+                    />
+                    <div className="edit-actions">
+                      <button type="submit">保存</button>
+                      <button type="button" onClick={cancelEdit}>
+                        取消
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div
+                    className={`bubble${mine ? " is-mine" : ""}${
+                      isDeleted ? " is-deleted" : ""
+                    }`}
+                  >
+                    {isDeleted
+                      ? "（このメッセージは削除されました）"
+                      : tokenizeMessageBody(m.body).map((seg, i) => {
+                          if (seg.type === "mention") {
+                            return (
+                              <span key={i} className="mention">
+                                {seg.value}
+                              </span>
+                            );
+                          }
+                          if (seg.type === "link") {
+                            return (
+                              <a
+                                key={i}
+                                href={seg.value}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="msg-link"
+                              >
+                                {seg.value}
+                              </a>
+                            );
+                          }
+                          return seg.value;
+                        })}
+                    {m.editedAt !== null && !isDeleted && (
+                      <span className="msg-edited" title="編集済み">
+                        （編集済み）
+                      </span>
+                    )}
+                  </div>
+                )}
+                {mine && !isDeleted && !isEditing && (
+                  <div className="msg-actions">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(m)}
+                      aria-label="メッセージを編集"
+                      className="btn-quiet msg-action"
+                    >
+                      編集
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void submitDelete(m)}
+                      aria-label="メッセージを削除"
+                      className="btn-quiet btn-danger msg-action"
+                    >
+                      削除
                     </button>
                   </div>
-                </form>
-              ) : (
-                <div
-                  style={{
-                    display: "inline-block",
-                    background: isDeleted
-                      ? "#f5f5f5"
-                      : mine
-                        ? "#dcf8c6"
-                        : "#f1f1f1",
-                    borderRadius: 8,
-                    padding: "4px 8px",
-                    wordBreak: "break-word",
-                    whiteSpace: "pre-wrap",
-                    textAlign: "left",
-                    color: isDeleted ? "#999" : "inherit",
-                    fontStyle: isDeleted ? "italic" : "normal",
-                  }}
-                >
-                  {isDeleted
-                    ? "（このメッセージは削除されました）"
-                    : tokenizeMessageBody(m.body).map((seg, i) => {
-                        if (seg.type === "mention") {
-                          return (
-                            <span
-                              key={i}
-                              style={{
-                                background: "#fff3a0",
-                                color: "#5a4500",
-                                borderRadius: 4,
-                                padding: "0 2px",
-                                fontWeight: 600,
-                              }}
-                            >
-                              {seg.value}
-                            </span>
-                          );
-                        }
-                        if (seg.type === "link") {
-                          return (
-                            <a
-                              key={i}
-                              href={seg.value}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                color: "#1e6fdf",
-                                textDecoration: "underline",
-                              }}
-                            >
-                              {seg.value}
-                            </a>
-                          );
-                        }
-                        return seg.value;
-                      })}
-                  {m.editedAt !== null && !isDeleted && (
-                    <span
-                      style={{ fontSize: 10, color: "#888", marginLeft: 4 }}
-                      title="編集済み"
-                    >
-                      （編集済み）
-                    </span>
-                  )}
-                </div>
-              )}
-              {mine && !isDeleted && !isEditing && (
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 4,
-                    justifyContent: "flex-end",
-                    marginTop: 2,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => startEdit(m)}
-                    aria-label="メッセージを編集"
-                    style={{
-                      fontSize: 11,
-                      padding: "1px 6px",
-                      border: "1px solid #ddd",
-                      borderRadius: 4,
-                      background: "#fff",
-                      cursor: "pointer",
-                    }}
-                  >
-                    編集
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void submitDelete(m)}
-                    aria-label="メッセージを削除"
-                    style={{
-                      fontSize: 11,
-                      padding: "1px 6px",
-                      border: "1px solid #ddd",
-                      borderRadius: 4,
-                      background: "#fff",
-                      cursor: "pointer",
-                      color: "#c00",
-                    }}
-                  >
-                    削除
-                  </button>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            </Fragment>
           );
         })}
         <div ref={bottomRef} />
       </div>
 
-      {actionError && (
-        <p style={{ color: "#c00", fontSize: 12, margin: 0 }}>{actionError}</p>
-      )}
+      {actionError && <p className="action-error">{actionError}</p>}
 
       {errorMessage && (
-        <div
-          role="alert"
-          style={{
-            background: "#fff3cd",
-            color: "#7a5d00",
-            border: "1px solid #f5d77a",
-            padding: "6px 8px",
-            borderRadius: 6,
-            fontSize: 12,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
+        <div role="alert" className="warn">
           <span>{errorMessage}</span>
           <button
             type="button"
             onClick={clearError}
             aria-label="エラー表示を閉じる"
-            style={{
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 14,
-            }}
+            className="warn-close"
           >
             ✕
           </button>
         </div>
       )}
 
-      <form onSubmit={submit} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+      <form onSubmit={submit} className="composer">
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -416,10 +338,10 @@ export function ChatRoom({
           placeholder="メッセージを入力（Shift+Enter で改行）"
           maxLength={MAX_MESSAGE_LENGTH}
           rows={2}
-          style={{ flex: 1, resize: "vertical", fontFamily: "inherit", fontSize: "inherit" }}
         />
         <button
           type="submit"
+          className="btn-primary"
           disabled={status !== "open" || draft.trim().length === 0}
         >
           送信
