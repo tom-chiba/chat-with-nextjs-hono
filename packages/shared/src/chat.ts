@@ -74,6 +74,9 @@ export const MAX_ROOM_NAME_LENGTH = 50;
 export const MESSAGE_PAGE_SIZE = 30;
 export const MESSAGE_PAGE_SIZE_MAX = 100;
 
+/** WebSocket 接続直後にサーバが送る初期履歴の件数。 */
+export const HISTORY_LIMIT = 50;
+
 /**
  * 本文中の `@<name>` を検出する正規表現。
  *
