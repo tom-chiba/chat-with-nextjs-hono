@@ -19,6 +19,8 @@ export {
   chatMessageSchema,
   clientMessageSchema,
   HISTORY_LIMIT,
+  isWithinMessageLength,
+  isWithinRoomNameLength,
   MAX_MESSAGE_LENGTH,
   MAX_ROOM_NAME_LENGTH,
   MENTION_PATTERN,
@@ -51,3 +53,4 @@ export {
   WS_RATE_LIMIT_MAX,
   WS_RATE_LIMIT_WINDOW_MS,
 } from "./policy";
+export { countGraphemes } from "./text";

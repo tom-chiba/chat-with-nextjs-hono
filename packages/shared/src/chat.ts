@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod";
+import { countGraphemes } from "./text";
 
 /** ルーム内のメンバーロール。owner は編集・削除・メンバー管理が可能。 */
 export type RoomRole = "owner" | "member";
@@ -36,11 +37,23 @@ export type RoomMember = {
 
 /* ===== 入力制約の定数（スキーマと共有する単一情報源） ===== */
 
-/** WebSocket で送る body の最大長（文字数）。 */
+/** WebSocket で送る body の最大長（書記素数）。 */
 export const MAX_MESSAGE_LENGTH = 2000;
 
-/** ルーム名の最大長（文字数）。 */
+/** ルーム名の最大長（書記素数）。 */
 export const MAX_ROOM_NAME_LENGTH = 50;
+
+/**
+ * 入力が上限（書記素数）以内かを判定する純粋述語。
+ *
+ * サーバ（zod スキーマ）と FE（入力制御）が同じ基準で長さを判定するための単一情報源。
+ * 「検証の二重管理を避ける」方針に従い、書記素数での上限比較はここだけで定義する。
+ * trim はスキーマ（`.trim()`）と FE 側（`isMessageTooLong` 等）が各々の責務で行う。
+ */
+export const isWithinMessageLength = (s: string): boolean =>
+  countGraphemes(s) <= MAX_MESSAGE_LENGTH;
+export const isWithinRoomNameLength = (s: string): boolean =>
+  countGraphemes(s) <= MAX_ROOM_NAME_LENGTH;
 
 /** メッセージ履歴 1 ページの既定/最大件数。 */
 export const MESSAGE_PAGE_SIZE = 30;
@@ -80,19 +93,23 @@ export type ChatMessage = z.infer<typeof chatMessageSchema>;
 /**
  * メッセージ本文（WS 送信 / REST 編集）の検証スキーマ。
  * 前後空白を除去し、空・上限超過を弾く。出力は trim 済みの本文。
+ * 長さは書記素数で判定する（絵文字・結合文字を体感どおり 1 文字として数える）。
  */
 export const messageBodySchema = z
   .string()
   .trim()
   .min(1)
-  .max(MAX_MESSAGE_LENGTH);
+  .refine(isWithinMessageLength);
 
-/** ルーム名（作成 / 改名）の検証スキーマ。trim 済みを返す。 */
+/**
+ * ルーム名（作成 / 改名）の検証スキーマ。trim 済みを返す。
+ * 長さは書記素数で判定する。
+ */
 export const roomNameSchema = z
   .string()
   .trim()
   .min(1)
-  .max(MAX_ROOM_NAME_LENGTH);
+  .refine(isWithinRoomNameLength);
 
 /** クライアント → サーバ。 */
 export const clientMessageSchema = z.object({

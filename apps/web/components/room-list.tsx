@@ -1,8 +1,8 @@
 "use client";
 
 import type { Room } from "@repo/shared";
-import { MAX_ROOM_NAME_LENGTH } from "@repo/shared";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { isRoomNameTooLong, ROOM_NAME_TOO_LONG_MESSAGE } from "@/lib/length";
 import {
   createRoom,
   deleteRoom as apiDeleteRoom,
@@ -34,6 +34,10 @@ export const RoomList = forwardRef<
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // 長さ判定はサーバと同じく書記素数で行う。
+  const draftTooLong = isRoomNameTooLong(draft);
+  const editDraftTooLong = isRoomNameTooLong(editDraft);
 
   // onSelect / selectedRoomId は最新値を ref 経由で参照し、初回マウント時のみ読み込む。
   const onSelectRef = useRef(onSelect);
@@ -89,7 +93,7 @@ export const RoomList = forwardRef<
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = draft.trim();
-    if (name.length === 0 || creating) return;
+    if (name.length === 0 || creating || isRoomNameTooLong(name)) return;
     setCreating(true);
     setError(null);
     try {
@@ -121,6 +125,7 @@ export const RoomList = forwardRef<
       cancelEdit();
       return;
     }
+    if (isRoomNameTooLong(name)) return;
     setActionError(null);
     try {
       await updateRoomName(room.id, name);
@@ -159,14 +164,19 @@ export const RoomList = forwardRef<
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="新しいルーム名"
-          maxLength={MAX_ROOM_NAME_LENGTH}
           style={{ flex: 1, minWidth: 0 }}
         />
-        <button type="submit" disabled={creating || draft.trim().length === 0}>
+        <button
+          type="submit"
+          disabled={creating || draft.trim().length === 0 || draftTooLong}
+        >
           作成
         </button>
       </form>
 
+      {draftTooLong && (
+        <p className="action-error">{ROOM_NAME_TOO_LONG_MESSAGE}</p>
+      )}
       {error && <p className="action-error">{error}</p>}
       {actionError && <p className="action-error">{actionError}</p>}
 
@@ -199,13 +209,19 @@ export const RoomList = forwardRef<
                       autoFocus
                       value={editDraft}
                       onChange={(e) => setEditDraft(e.target.value)}
-                      maxLength={MAX_ROOM_NAME_LENGTH}
                       style={{ flex: 1, minWidth: 0 }}
                     />
-                    <button type="submit">保存</button>
+                    <button type="submit" disabled={editDraftTooLong}>
+                      保存
+                    </button>
                     <button type="button" onClick={cancelEdit}>
                       取消
                     </button>
+                    {editDraftTooLong && (
+                      <p className="action-error">
+                        {ROOM_NAME_TOO_LONG_MESSAGE}
+                      </p>
+                    )}
                   </form>
                 ) : (
                   <div className="room-row">

@@ -2,6 +2,7 @@
 
 import type { ChatMessage } from "@repo/shared";
 import { useState } from "react";
+import { isMessageTooLong } from "@/lib/length";
 import { deleteMessage, editMessage } from "@/lib/rooms";
 
 /**
@@ -33,6 +34,8 @@ export function useMessageActions(roomId: string) {
       cancelEdit();
       return;
     }
+    // 長さ判定はサーバと同じく書記素数で行う（編集フォームにも他フォームと同じガードを置く）。
+    if (isMessageTooLong(body)) return;
     try {
       await editMessage(roomId, m.id, body);
       // WS の update 配信で自分にも反映されるため、ここではフォームを閉じるだけ。

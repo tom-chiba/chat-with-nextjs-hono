@@ -1,7 +1,7 @@
 "use client";
 
-import { MAX_MESSAGE_LENGTH } from "@repo/shared";
 import { useEffect, useRef, useState } from "react";
+import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
 import { markRoomRead } from "@/lib/rooms";
 import { useMessageActions } from "@/lib/use-message-actions";
 import { useRoomChat } from "@/lib/use-room-chat";
@@ -79,10 +79,13 @@ export function ChatRoom({
     };
   }, [roomId, messages]);
 
+  // 長さ判定はサーバと同じく書記素数で行う（絵文字・結合文字を 1 文字として数える）。
+  const draftTooLong = isMessageTooLong(draft);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const body = draft.trim();
-    if (body.length === 0) return;
+    if (body.length === 0 || isMessageTooLong(body)) return;
     send(body);
     setDraft("");
   };
@@ -149,19 +152,20 @@ export function ChatRoom({
         </div>
       )}
 
+      {draftTooLong && <p className="action-error">{MESSAGE_TOO_LONG_MESSAGE}</p>}
+
       <form onSubmit={submit} className="composer">
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="メッセージを入力（Shift+Enter で改行）"
-          maxLength={MAX_MESSAGE_LENGTH}
           rows={2}
         />
         <button
           type="submit"
           className="btn-primary"
-          disabled={status !== "open" || draft.trim().length === 0}
+          disabled={status !== "open" || draft.trim().length === 0 || draftTooLong}
         >
           送信
         </button>
