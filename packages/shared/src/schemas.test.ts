@@ -39,6 +39,31 @@ test("messageBodySchema は上限ちょうどを許可し超過を弾く", () =>
   ).toBe(false);
 });
 
+test("messageBodySchema は書記素数で上限を判定する（絵文字は 1 文字）", () => {
+  // 絵文字は String.length では 2 だが、書記素数で MAX ちょうどまで許可する。
+  expect(messageBodySchema.safeParse("😀".repeat(MAX_MESSAGE_LENGTH)).success).toBe(
+    true,
+  );
+  expect(
+    messageBodySchema.safeParse("😀".repeat(MAX_MESSAGE_LENGTH + 1)).success,
+  ).toBe(false);
+  // ZWJ 結合絵文字は String.length では 1 文字あたり 8 と最も乖離が大きいが、
+  // 書記素数では 1 文字として上限ちょうどまで許可する。
+  expect(
+    messageBodySchema.safeParse("👨‍👩‍👧".repeat(MAX_MESSAGE_LENGTH)).success,
+  ).toBe(true);
+  expect(
+    messageBodySchema.safeParse("👨‍👩‍👧".repeat(MAX_MESSAGE_LENGTH + 1)).success,
+  ).toBe(false);
+  // 肌色修飾（ZWJ とは別の結合形態）も書記素数で 1 文字として判定する。
+  expect(
+    messageBodySchema.safeParse("👍🏽".repeat(MAX_MESSAGE_LENGTH)).success,
+  ).toBe(true);
+  expect(
+    messageBodySchema.safeParse("👍🏽".repeat(MAX_MESSAGE_LENGTH + 1)).success,
+  ).toBe(false);
+});
+
 test("roomNameSchema は trim・空・上限超過を扱う", () => {
   expect(roomNameSchema.parse("  部屋  ")).toBe("部屋");
   expect(roomNameSchema.safeParse("   ").success).toBe(false);
@@ -47,6 +72,13 @@ test("roomNameSchema は trim・空・上限超過を扱う", () => {
   );
   expect(
     roomNameSchema.safeParse("あ".repeat(MAX_ROOM_NAME_LENGTH + 1)).success,
+  ).toBe(false);
+  // 絵文字も書記素数で判定する。
+  expect(roomNameSchema.safeParse("😀".repeat(MAX_ROOM_NAME_LENGTH)).success).toBe(
+    true,
+  );
+  expect(
+    roomNameSchema.safeParse("😀".repeat(MAX_ROOM_NAME_LENGTH + 1)).success,
   ).toBe(false);
 });
 
