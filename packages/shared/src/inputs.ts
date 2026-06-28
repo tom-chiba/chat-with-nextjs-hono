@@ -29,12 +29,26 @@ export const roomReadSchema = z.object({
 /**
  * GET /rooms/:roomId/messages のクエリ。
  * 値は文字列のまま受け取り、数値への変換と上限クランプはハンドラ側で行う。
+ *
+ * `before`/`beforeId` はキーセットカーソルの組で、片方だけでは位置を特定できない。
+ * 片方だけ指定された場合に黙ってカーソルを無視して最新ページへフォールバックすると
+ * 意図しない結果になるため、両方指定 or 両方未指定のみを許可する（部分指定は 400）。
+ * ハンドラは空文字を falsy としてカーソル無効に扱うため、未指定と空文字を同じ「欠如」とみなす。
  */
-export const messagesQuerySchema = z.object({
-  before: z.string().optional(),
-  beforeId: z.string().optional(),
-  limit: z.string().optional(),
-});
+export const messagesQuerySchema = z
+  .object({
+    before: z.string().optional(),
+    beforeId: z.string().optional(),
+    limit: z.string().optional(),
+  })
+  .refine(
+    (q) => {
+      const hasBefore = q.before !== undefined && q.before !== "";
+      const hasBeforeId = q.beforeId !== undefined && q.beforeId !== "";
+      return hasBefore === hasBeforeId;
+    },
+    { message: "before and beforeId must be provided together" },
+  );
 
 /** Web Push の購読情報（POST /push/subscriptions）。 */
 export const pushSubscriptionSchema = z.object({
