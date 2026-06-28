@@ -422,6 +422,50 @@ describe("API ルート", () => {
     expect(await notFound.json()).toEqual({ error: "user not found" });
   });
 
+  test("GET /rooms/:roomId/members はメンバー一覧を返し、未所属を 403 にする", async () => {
+    const ownerHeaders = await createSession("list-owner", "List Owner");
+    await createSession("list-member", "List Member");
+    const otherHeaders = await createSession("list-other", "List Other");
+    await seedRoom({
+      roomId: "list-room",
+      ownerId: "list-owner",
+      memberIds: ["list-member"],
+    });
+
+    const res = await app.request(
+      "/rooms/list-room/members",
+      { headers: ownerHeaders },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json<{
+      members: { userId: string; userName: string; role: string }[];
+    }>();
+    expect(body.members).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          userId: "list-owner",
+          userName: "List Owner",
+          role: "owner",
+        }),
+        expect.objectContaining({
+          userId: "list-member",
+          userName: "List Member",
+          role: "member",
+        }),
+      ]),
+    );
+
+    // 未所属ユーザーは一覧を閲覧できない。
+    const forbidden = await app.request(
+      "/rooms/list-room/members",
+      { headers: otherHeaders },
+      env,
+    );
+    expect(forbidden.status).toBe(403);
+    expect(await forbidden.json()).toEqual({ error: "forbidden" });
+  });
+
   test("WS /ws/room/:id は存在しないルームと未所属ユーザーを拒否する", async () => {
     const ownerHeaders = await createSession("ws-owner", "Owner");
     const otherHeaders = await createSession("ws-other", "Other");
