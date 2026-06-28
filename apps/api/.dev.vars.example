@@ -10,3 +10,5 @@ WEB_URL="http://localhost:3000"
 # Resend（メール検証の送信に使用。ローカルでメールを実送信する場合のみ実キーを設定）
 RESEND_API_KEY="re_xxxxxxxx"
 EMAIL_FROM="onboarding@resend.dev"
+VAPID_PUBLIC_KEY="..."
+VAPID_PRIVATE_KEY="..."
