@@ -1,8 +1,9 @@
 "use client";
 
 import type { ChatMessage } from "@repo/shared";
-import { MAX_MESSAGE_LENGTH, tokenizeMessageBody } from "@repo/shared";
+import { tokenizeMessageBody } from "@repo/shared";
 import { formatDay } from "@/lib/datetime";
+import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
 
 /**
  * メッセージ 1 件の描画。
@@ -34,6 +35,8 @@ export function MessageItem({
 }) {
   const mine = message.userId === currentUserId;
   const isDeleted = message.deletedAt !== null;
+  // 長さ判定はサーバと同じく書記素数で行う。
+  const editTooLong = isMessageTooLong(editDraft);
   // 日付が変わる境目に区切りを挿入する（実在する時系列構造のみ）。
   const showDivider =
     !prevMessage ||
@@ -65,11 +68,15 @@ export function MessageItem({
               autoFocus
               value={editDraft}
               onChange={(e) => onEditDraftChange(e.target.value)}
-              maxLength={MAX_MESSAGE_LENGTH}
               rows={2}
             />
+            {editTooLong && (
+              <p className="action-error">{MESSAGE_TOO_LONG_MESSAGE}</p>
+            )}
             <div className="edit-actions">
-              <button type="submit">保存</button>
+              <button type="submit" disabled={editTooLong}>
+                保存
+              </button>
               <button type="button" onClick={onCancelEdit}>
                 取消
               </button>
