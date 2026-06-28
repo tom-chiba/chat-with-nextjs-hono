@@ -16,6 +16,7 @@ import {
   getMessageById,
   listMessages,
   softDeleteMessage,
+  toChatMessage,
   updateMessageBody,
 } from "./db/messages";
 import {
@@ -509,16 +510,12 @@ const routes = app
       const editedAt = new Date();
       await updateMessageBody(db, messageId, body, editedAt);
 
-      const updated: ChatMessage = {
-        id: existing.id,
-        roomId: existing.roomId,
-        userId: existing.userId,
+      const updated = toChatMessage({
+        ...existing,
         userName: session.user.name,
         body,
-        createdAt: existing.createdAt.getTime(),
-        editedAt: editedAt.getTime(),
-        deletedAt: null,
-      };
+        editedAt,
+      });
       await broadcastMessageUpdate(c.env, roomId, updated);
       return c.json({ message: updated } as const);
     },
@@ -556,16 +553,12 @@ const routes = app
     const deletedAt = new Date();
     await softDeleteMessage(db, messageId, deletedAt);
 
-    const updated: ChatMessage = {
-      id: existing.id,
-      roomId: existing.roomId,
-      userId: existing.userId,
+    const updated = toChatMessage({
+      ...existing,
       userName: session.user.name,
       body: "",
-      createdAt: existing.createdAt.getTime(),
-      editedAt: null,
-      deletedAt: deletedAt.getTime(),
-    };
+      deletedAt,
+    });
     await broadcastMessageUpdate(c.env, roomId, updated);
     return c.json({ ok: true } as const);
   })

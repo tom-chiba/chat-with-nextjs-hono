@@ -6,6 +6,37 @@ import { messages, user } from "./schema";
 /** メッセージ一覧のキーセットカーソル（この位置より「古い」ものを返す）。 */
 export type MessageCursor = { createdAt: number; id: string };
 
+/** DB 行（`Date` ベース）を API 公開型 {@link ChatMessage}（ミリ秒エポック）へ変換する。 */
+type ChatMessageRow = {
+  id: string;
+  roomId: string;
+  userId: string;
+  userName: string;
+  body: string;
+  createdAt: Date;
+  editedAt: Date | null;
+  deletedAt: Date | null;
+};
+
+/**
+ * DB 行を {@link ChatMessage} へ変換する単一の変換点。
+ * 論理削除済みなら本文を伏せ（空文字）、`editedAt` も隠す。チャット履歴に穴を
+ * 作らないため行は残し、「削除済み」プレースホルダとして返す。
+ */
+export function toChatMessage(row: ChatMessageRow): ChatMessage {
+  const deleted = row.deletedAt !== null;
+  return {
+    id: row.id,
+    roomId: row.roomId,
+    userId: row.userId,
+    userName: row.userName,
+    body: deleted ? "" : row.body,
+    createdAt: row.createdAt.getTime(),
+    editedAt: deleted ? null : (row.editedAt?.getTime() ?? null),
+    deletedAt: row.deletedAt?.getTime() ?? null,
+  };
+}
+
 /**
  * ルームのメッセージを古い順（昇順）で返す。
  *
@@ -51,18 +82,7 @@ export async function listMessages(
     .orderBy(desc(messages.createdAt), desc(messages.id))
     .limit(limit);
 
-  return rows
-    .map((r) => ({
-      id: r.id,
-      roomId: r.roomId,
-      userId: r.userId,
-      userName: r.userName,
-      body: r.deletedAt ? "" : r.body,
-      createdAt: r.createdAt.getTime(),
-      editedAt: r.deletedAt ? null : r.editedAt?.getTime() ?? null,
-      deletedAt: r.deletedAt?.getTime() ?? null,
-    }))
-    .toReversed();
+  return rows.map(toChatMessage).toReversed();
 }
 
 /**
