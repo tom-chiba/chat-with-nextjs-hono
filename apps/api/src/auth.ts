@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { D1Database } from "@cloudflare/workers-types";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@repo/shared";
 import { Resend } from "resend";
 import { createDb, schema } from "./db";
 
@@ -232,10 +233,5 @@ export function createAuth(env: AuthEnv) {
     },
   });
 }
-
-/** パスワードの最小長（サーバ・クライアントで共有）。 */
-export const MIN_PASSWORD_LENGTH = 12;
-/** パスワードの最大長。誤入力 / DoS 防止のため上限を設ける。 */
-export const MAX_PASSWORD_LENGTH = 128;
 
 export type Auth = ReturnType<typeof createAuth>;

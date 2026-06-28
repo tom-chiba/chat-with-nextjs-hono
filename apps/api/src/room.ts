@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import {
   type ChatMessage,
   type ServerMessage,
+  HISTORY_LIMIT,
   MAX_MESSAGE_LENGTH,
   WS_RATE_LIMIT_MAX,
   WS_RATE_LIMIT_WINDOW_MS,
@@ -21,8 +22,6 @@ type SocketAttachment = {
   roomId: string;
 };
 
-/** 接続直後に返す履歴の件数。 */
-const HISTORY_LIMIT = 50;
 const DISCONNECT_MEMBER_PATH = "/disconnect-member";
 const DISCONNECT_ALL_PATH = "/disconnect-all";
 const BROADCAST_UPDATE_PATH = "/broadcast-update";

@@ -16,6 +16,7 @@ export type {
   ServerMessage,
 } from "./chat";
 export {
+  HISTORY_LIMIT,
   MAX_MESSAGE_LENGTH,
   MAX_ROOM_NAME_LENGTH,
   MENTION_PATTERN,
