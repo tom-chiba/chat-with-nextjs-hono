@@ -15,7 +15,8 @@
 	"vars": {
 		"BETTER_AUTH_URL": "https://chat.api.tom-chiba.com",
 		"WEB_URL": "https://chat.tom-chiba.com",
-		"EMAIL_FROM": "no-reply@tom-chiba.com"
+		"EMAIL_FROM": "no-reply@tom-chiba.com",
+		"VAPID_PUBLIC_KEY": "BB-TIwIiGdAWchSUmeC3svZXe9pcZn5EgmnLNt4u6NmAw219u3KmlhxU0HSNqRdDM9ttf1ZXuwv4x5t3hOjt9_s"
 	},
 	// 本番は chat.api.tom-chiba.com にカスタムドメインで公開する（tom-chiba.com は Cloudflare 管理ゾーン）。
 	"routes": [
