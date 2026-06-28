@@ -75,13 +75,13 @@ export function AuthForm() {
   };
 
   return (
-    <form onSubmit={submit} style={{ display: "grid", gap: 8, maxWidth: 320 }}>
-      <div style={{ display: "flex", gap: 8 }}>
+    <form onSubmit={submit} className="form-card">
+      <div className="auth-tabs">
         <button
           type="button"
           onClick={() => setMode("login")}
           aria-pressed={mode === "login"}
-          style={{ fontWeight: mode === "login" ? "bold" : "normal" }}
+          className={`tab${mode === "login" ? " is-active" : ""}`}
         >
           ログイン
         </button>
@@ -89,7 +89,7 @@ export function AuthForm() {
           type="button"
           onClick={() => setMode("signup")}
           aria-pressed={mode === "signup"}
-          style={{ fontWeight: mode === "signup" ? "bold" : "normal" }}
+          className={`tab${mode === "signup" ? " is-active" : ""}`}
         >
           サインアップ
         </button>
@@ -140,16 +140,7 @@ export function AuthForm() {
             setError(null);
             setMessage(null);
           }}
-          style={{
-            background: "transparent",
-            border: "none",
-            color: "#1e6fdf",
-            textDecoration: "underline",
-            cursor: "pointer",
-            fontSize: 12,
-            padding: 0,
-            justifySelf: "start",
-          }}
+          className="btn-link"
         >
           パスワードを忘れた方
         </button>
@@ -161,23 +152,14 @@ export function AuthForm() {
             setError(null);
             setMessage(null);
           }}
-          style={{
-            background: "transparent",
-            border: "none",
-            color: "#1e6fdf",
-            textDecoration: "underline",
-            cursor: "pointer",
-            fontSize: 12,
-            padding: 0,
-            justifySelf: "start",
-          }}
+          className="btn-link"
         >
           ログインに戻る
         </button>
       ) : null}
 
-      {message && <p style={{ color: "green" }}>{message}</p>}
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+      {message && <p className="form-success">{message}</p>}
+      {error && <p className="form-error">{error}</p>}
     </form>
   );
 }
