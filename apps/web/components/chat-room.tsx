@@ -1,18 +1,9 @@
 "use client";
 
 import type { ChatMessage } from "@repo/shared";
-import {
-  MAX_MESSAGE_LENGTH,
-  MESSAGE_PAGE_SIZE,
-  tokenizeMessageBody,
-} from "@repo/shared";
+import { MAX_MESSAGE_LENGTH, tokenizeMessageBody } from "@repo/shared";
 import { Fragment, useEffect, useRef, useState } from "react";
-import {
-  deleteMessage,
-  editMessage,
-  fetchMessages,
-  markRoomRead,
-} from "@/lib/rooms";
+import { deleteMessage, editMessage, markRoomRead } from "@/lib/rooms";
 import { formatDay } from "@/lib/datetime";
 import { useRoomChat } from "@/lib/use-room-chat";
 import { RoomMembers } from "./room-members";
@@ -42,11 +33,16 @@ export function ChatRoom({
   /** モバイル時の「← 一覧へ」ボタン押下で呼ばれる（デスクトップでは表示されない）。 */
   onBack?: () => void;
 }) {
-  const { messages: live, status, send, errorMessage, clearError } =
-    useRoomChat(roomId);
-  const [older, setOlder] = useState<ChatMessage[]>([]);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const {
+    messages,
+    status,
+    send,
+    errorMessage,
+    clearError,
+    loadOlder,
+    hasMore,
+    loadingMore,
+  } = useRoomChat(roomId);
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
@@ -66,7 +62,7 @@ export function ChatRoom({
   };
 
   useEffect(() => {
-    const latestId = live[live.length - 1]?.id ?? null;
+    const latestId = messages[messages.length - 1]?.id ?? null;
     if (latestId === lastSeenLiveIdRef.current) return;
     const isInitial = lastSeenLiveIdRef.current === null;
     lastSeenLiveIdRef.current = latestId;
@@ -75,12 +71,12 @@ export function ChatRoom({
         behavior: isInitial ? "auto" : "smooth",
       });
     }
-  }, [live]);
+  }, [messages]);
 
   const onReadRef = useRef(onRead);
   onReadRef.current = onRead;
   useEffect(() => {
-    const latest = live[live.length - 1];
+    const latest = messages[messages.length - 1];
     if (!latest) return;
     let cancelled = false;
     void markRoomRead(roomId, latest.createdAt)
@@ -93,27 +89,7 @@ export function ChatRoom({
     return () => {
       cancelled = true;
     };
-  }, [roomId, live]);
-
-  const all = [...older, ...live];
-
-  const loadOlder = async () => {
-    const oldest = all[0];
-    if (loadingMore || !oldest) return;
-    setLoadingMore(true);
-    try {
-      const page = await fetchMessages(roomId, {
-        createdAt: oldest.createdAt,
-        id: oldest.id,
-      });
-      setOlder((prev) => [...page, ...prev]);
-      if (page.length < MESSAGE_PAGE_SIZE) setHasMore(false);
-    } catch {
-      // 取得失敗時はボタンを残し、再試行できるようにする。
-    } finally {
-      setLoadingMore(false);
-    }
-  };
+  }, [roomId, messages]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,7 +166,7 @@ export function ChatRoom({
       <RoomMembers roomId={roomId} currentUserId={currentUserId} />
 
       <div ref={scrollContainerRef} onScroll={handleScroll} className="msg-scroll">
-        {all.length === 0 ? (
+        {messages.length === 0 ? (
           <p className="empty-note">まだメッセージはありません。</p>
         ) : hasMore ? (
           <button
@@ -205,11 +181,11 @@ export function ChatRoom({
           <p className="history-end">これ以上の履歴はありません</p>
         )}
 
-        {all.map((m, idx) => {
+        {messages.map((m, idx) => {
           const mine = m.userId === currentUserId;
           const isDeleted = m.deletedAt !== null;
           const isEditing = editingId === m.id;
-          const prev = all[idx - 1];
+          const prev = messages[idx - 1];
           // 日付が変わる境目に区切りを挿入する（実在する時系列構造のみ）。
           const showDivider =
             !prev || formatDay(prev.createdAt) !== formatDay(m.createdAt);
