@@ -9,6 +9,7 @@ import {
   listRooms,
   updateRoomName,
 } from "@/lib/rooms";
+import { mergeRooms } from "@/lib/room-list";
 
 export type RoomListHandle = {
   /** 未読件数を含むルーム一覧をサーバから取り直す。選択中ルーム既読化後に親から呼ぶ。 */
@@ -45,12 +46,9 @@ export const RoomList = forwardRef<
       const list = await listRooms();
       if (!signal.active) return;
       // ロード中にユーザーが作成したルーム（prev に prepend 済み）は、サーバ
-      // スナップショットに含まれていなくても消さないようマージする。
-      setRooms((prev) => {
-        const fromServer = new Map(list.map((r) => [r.id, r]));
-        const localOnly = prev.filter((r) => !fromServer.has(r.id));
-        return [...localOnly, ...list];
-      });
+      // スナップショットに含まれていなくても消さないようマージする。サーバと
+      // 同じソート規則で並べ、反映時に位置がジャンプしないようにする。
+      setRooms((prev) => mergeRooms(prev, list));
       const first = list[0];
       if (first && selectedRef.current === null) {
         onSelectRef.current(first.id);
