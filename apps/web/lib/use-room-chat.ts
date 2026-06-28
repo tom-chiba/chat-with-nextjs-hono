@@ -1,7 +1,7 @@
 "use client";
 
-import type { ChatMessage, ClientMessage, ServerMessage } from "@repo/shared";
-import { MESSAGE_PAGE_SIZE } from "@repo/shared";
+import type { ChatMessage, ClientMessage } from "@repo/shared";
+import { MESSAGE_PAGE_SIZE, serverMessageSchema } from "@repo/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchMessages } from "@/lib/rooms";
 
@@ -126,12 +126,16 @@ export function useRoomChat(roomId: string) {
       });
 
       ws.addEventListener("message", (event) => {
-        let data: ServerMessage;
+        let raw: unknown;
         try {
-          data = JSON.parse(event.data as string) as ServerMessage;
+          raw = JSON.parse(event.data as string);
         } catch {
           return;
         }
+        // スキーマで実検証し、破損・想定外のデータは安全に無視する。
+        const parsed = serverMessageSchema.safeParse(raw);
+        if (!parsed.success) return;
+        const data = parsed.data;
         if (data.type === "history") {
           const prev = messagesRef.current;
           const incoming = data.messages;
