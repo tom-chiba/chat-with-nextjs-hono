@@ -1,4 +1,5 @@
 import type { ChatMessage, ServerMessage } from "@repo/shared";
+import { MESSAGE_PAGE_SIZE } from "@repo/shared";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -19,6 +20,18 @@ function msg(id: string, createdAt: number): ChatMessage {
     editedAt: null,
     deletedAt: null,
   };
+}
+
+/** createdAt が start..start+count-1、id が `m{createdAt}` の連続メッセージ。 */
+function seq(start: number, count: number): ChatMessage[] {
+  return Array.from({ length: count }, (_, i) => msg(`m${start + i}`, start + i));
+}
+
+/** void で起動した非同期処理（REST 補完）のマイクロタスクを十分に解決させる。 */
+async function flush() {
+  await act(async () => {
+    for (let i = 0; i < 30; i++) await Promise.resolve();
+  });
 }
 
 /** new WebSocket() を捕捉し、open / message / close を手動で発火できるモック。 */
@@ -178,4 +191,136 @@ test("loadOlder は先頭より古い分を取得してマージする", async (
   expect(result.current.messages.map((m) => m.id)).toEqual(["m0", "m1", "m2"]);
   // 1 ページが MESSAGE_PAGE_SIZE 未満なので、これ以上の履歴なしとする。
   expect(result.current.hasMore).toBe(false);
+});
+
+test("欠落区間が複数ページに跨る場合は boundary までページングして補完する", async () => {
+  // 1 ページ目は満杯（30件）で継続し、2 ページ目で boundary(m1) に到達して停止する。
+  fetchMessages
+    .mockResolvedValueOnce(seq(70, MESSAGE_PAGE_SIZE)) // m70..m99
+    .mockResolvedValueOnce(seq(1, MESSAGE_PAGE_SIZE)); // m1..m30（先頭が boundary）
+  const { result } = renderHook(() => useRoomChat("room-1"));
+
+  act(() => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({ type: "history", messages: [msg("m1", 1)] });
+  });
+
+  await reconnect();
+  await act(async () => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({
+      type: "history",
+      messages: [msg("m100", 100)],
+    });
+  });
+  await flush();
+
+  // 1 ページ目は oldestIncoming(m100)、2 ページ目はカーソル前進で m70 を起点に取得。
+  expect(fetchMessages.mock.calls).toEqual([
+    ["room-1", { createdAt: 100, id: "m100" }],
+    ["room-1", { createdAt: 70, id: "m70" }],
+  ]);
+  // boundary 到達で 3 ページ目は呼ばれない。
+  expect(fetchMessages).toHaveBeenCalledTimes(2);
+  const ids = result.current.messages.map((m) => m.id);
+  expect(ids).toHaveLength(MESSAGE_PAGE_SIZE * 2 + 1);
+  expect(ids[0]).toBe("m1");
+  expect(ids.at(-1)).toBe("m100");
+});
+
+test("同一ミリ秒・id 違いの境界でも欠落を検出して補完する", async () => {
+  // a と c は同じ createdAt=100。間の b（同 createdAt）が切断中に投稿された想定。
+  fetchMessages.mockResolvedValue([msg("b", 100)]);
+  const { result } = renderHook(() => useRoomChat("room-1"));
+
+  act(() => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({ type: "history", messages: [msg("a", 100)] });
+  });
+
+  await reconnect();
+  await act(async () => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({ type: "history", messages: [msg("c", 100)] });
+  });
+  await flush();
+
+  // createdAt 単独比較（100 > 100 = false）では検出できないケース。
+  expect(fetchMessages).toHaveBeenCalledWith("room-1", {
+    createdAt: 100,
+    id: "c",
+  });
+  expect(result.current.messages.map((m) => m.id)).toEqual(["a", "b", "c"]);
+});
+
+test("欠落補完の REST が失敗してもクラッシュせず受信済みは保持する", async () => {
+  fetchMessages.mockRejectedValue(new Error("network"));
+  const { result } = renderHook(() => useRoomChat("room-1"));
+
+  act(() => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({ type: "history", messages: [msg("m1", 1)] });
+  });
+
+  await reconnect();
+  await act(async () => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({ type: "history", messages: [msg("m9", 9)] });
+  });
+  await flush();
+
+  expect(fetchMessages).toHaveBeenCalled();
+  // 補完は失敗したが history マージ分は残る。
+  expect(result.current.messages.map((m) => m.id)).toEqual(["m1", "m9"]);
+});
+
+test("update は既存 id を差し替え、未ロードの未知 id は無視する", () => {
+  const { result } = renderHook(() => useRoomChat("room-1"));
+
+  act(() => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({
+      type: "history",
+      messages: [msg("m1", 1), msg("m2", 2)],
+    });
+  });
+  act(() => {
+    MockWebSocket.latest.receive({
+      type: "update",
+      message: { ...msg("m2", 2), body: "edited", editedAt: 5 },
+    });
+  });
+  act(() => {
+    // 表示範囲外の古いメッセージへの update。孤立挿入してはならない。
+    MockWebSocket.latest.receive({
+      type: "update",
+      message: { ...msg("unknown", 0), body: "ghost" },
+    });
+  });
+
+  expect(result.current.messages.map((m) => m.id)).toEqual(["m1", "m2"]);
+  const edited = result.current.messages.find((m) => m.id === "m2");
+  expect(edited?.body).toBe("edited");
+  expect(edited?.editedAt).toBe(5);
+});
+
+test("新着 message は時系列位置に挿入し、重複 id は排除する", () => {
+  const { result } = renderHook(() => useRoomChat("room-1"));
+
+  act(() => {
+    MockWebSocket.latest.open();
+    MockWebSocket.latest.receive({
+      type: "history",
+      messages: [msg("m1", 1), msg("m3", 3)],
+    });
+  });
+  act(() => {
+    MockWebSocket.latest.receive({ type: "message", message: msg("m2", 2) });
+  });
+  act(() => {
+    // 同一 id の再送は重複させない。
+    MockWebSocket.latest.receive({ type: "message", message: msg("m2", 2) });
+  });
+
+  expect(result.current.messages.map((m) => m.id)).toEqual(["m1", "m2", "m3"]);
 });
