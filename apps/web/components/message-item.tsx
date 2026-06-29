@@ -1,9 +1,9 @@
 "use client";
 
 import type { ChatMessage } from "@repo/shared";
-import { tokenizeMessageBody } from "@repo/shared";
 import { formatDay } from "@/lib/datetime";
 import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
+import { MessageBody } from "./message-body";
 
 /**
  * メッセージ 1 件の描画。
@@ -88,31 +88,11 @@ export function MessageItem({
               isDeleted ? " is-deleted" : ""
             }`}
           >
-            {isDeleted
-              ? "（このメッセージは削除されました）"
-              : tokenizeMessageBody(message.body).map((seg, i) => {
-                  if (seg.type === "mention") {
-                    return (
-                      <span key={i} className="mention">
-                        {seg.value}
-                      </span>
-                    );
-                  }
-                  if (seg.type === "link") {
-                    return (
-                      <a
-                        key={i}
-                        href={seg.value}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="msg-link"
-                      >
-                        {seg.value}
-                      </a>
-                    );
-                  }
-                  return seg.value;
-                })}
+            {isDeleted ? (
+              "（このメッセージは削除されました）"
+            ) : (
+              <MessageBody body={message.body} />
+            )}
             {message.editedAt !== null && !isDeleted && (
               <span className="msg-edited" title="編集済み">
                 （編集済み）

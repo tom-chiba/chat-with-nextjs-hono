@@ -118,6 +118,29 @@ test("nonce 一致の message 受信で pending を確定除去し messages に�
   expect(result.current.messages.map((m) => m.id)).toEqual(["m1"]);
 });
 
+test("nonce 無しの message 受信は messages に載るが pending には触れない", () => {
+  const { result } = renderHook(() => useRoomChat("room-1"));
+  act(() => {
+    MockWebSocket.latest.open();
+  });
+  act(() => {
+    result.current.send("自分の保留");
+  });
+  expect(result.current.pending).toHaveLength(1);
+
+  // 他クライアントの発言（nonce 無し）が届いても自分の保留は確定除去されない。
+  act(() => {
+    MockWebSocket.latest.receive({
+      type: "message",
+      message: msg("other", 1, "他者の発言"),
+    });
+  });
+
+  expect(result.current.messages.map((m) => m.id)).toEqual(["other"]);
+  expect(result.current.pending).toHaveLength(1);
+  expect(result.current.pending[0]?.status).toBe("sending");
+});
+
 test("nonce 一致の error で pending を failed にし本文を保持する", () => {
   const { result } = renderHook(() => useRoomChat("room-1"));
   act(() => {
@@ -164,6 +187,122 @@ test("切断中の送信は queued になり再接続 open で flush される",
     body: "あとで送る",
     nonce,
   });
+});
+
+test("複数の queued は open で積んだ順に全件 flush され全て sending になる", () => {
+  const { result } = renderHook(() => useRoomChat("room-1"));
+  // 非 OPEN のまま 3 件積む。
+  act(() => {
+    result.current.send("1番目");
+    result.current.send("2番目");
+    result.current.send("3番目");
+  });
+  expect(result.current.pending.every((p) => p.status === "queued")).toBe(true);
+  expect(MockWebSocket.latest.sent).toHaveLength(0);
+
+  act(() => {
+    MockWebSocket.latest.open();
+  });
+
+  // 積んだ順に全件送出される。
+  expect(MockWebSocket.latest.sent.map((m) => m.body)).toEqual([
+    "1番目",
+    "2番目",
+    "3番目",
+  ]);
+  expect(result.current.pending.every((p) => p.status === "sending")).toBe(true);
+});
+
+test("open の flush は queued のみ対象で failed は再送しない", () => {
+  const { result } = renderHook(() => useRoomChat("room-1"));
+  act(() => {
+    MockWebSocket.latest.open();
+  });
+  // 1 件送って sending → 切断で failed 化。
+  act(() => {
+    result.current.send("失敗する");
+  });
+  act(() => {
+    MockWebSocket.latest.close();
+  });
+  expect(result.current.pending[0]?.status).toBe("failed");
+
+  // 再接続前（非 OPEN）に新規送信を積む → queued。
+  act(() => {
+    result.current.send("あとで送る");
+  });
+
+  // 再接続。flush 対象は queued のみで、failed は送出されない。
+  act(() => {
+    vi.advanceTimersByTime(20_000);
+  });
+  act(() => {
+    MockWebSocket.latest.open();
+  });
+
+  expect(MockWebSocket.latest.sent.map((m) => m.body)).toEqual(["あとで送る"]);
+  const failed = result.current.pending.find((p) => p.body === "失敗する");
+  expect(failed?.status).toBe("failed");
+});
+
+test("retry 後に nonce 一致 message が来れば pending を確定除去する", () => {
+  const { result } = renderHook(() => useRoomChat("room-1"));
+  act(() => {
+    MockWebSocket.latest.open();
+  });
+  act(() => {
+    result.current.send("確定したい");
+  });
+  const nonce = result.current.pending[0]?.nonce as string;
+  // 切断で failed → 再接続 → retry。
+  act(() => {
+    MockWebSocket.latest.close();
+  });
+  act(() => {
+    vi.advanceTimersByTime(20_000);
+  });
+  act(() => {
+    MockWebSocket.latest.open();
+  });
+  act(() => {
+    result.current.retry(nonce);
+  });
+  expect(result.current.pending[0]?.status).toBe("sending");
+
+  // エコー（nonce 一致）到達で確定除去。
+  act(() => {
+    MockWebSocket.latest.receive({
+      type: "message",
+      message: msg("m1", 1, "確定したい"),
+      nonce,
+    });
+  });
+  expect(result.current.pending).toHaveLength(0);
+  expect(result.current.messages.map((m) => m.id)).toEqual(["m1"]);
+});
+
+test("切断中の retry は送出せず queued に戻す", () => {
+  const { result } = renderHook(() => useRoomChat("room-1"));
+  act(() => {
+    MockWebSocket.latest.open();
+  });
+  act(() => {
+    result.current.send("再送対象");
+  });
+  const nonce = result.current.pending[0]?.nonce as string;
+  act(() => {
+    MockWebSocket.latest.close();
+  });
+  expect(result.current.pending[0]?.status).toBe("failed");
+  const sentBefore = MockWebSocket.latest.sent.length;
+
+  // 非 OPEN のまま retry → 送出されず queued に戻る。
+  act(() => {
+    result.current.retry(nonce);
+  });
+
+  expect(result.current.pending[0]?.status).toBe("queued");
+  expect(MockWebSocket.latest.sent.length).toBe(sentBefore);
 });
 
 test("送出中(sending)に切断されると failed になる", () => {

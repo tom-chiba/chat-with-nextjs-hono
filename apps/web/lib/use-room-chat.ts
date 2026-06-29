@@ -37,6 +37,13 @@ function reconnectDelay(attempts: number): number {
   return Math.min(1000 * 2 ** (attempts - 1), 15_000);
 }
 
+/** メッセージ送信ペイロードを組み立てて送出する（send / retry / flush の単一経路）。 */
+function sendClientMessage(ws: WebSocket, body: string, nonce: string): void {
+  ws.send(
+    JSON.stringify({ type: "message", body, nonce } satisfies ClientMessage),
+  );
+}
+
 /**
  * 指定ルームの WebSocket に接続し、履歴とリアルタイム配信を購読する。
  * セッション Cookie は same-site のためハンドシェイクで自動送信される。
@@ -127,15 +134,7 @@ export function useRoomChat(roomId: string) {
         // 再送しても重複は生じない（sending は close 時に failed へ倒すので含まれない）。
         const toFlush = pendingRef.current.filter((p) => p.status === "queued");
         if (toFlush.length > 0) {
-          for (const p of toFlush) {
-            ws.send(
-              JSON.stringify({
-                type: "message",
-                body: p.body,
-                nonce: p.nonce,
-              } satisfies ClientMessage),
-            );
-          }
+          for (const p of toFlush) sendClientMessage(ws, p.body, p.nonce);
           const flushed = new Set(toFlush.map((p) => p.nonce));
           setPending((prev) =>
             prev.map((p) =>
@@ -250,10 +249,7 @@ export function useRoomChat(roomId: string) {
       ...prev,
       { nonce, body, status: isOpen ? "sending" : "queued", createdAt: Date.now() },
     ]);
-    if (isOpen && ws) {
-      const msg: ClientMessage = { type: "message", body, nonce };
-      ws.send(JSON.stringify(msg));
-    }
+    if (isOpen && ws) sendClientMessage(ws, body, nonce);
   }, []);
 
   /** 失敗 / 保留中のメッセージを再送する。OPEN なら即送出、切断中は queued に戻す。 */
@@ -263,15 +259,7 @@ export function useRoomChat(roomId: string) {
     const ws = wsRef.current;
     const isOpen = ws?.readyState === WebSocket.OPEN;
     setErrorMessage(null);
-    if (isOpen && ws) {
-      ws.send(
-        JSON.stringify({
-          type: "message",
-          body: target.body,
-          nonce,
-        } satisfies ClientMessage),
-      );
-    }
+    if (isOpen && ws) sendClientMessage(ws, target.body, nonce);
     setPending((prev) =>
       prev.map((p) =>
         p.nonce === nonce

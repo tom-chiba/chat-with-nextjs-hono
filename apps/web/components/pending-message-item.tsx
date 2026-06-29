@@ -1,7 +1,7 @@
 "use client";
 
-import { tokenizeMessageBody } from "@repo/shared";
 import type { PendingMessage } from "@/lib/use-room-chat";
+import { MessageBody } from "./message-body";
 
 /** 保留状態ごとの注記文言。 */
 const STATUS_NOTE: Record<PendingMessage["status"], string> = {
@@ -30,29 +30,7 @@ export function PendingMessageItem({
       <div
         className={`bubble is-mine is-pending${isFailed ? " is-failed" : ""}`}
       >
-        {tokenizeMessageBody(pending.body).map((seg, i) => {
-          if (seg.type === "mention") {
-            return (
-              <span key={i} className="mention">
-                {seg.value}
-              </span>
-            );
-          }
-          if (seg.type === "link") {
-            return (
-              <a
-                key={i}
-                href={seg.value}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="msg-link"
-              >
-                {seg.value}
-              </a>
-            );
-          }
-          return seg.value;
-        })}
+        <MessageBody body={pending.body} />
       </div>
       <div className={`pending-note${isFailed ? " is-failed" : ""}`}>
         <span>{STATUS_NOTE[pending.status]}</span>

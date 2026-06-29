@@ -112,6 +112,12 @@ export const roomNameSchema = z
   .refine(isWithinRoomNameLength);
 
 /**
+ * 楽観送信の相関キー `nonce` のスキーマ（FE 採番 / BE エコーで共有する単一情報源）。
+ * クライアント送信とサーバのエコー（`message` / `error`）で同じ形式制約を使う。
+ */
+export const nonceSchema = z.string().min(1).max(100);
+
+/**
  * クライアント → サーバ。
  *
  * `nonce` は楽観送信の相関キー。クライアントが送信ごとに採番し、サーバは
@@ -122,7 +128,7 @@ export const roomNameSchema = z
 export const clientMessageSchema = z.object({
   type: z.literal("message"),
   body: messageBodySchema,
-  nonce: z.string().min(1).max(100).optional(),
+  nonce: nonceSchema.optional(),
 });
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
@@ -141,7 +147,7 @@ export const serverMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("message"),
     message: chatMessageSchema,
-    nonce: z.string().optional(),
+    nonce: nonceSchema.optional(),
   }),
   /** 既存メッセージの更新（編集・論理削除）。クライアントは id でマッチして差し替える。 */
   z.object({ type: z.literal("update"), message: chatMessageSchema }),
@@ -150,7 +156,7 @@ export const serverMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("error"),
     code: serverErrorCodeSchema,
     message: z.string(),
-    nonce: z.string().optional(),
+    nonce: nonceSchema.optional(),
   }),
 ]);
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
