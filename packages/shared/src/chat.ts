@@ -111,10 +111,24 @@ export const roomNameSchema = z
   .min(1)
   .refine(isWithinRoomNameLength);
 
-/** クライアント → サーバ。 */
+/**
+ * 楽観送信の相関キー `nonce` のスキーマ（FE 採番 / BE エコーで共有する単一情報源）。
+ * クライアント送信とサーバのエコー（`message` / `error`）で同じ形式制約を使う。
+ */
+export const nonceSchema = z.string().min(1).max(100);
+
+/**
+ * クライアント → サーバ。
+ *
+ * `nonce` は楽観送信の相関キー。クライアントが送信ごとに採番し、サーバは
+ * ブロードキャスト（`message`）と拒否（`error`）にそのままエコーする。これにより
+ * 送信側は「どの保留メッセージが確定 / 失敗したか」を一意に対応づけられる。
+ * 旧クライアント（nonce 無し）との混在に耐えるため任意とし、無ければエコーしない。
+ */
 export const clientMessageSchema = z.object({
   type: z.literal("message"),
   body: messageBodySchema,
+  nonce: nonceSchema.optional(),
 });
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
@@ -125,13 +139,24 @@ export type ServerErrorCode = z.infer<typeof serverErrorCodeSchema>;
 /** サーバ → クライアント。 */
 export const serverMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("history"), messages: z.array(chatMessageSchema) }),
-  z.object({ type: z.literal("message"), message: chatMessageSchema }),
+  /**
+   * 新着メッセージの配信。`nonce` は送信元クライアントが付けた相関キーのエコーで、
+   * 送信側は自分の保留メッセージを確定（除去）するために使う。他クライアントは
+   * 一致する保留を持たないため無視する。
+   */
+  z.object({
+    type: z.literal("message"),
+    message: chatMessageSchema,
+    nonce: nonceSchema.optional(),
+  }),
   /** 既存メッセージの更新（編集・論理削除）。クライアントは id でマッチして差し替える。 */
   z.object({ type: z.literal("update"), message: chatMessageSchema }),
+  /** 送信拒否（レート制限など）。`nonce` があれば該当の保留メッセージを失敗扱いにする。 */
   z.object({
     type: z.literal("error"),
     code: serverErrorCodeSchema,
     message: z.string(),
+    nonce: nonceSchema.optional(),
   }),
 ]);
 export type ServerMessage = z.infer<typeof serverMessageSchema>;

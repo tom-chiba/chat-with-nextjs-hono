@@ -27,6 +27,7 @@ export {
   MESSAGE_PAGE_SIZE,
   MESSAGE_PAGE_SIZE_MAX,
   messageBodySchema,
+  nonceSchema,
   parseMentionCandidates,
   roomNameSchema,
   serverErrorCodeSchema,
