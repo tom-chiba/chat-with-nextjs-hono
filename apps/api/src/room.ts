@@ -103,6 +103,8 @@ export class RoomDO extends DurableObject<Env> {
     const parsed = clientMessageSchema.safeParse(json);
     if (!parsed.success) return;
     const trimmed = parsed.data.body;
+    // 楽観送信の相関キー。配信・拒否でそのままエコーし、送信側が確定 / 失敗を対応づける。
+    const nonce = parsed.data.nonce;
 
     const { userId, userName, roomId } = attachment;
     const db = createDb(this.env.DB);
@@ -120,6 +122,7 @@ export class RoomDO extends DurableObject<Env> {
           type: "error",
           code: "rate_limited",
           message: "メッセージの送信が早すぎます。少し待ってから再度お試しください。",
+          nonce,
         } satisfies ServerMessage),
       );
       return;
@@ -148,6 +151,7 @@ export class RoomDO extends DurableObject<Env> {
     const payload = JSON.stringify({
       type: "message",
       message,
+      nonce,
     } satisfies ServerMessage);
     const activeUserIds = new Set<string>();
     for (const socket of this.ctx.getWebSockets()) {
