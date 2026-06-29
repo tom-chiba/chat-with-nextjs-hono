@@ -6,14 +6,20 @@ import { MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
 import { markRoomRead } from "@/lib/rooms";
 
 const send = vi.fn();
-// useRoomChat が返す messages をテストごとに差し替えられるよう保持する。
-const chatState = vi.hoisted(() => ({ messages: [] as { id: string; createdAt: number }[] }));
+// useRoomChat が返す messages / status をテストごとに差し替えられるよう保持する。
+const chatState = vi.hoisted(() => ({
+  messages: [] as { id: string; createdAt: number }[],
+  status: "open" as "connecting" | "open" | "closed",
+}));
 
 vi.mock("@/lib/use-room-chat", () => ({
   useRoomChat: () => ({
     messages: chatState.messages,
-    status: "open",
+    pending: [],
+    status: chatState.status,
     send,
+    retry: vi.fn(),
+    discard: vi.fn(),
     errorMessage: null,
     clearError: vi.fn(),
     loadOlder: vi.fn(),
@@ -54,6 +60,7 @@ function renderChatRoom() {
 beforeEach(() => {
   vi.clearAllMocks();
   chatState.messages = [];
+  chatState.status = "open";
 });
 
 afterEach(() => {
@@ -98,6 +105,20 @@ test("送信本文が上限ちょうど（絵文字）なら送信でき注記�
 
   expect(screen.getByRole("button", { name: "送信" })).toBeEnabled();
   expect(screen.queryByText(MESSAGE_TOO_LONG_MESSAGE)).not.toBeInTheDocument();
+});
+
+test("切断中でも本文があれば送信ボタンは有効（ローカルキューへ積む）", () => {
+  chatState.status = "closed";
+  renderChatRoom();
+  const textarea = screen.getByPlaceholderText(
+    "メッセージを入力（Shift+Enter で改行）",
+  );
+  fireEvent.change(textarea, { target: { value: "切断中でも送る" } });
+
+  const button = screen.getByRole("button", { name: "送信" });
+  expect(button).toBeEnabled();
+  fireEvent.click(button);
+  expect(send).toHaveBeenCalledWith("切断中でも送る");
 });
 
 test("上限超過のまま Enter で送信しても send を呼ばない", () => {

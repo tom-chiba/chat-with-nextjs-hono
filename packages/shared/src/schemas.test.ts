@@ -99,6 +99,24 @@ test("clientMessageSchema は body を trim し非 message 型を弾く", () => 
   );
 });
 
+test("clientMessageSchema は nonce を任意で受け付ける", () => {
+  // nonce 無し（旧クライアント）も許容する。
+  expect(
+    clientMessageSchema.safeParse({ type: "message", body: "hi" }).success,
+  ).toBe(true);
+  const withNonce = clientMessageSchema.safeParse({
+    type: "message",
+    body: "hi",
+    nonce: "abc-123",
+  });
+  expect(withNonce.success && withNonce.data.nonce).toBe("abc-123");
+  // 空 nonce は弾く（相関キーとして無意味なため）。
+  expect(
+    clientMessageSchema.safeParse({ type: "message", body: "hi", nonce: "" })
+      .success,
+  ).toBe(false);
+});
+
 test("chatMessageSchema は editedAt/deletedAt の null と数値を許容する", () => {
   expect(chatMessageSchema.safeParse(validChatMessage).success).toBe(true);
   expect(
@@ -121,6 +139,22 @@ test("serverMessageSchema は 4 種の正常メッセージを通す", () => {
   for (const c of cases) {
     expect(serverMessageSchema.safeParse(c).success).toBe(true);
   }
+});
+
+test("serverMessageSchema は message / error の nonce を任意で通す", () => {
+  const msg = serverMessageSchema.safeParse({
+    type: "message",
+    message: validChatMessage,
+    nonce: "n1",
+  });
+  expect(msg.success && msg.data.type === "message" && msg.data.nonce).toBe("n1");
+  const err = serverMessageSchema.safeParse({
+    type: "error",
+    code: "rate_limited",
+    message: "slow down",
+    nonce: "n2",
+  });
+  expect(err.success && err.data.type === "error" && err.data.nonce).toBe("n2");
 });
 
 test("serverMessageSchema は未知 type・壊れた形状・不正 code を安全に弾く", () => {

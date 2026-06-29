@@ -125,6 +125,43 @@ describe("RoomDO", () => {
     expect(rows[0]?.senderName).toBe("アリス");
   });
 
+  test("送信の nonce はブロードキャストにそのままエコーされる", async () => {
+    await seedRoom("room-nonce", ["alice"]);
+    const a = await connect("room-nonce", "alice");
+    expect((await a.next()).type).toBe("history");
+
+    a.ws.send(
+      JSON.stringify({ type: "message", body: "やあ", nonce: "nonce-xyz" }),
+    );
+
+    const received = await a.next();
+    expect(received.type).toBe("message");
+    if (received.type === "message") {
+      expect(received.nonce).toBe("nonce-xyz");
+    }
+  });
+
+  test("レート制限の error は nonce をエコーする", async () => {
+    await seedRoom("room-rate-nonce", ["alice"]);
+    const a = await connect("room-rate-nonce", "alice");
+    expect((await a.next()).type).toBe("history");
+
+    for (let i = 0; i < WS_RATE_LIMIT_MAX; i += 1) {
+      a.ws.send(JSON.stringify({ type: "message", body: `m-${i}` }));
+      expect((await a.next()).type).toBe("message");
+    }
+
+    a.ws.send(
+      JSON.stringify({ type: "message", body: "overflow", nonce: "n-of" }),
+    );
+    const rejected = await a.next();
+    expect(rejected.type).toBe("error");
+    if (rejected.type === "error") {
+      expect(rejected.code).toBe("rate_limited");
+      expect(rejected.nonce).toBe("n-of");
+    }
+  });
+
   test("空文字や非 message 型は無視される", async () => {
     await seedRoom("room-ignore", ["alice"]);
     const a = await connect("room-ignore", "alice");
