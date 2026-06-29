@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createDb } from "../src/db";
 import { listMessages } from "../src/db/messages";
@@ -81,5 +81,47 @@ describe("listMessages（ページネーション）", () => {
 
     const page = await listMessages(db, { roomId: ROOM, limit: 5 });
     expect(page.every((m) => m.userName === "アリス")).toBe(true);
+  });
+
+  test("マイグレーション 0006 のバックフィルは既存行を現在の user.name で埋める", async () => {
+    const db = createDb(env.DB);
+    await db
+      .insert(user)
+      .values({
+        id: "carol",
+        name: "キャロル",
+        email: "carol@example.com",
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoNothing();
+    await db
+      .insert(rooms)
+      .values({ id: "backfill-room", name: "backfill-room" })
+      .onConflictDoNothing();
+    // 移行直後（ADD COLUMN DEFAULT '' 適用後）の「未バックフィル」行を再現する。
+    await db
+      .insert(messages)
+      .values({
+        id: "bf1",
+        roomId: "backfill-room",
+        userId: "carol",
+        senderName: "",
+        body: "x",
+        createdAt: new Date(5000),
+      })
+      .onConflictDoNothing();
+
+    // 0006 マイグレーションのバックフィル UPDATE 文をそのまま実行する。
+    await db.run(
+      sql`UPDATE messages SET sender_name = COALESCE((SELECT name FROM user WHERE user.id = messages.user_id), '')`,
+    );
+
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.id, "bf1"));
+    expect(rows[0]?.senderName).toBe("キャロル");
   });
 });
