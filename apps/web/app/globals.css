@@ -589,6 +589,30 @@ a {
   color: var(--ink-muted);
   font-style: italic;
 }
+/* 楽観送信中（ack 待ち / 送信待ち）の保留バブルは半透明で仮表示を示す。 */
+.bubble.is-pending {
+  opacity: 0.6;
+}
+/* 送信失敗の保留バブルは危険色の枠で目立たせ、再送導線へ誘導する。 */
+.bubble.is-pending.is-failed {
+  opacity: 1;
+  border: 1px solid var(--danger);
+}
+/* 保留状態の注記（送信中 / 送信待ち / 失敗）。バブル下に小さく添える。 */
+.pending-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.pending-note.is-failed {
+  color: var(--danger);
+}
+.pending-actions {
+  display: flex;
+  gap: var(--space-1);
+}
 .mention {
   padding: 0 2px;
   font-weight: 600;

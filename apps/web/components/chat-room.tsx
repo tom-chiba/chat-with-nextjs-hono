@@ -39,8 +39,11 @@ export function ChatRoom({
 }) {
   const {
     messages,
+    pending,
     status,
     send,
+    retry,
+    discard,
     errorMessage,
     clearError,
     loadOlder,
@@ -120,6 +123,8 @@ export function ChatRoom({
     e.preventDefault();
     const body = draft.trim();
     if (body.length === 0 || isMessageTooLong(body)) return;
+    // 切断中でも send はローカルキューに積む（再接続時に flush）。本文は楽観表示の
+    // 保留バブルに残るため、入力欄は即クリアしてよい。
     send(body);
     setDraft("");
   };
@@ -157,6 +162,9 @@ export function ChatRoom({
 
       <MessageList
         messages={messages}
+        pending={pending}
+        onRetryPending={retry}
+        onDiscardPending={discard}
         currentUserId={currentUserId}
         hasMore={hasMore}
         loadOlder={loadOlder}
@@ -199,7 +207,8 @@ export function ChatRoom({
         <button
           type="submit"
           className="btn-primary"
-          disabled={status !== "open" || draft.trim().length === 0 || draftTooLong}
+          // 切断中も送信を許可する（ローカルキューに積み、再接続時に flush する）。
+          disabled={draft.trim().length === 0 || draftTooLong}
         >
           送信
         </button>

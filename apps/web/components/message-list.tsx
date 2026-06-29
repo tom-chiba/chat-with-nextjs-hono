@@ -2,15 +2,21 @@
 
 import type { ChatMessage } from "@repo/shared";
 import { useEffect, useRef } from "react";
+import type { PendingMessage } from "@/lib/use-room-chat";
 import { MessageItem } from "./message-item";
+import { PendingMessageItem } from "./pending-message-item";
 
 /**
  * メッセージ一覧の描画。
- * 空表示・過去ログ読み込みヘッダ・各メッセージ（{@link MessageItem}）を並べ、
+ * 空表示・過去ログ読み込みヘッダ・各メッセージ（{@link MessageItem}）に加え、
+ * 楽観送信中の保留メッセージ（{@link PendingMessageItem}）を末尾へ並べ、
  * 最下部への自動スクロール追従（過去ログ閲覧中は抑止）を担う。
  */
 export function MessageList({
   messages,
+  pending,
+  onRetryPending,
+  onDiscardPending,
   currentUserId,
   hasMore,
   loadOlder,
@@ -24,6 +30,9 @@ export function MessageList({
   onSubmitDelete,
 }: {
   messages: ChatMessage[];
+  pending: PendingMessage[];
+  onRetryPending: (nonce: string) => void;
+  onDiscardPending: (nonce: string) => void;
   currentUserId: string;
   hasMore: boolean;
   loadOlder: () => void;
@@ -38,7 +47,7 @@ export function MessageList({
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  /** 直近で最下部スクロール判定に使ったライブ末尾 ID。 */
+  /** 直近で最下部スクロール判定に使った末尾 ID（保留中は nonce）。 */
   const lastSeenLiveIdRef = useRef<string | null>(null);
   /** 最下部追従中かどうか（過去ログ閲覧中なら false）。スクロール中に追跡する。 */
   const stickToBottomRef = useRef(true);
@@ -51,7 +60,11 @@ export function MessageList({
   };
 
   useEffect(() => {
-    const latestId = messages[messages.length - 1]?.id ?? null;
+    // 末尾は保留メッセージを優先（自分の送信直後に最下部へ追従させるため）。
+    const latestId =
+      pending[pending.length - 1]?.nonce ??
+      messages[messages.length - 1]?.id ??
+      null;
     if (latestId === lastSeenLiveIdRef.current) return;
     const isInitial = lastSeenLiveIdRef.current === null;
     lastSeenLiveIdRef.current = latestId;
@@ -60,7 +73,7 @@ export function MessageList({
         behavior: isInitial ? "auto" : "smooth",
       });
     }
-  }, [messages]);
+  }, [messages, pending]);
 
   return (
     <div ref={scrollContainerRef} onScroll={handleScroll} className="msg-scroll">
@@ -92,6 +105,14 @@ export function MessageList({
           onCancelEdit={onCancelEdit}
           onSubmitEdit={onSubmitEdit}
           onSubmitDelete={onSubmitDelete}
+        />
+      ))}
+      {pending.map((p) => (
+        <PendingMessageItem
+          key={p.nonce}
+          pending={p}
+          onRetry={onRetryPending}
+          onDiscard={onDiscardPending}
         />
       ))}
       <div ref={bottomRef} />

@@ -8,6 +8,23 @@ import { fetchMessages } from "@/lib/rooms";
 
 export type ChatStatus = "connecting" | "open" | "closed";
 
+/**
+ * 楽観送信の保留状態。
+ * - `sending`: ソケットへ送出済みで ack（ブロードキャスト）待ち。
+ * - `queued`: 切断中に積まれ、再接続時の flush 待ち（まだ送出していない）。
+ * - `failed`: レート制限などで拒否、または送出中に切断され宙に浮いた。再送 / 破棄できる。
+ */
+export type PendingStatus = "sending" | "queued" | "failed";
+
+/** 楽観表示中のメッセージ。サーバ採番前なので相関キー `nonce` で同定する。 */
+export type PendingMessage = {
+  nonce: string;
+  body: string;
+  status: PendingStatus;
+  /** 表示順用のローカル時刻（ミリ秒エポック）。常に既存メッセージ末尾の後ろへ並べる。 */
+  createdAt: number;
+};
+
 /** API の URL（http/https）から WebSocket の URL（ws/wss）を組み立てる。 */
 export function roomWebSocketUrl(roomId: string): string {
   const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
@@ -38,15 +55,23 @@ export function useRoomChat(roomId: string) {
   const [loadingMore, setLoadingMore] = useState(false);
   /** サーバから来た最新のエラーメッセージ（レート制限など）。next send で自然に上書きされる。 */
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  /** 楽観送信の保留リスト。サーバ真実の messages とは分離し、描画時に末尾へ連結する。 */
+  const [pending, setPending] = useState<PendingMessage[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   /** 最新の messages を同期保持し、コールバックから最新値を読むためのミラー。 */
   const messagesRef = useRef<ChatMessage[]>([]);
+  /** 最新の pending を同期保持し、open/close ハンドラから最新値を読むためのミラー。 */
+  const pendingRef = useRef<PendingMessage[]>([]);
   /** loadOlder の二重実行防止（描画に依らず即時に判定するため ref で持つ）。 */
   const loadingMoreRef = useRef(false);
 
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
 
   useEffect(() => {
     let active = true;
@@ -98,6 +123,26 @@ export function useRoomChat(roomId: string) {
       ws.addEventListener("open", () => {
         attempts = 0;
         setStatus("open");
+        // 切断中に積まれた queued を再接続時に送出する。queued は未送出のため
+        // 再送しても重複は生じない（sending は close 時に failed へ倒すので含まれない）。
+        const toFlush = pendingRef.current.filter((p) => p.status === "queued");
+        if (toFlush.length > 0) {
+          for (const p of toFlush) {
+            ws.send(
+              JSON.stringify({
+                type: "message",
+                body: p.body,
+                nonce: p.nonce,
+              } satisfies ClientMessage),
+            );
+          }
+          const flushed = new Set(toFlush.map((p) => p.nonce));
+          setPending((prev) =>
+            prev.map((p) =>
+              flushed.has(p.nonce) ? { ...p, status: "sending" } : p,
+            ),
+          );
+        }
       });
 
       ws.addEventListener("message", (event) => {
@@ -133,6 +178,11 @@ export function useRoomChat(roomId: string) {
           }
         } else if (data.type === "message") {
           setMessages((prev) => mergeMessages(prev, [data.message]));
+          // 自分の送信のエコーなら、対応する保留を確定（除去）する。
+          if (data.nonce) {
+            const confirmed = data.nonce;
+            setPending((prev) => prev.filter((p) => p.nonce !== confirmed));
+          }
         } else if (data.type === "update") {
           // 編集 / 論理削除。既存メッセージを id でマッチして差し替える。
           // 未ロード（表示範囲外）の id は無視し、孤立挿入しない。
@@ -140,7 +190,17 @@ export function useRoomChat(roomId: string) {
             prev.map((m) => (m.id === data.message.id ? data.message : m)),
           );
         } else if (data.type === "error") {
+          // nonce が一致する保留があれば失敗扱いにし、本文を保持して再送可能にする。
+          // 失敗理由は従来どおりバナーにも出す（個別バブルの再送導線と併用）。
           setErrorMessage(data.message);
+          if (data.nonce) {
+            const failed = data.nonce;
+            setPending((prev) =>
+              prev.map((p) =>
+                p.nonce === failed ? { ...p, status: "failed" } : p,
+              ),
+            );
+          }
         }
       });
 
@@ -150,6 +210,13 @@ export function useRoomChat(roomId: string) {
         if (wsRef.current === ws) wsRef.current = null;
         if (!active) return;
         setStatus("closed");
+        // 送出済み（sending）は ack 前に切断され宙に浮いた。自動再送はサーバが
+        // id を都度採番し重複投稿になり得るため、failed にして手動再送に委ねる。
+        setPending((prev) =>
+          prev.map((p) =>
+            p.status === "sending" ? { ...p, status: "failed" } : p,
+          ),
+        );
         attempts += 1;
         // error → close の二重発火など、複数 close で前のタイマーが参照を失って
         // リークし再接続が重複しないよう、スケジュール前に必ず clear する。
@@ -174,12 +241,49 @@ export function useRoomChat(roomId: string) {
 
   const send = useCallback((body: string) => {
     const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      // 送信時にエラー表示を消す（新たなレート制限が来たら setErrorMessage で再表示）。
-      setErrorMessage(null);
-      const msg: ClientMessage = { type: "message", body };
+    const isOpen = ws?.readyState === WebSocket.OPEN;
+    // 送信時にエラー表示を消す（新たなレート制限が来たら setErrorMessage で再表示）。
+    setErrorMessage(null);
+    const nonce = crypto.randomUUID();
+    // 楽観表示。OPEN なら即送出して sending、切断中は queued で積み再接続時に flush。
+    setPending((prev) => [
+      ...prev,
+      { nonce, body, status: isOpen ? "sending" : "queued", createdAt: Date.now() },
+    ]);
+    if (isOpen && ws) {
+      const msg: ClientMessage = { type: "message", body, nonce };
       ws.send(JSON.stringify(msg));
     }
+  }, []);
+
+  /** 失敗 / 保留中のメッセージを再送する。OPEN なら即送出、切断中は queued に戻す。 */
+  const retry = useCallback((nonce: string) => {
+    const target = pendingRef.current.find((p) => p.nonce === nonce);
+    if (!target) return;
+    const ws = wsRef.current;
+    const isOpen = ws?.readyState === WebSocket.OPEN;
+    setErrorMessage(null);
+    if (isOpen && ws) {
+      ws.send(
+        JSON.stringify({
+          type: "message",
+          body: target.body,
+          nonce,
+        } satisfies ClientMessage),
+      );
+    }
+    setPending((prev) =>
+      prev.map((p) =>
+        p.nonce === nonce
+          ? { ...p, status: isOpen ? "sending" : "queued" }
+          : p,
+      ),
+    );
+  }, []);
+
+  /** 保留中のメッセージを破棄する（再送せず取り下げる）。 */
+  const discard = useCallback((nonce: string) => {
+    setPending((prev) => prev.filter((p) => p.nonce !== nonce));
   }, []);
 
   /** 現在の先頭より古いメッセージを REST で 1 ページ取得してマージする。 */
@@ -208,8 +312,11 @@ export function useRoomChat(roomId: string) {
 
   return {
     messages,
+    pending,
     status,
     send,
+    retry,
+    discard,
     errorMessage,
     clearError,
     loadOlder,
