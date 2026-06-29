@@ -140,6 +140,7 @@ export class RoomDO extends DurableObject<Env> {
       id: message.id,
       roomId: message.roomId,
       userId: message.userId,
+      senderName: message.userName,
       body: message.body,
       createdAt: new Date(message.createdAt),
     });

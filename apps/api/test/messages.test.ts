@@ -1,4 +1,5 @@
 import { env } from "cloudflare:test";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createDb } from "../src/db";
 import { listMessages } from "../src/db/messages";
@@ -30,11 +31,11 @@ async function seed() {
   await db
     .insert(messages)
     .values([
-      { id: "m1", roomId: ROOM, userId: "alice", body: "1", createdAt: new Date(1000) },
-      { id: "m2", roomId: ROOM, userId: "alice", body: "2", createdAt: new Date(1000) },
-      { id: "m3", roomId: ROOM, userId: "alice", body: "3", createdAt: new Date(2000) },
-      { id: "m4", roomId: ROOM, userId: "alice", body: "4", createdAt: new Date(3000) },
-      { id: "m5", roomId: ROOM, userId: "alice", body: "5", createdAt: new Date(4000) },
+      { id: "m1", roomId: ROOM, userId: "alice", senderName: "アリス", body: "1", createdAt: new Date(1000) },
+      { id: "m2", roomId: ROOM, userId: "alice", senderName: "アリス", body: "2", createdAt: new Date(1000) },
+      { id: "m3", roomId: ROOM, userId: "alice", senderName: "アリス", body: "3", createdAt: new Date(2000) },
+      { id: "m4", roomId: ROOM, userId: "alice", senderName: "アリス", body: "4", createdAt: new Date(3000) },
+      { id: "m5", roomId: ROOM, userId: "alice", senderName: "アリス", body: "5", createdAt: new Date(4000) },
     ])
     .onConflictDoNothing();
 }
@@ -71,5 +72,14 @@ describe("listMessages（ページネーション）", () => {
       before: { createdAt: 2000, id: "m3" },
     });
     expect(older.map((m) => m.id)).toEqual(["m1", "m2"]);
+  });
+
+  test("送信者が改名しても過去メッセージの表示名は固定される（スナップショット）", async () => {
+    const db = createDb(env.DB);
+    // 送信後にユーザーが改名しても、保存済み sender_name は追随しない。
+    await db.update(user).set({ name: "アリス改" }).where(eq(user.id, "alice"));
+
+    const page = await listMessages(db, { roomId: ROOM, limit: 5 });
+    expect(page.every((m) => m.userName === "アリス")).toBe(true);
   });
 });

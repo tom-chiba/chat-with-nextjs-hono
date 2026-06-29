@@ -1,7 +1,7 @@
 import type { ChatMessage } from "@repo/shared";
 import { and, desc, eq, isNull, lt, or } from "drizzle-orm";
 import type { Db } from "./index";
-import { messages, user } from "./schema";
+import { messages } from "./schema";
 
 /** メッセージ一覧のキーセットカーソル（この位置より「古い」ものを返す）。 */
 export type MessageCursor = { createdAt: number; id: string };
@@ -73,10 +73,10 @@ export async function listMessages(
       createdAt: messages.createdAt,
       editedAt: messages.editedAt,
       deletedAt: messages.deletedAt,
-      userName: user.name,
+      // 送信時のスナップショットを返す。改名しても過去メッセージは固定。
+      userName: messages.senderName,
     })
     .from(messages)
-    .innerJoin(user, eq(messages.userId, user.id))
     .where(and(eq(messages.roomId, roomId), olderThanCursor))
     // 直近 limit 件を取りたいので降順で取得し、最後に昇順へ反転する。
     .orderBy(desc(messages.createdAt), desc(messages.id))

@@ -339,9 +339,9 @@ describe("API ルート", () => {
     const db = createDb(env.DB);
     const { messages: messagesTable } = await import("../src/db/schema");
     await db.insert(messagesTable).values([
-      { id: "c1", roomId: "cursor-room", userId: "cursor-owner", body: "1", createdAt: new Date(1000) },
-      { id: "c2", roomId: "cursor-room", userId: "cursor-owner", body: "2", createdAt: new Date(2000) },
-      { id: "c3", roomId: "cursor-room", userId: "cursor-owner", body: "3", createdAt: new Date(3000) },
+      { id: "c1", roomId: "cursor-room", userId: "cursor-owner", senderName: "Owner", body: "1", createdAt: new Date(1000) },
+      { id: "c2", roomId: "cursor-room", userId: "cursor-owner", senderName: "Owner", body: "2", createdAt: new Date(2000) },
+      { id: "c3", roomId: "cursor-room", userId: "cursor-owner", senderName: "Owner", body: "3", createdAt: new Date(3000) },
     ]);
 
     // before だけ → 400（カーソルを黙って無視せずエラーにする）。
@@ -726,6 +726,7 @@ describe("API ルート", () => {
       id: messageId,
       roomId: "msg-edit-room",
       userId: "msg-edit-owner",
+      senderName: "Owner",
       body: "before",
       createdAt: new Date(),
     });
@@ -788,6 +789,7 @@ describe("API ルート", () => {
       id: "msg-del-1",
       roomId: "msg-del-room",
       userId: "msg-del-owner",
+      senderName: "Owner",
       body: "secret",
       createdAt: new Date(),
     });
@@ -948,6 +950,7 @@ describe("API ルート", () => {
       id: "editlen-msg",
       roomId: "editlen-room",
       userId: "editlen-owner",
+      senderName: "Owner",
       body: "before",
       createdAt: new Date(),
     });
@@ -988,6 +991,7 @@ describe("API ルート", () => {
       id: "emojiedit-msg",
       roomId: "emojiedit-room",
       userId: "emojiedit-owner",
+      senderName: "Owner",
       body: "before",
       createdAt: new Date(),
     });

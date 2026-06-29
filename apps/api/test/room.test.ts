@@ -121,6 +121,8 @@ describe("RoomDO", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.body).toBe("こんにちは");
     expect(rows[0]?.userId).toBe("alice");
+    // 送信時の表示名がスナップショットとして保存される。
+    expect(rows[0]?.senderName).toBe("アリス");
   });
 
   test("空文字や非 message 型は無視される", async () => {
