@@ -189,6 +189,33 @@ test("切断中の送信は queued になり再接続 open で flush される",
   });
 });
 
+test("nonce 一致の error は該当 pending のみ failed にし他は巻き込まない", () => {
+  const { result } = renderHook(() => useRoomChat("room-1"));
+  act(() => {
+    MockWebSocket.latest.open();
+  });
+  act(() => {
+    result.current.send("1番目");
+    result.current.send("2番目");
+  });
+  const secondNonce = result.current.pending[1]?.nonce as string;
+
+  act(() => {
+    MockWebSocket.latest.receive({
+      type: "error",
+      code: "rate_limited",
+      message: "早すぎます",
+      nonce: secondNonce,
+    });
+  });
+
+  // 2番目だけ failed、1番目は sending のまま。
+  const first = result.current.pending.find((p) => p.body === "1番目");
+  const second = result.current.pending.find((p) => p.body === "2番目");
+  expect(first?.status).toBe("sending");
+  expect(second?.status).toBe("failed");
+});
+
 test("複数の queued は open で積んだ順に全件 flush され全て sending になる", () => {
   const { result } = renderHook(() => useRoomChat("room-1"));
   // 非 OPEN のまま 3 件積む。
