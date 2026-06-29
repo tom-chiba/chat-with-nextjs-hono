@@ -339,9 +339,9 @@ describe("API ルート", () => {
     const db = createDb(env.DB);
     const { messages: messagesTable } = await import("../src/db/schema");
     await db.insert(messagesTable).values([
-      { id: "c1", roomId: "cursor-room", userId: "cursor-owner", body: "1", createdAt: new Date(1000) },
-      { id: "c2", roomId: "cursor-room", userId: "cursor-owner", body: "2", createdAt: new Date(2000) },
-      { id: "c3", roomId: "cursor-room", userId: "cursor-owner", body: "3", createdAt: new Date(3000) },
+      { id: "c1", roomId: "cursor-room", userId: "cursor-owner", senderName: "Owner", body: "1", createdAt: new Date(1000) },
+      { id: "c2", roomId: "cursor-room", userId: "cursor-owner", senderName: "Owner", body: "2", createdAt: new Date(2000) },
+      { id: "c3", roomId: "cursor-room", userId: "cursor-owner", senderName: "Owner", body: "3", createdAt: new Date(3000) },
     ]);
 
     // before だけ → 400（カーソルを黙って無視せずエラーにする）。
@@ -726,6 +726,7 @@ describe("API ルート", () => {
       id: messageId,
       roomId: "msg-edit-room",
       userId: "msg-edit-owner",
+      senderName: "Owner",
       body: "before",
       createdAt: new Date(),
     });
@@ -788,6 +789,7 @@ describe("API ルート", () => {
       id: "msg-del-1",
       roomId: "msg-del-room",
       userId: "msg-del-owner",
+      senderName: "Owner",
       body: "secret",
       createdAt: new Date(),
     });
@@ -813,6 +815,56 @@ describe("API ルート", () => {
       .where(eq(messagesTable.id, "msg-del-1"));
     expect(row[0]?.body).toBe("");
     expect(row[0]?.deletedAt).not.toBeNull();
+  });
+
+  test("編集の応答は現在名でなく送信時スナップショット名を返し、削除でも維持される", async () => {
+    // 送信後に改名したユーザーを再現する: 現在名は「新名」だが、メッセージの
+    // sender_name は送信時の「旧名」。編集/削除でこのスナップショットが
+    // 操作者の現在名へ先祖返りしないことを検証する。
+    const ownerHeaders = await createSession("snap-owner", "新名");
+    await seedRoom({ roomId: "snap-room", ownerId: "snap-owner" });
+
+    const db = createDb(env.DB);
+    const { messages: messagesTable } = await import("../src/db/schema");
+    await db
+      .insert(messagesTable)
+      .values({
+        id: "snap-1",
+        roomId: "snap-room",
+        userId: "snap-owner",
+        senderName: "旧名",
+        body: "before",
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing();
+
+    const edited = await app.request(
+      "/rooms/snap-room/messages/snap-1",
+      {
+        method: "PATCH",
+        headers: { ...ownerHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "after" }),
+      },
+      env,
+    );
+    expect(edited.status).toBe(200);
+    const editedBody = (await edited.json()) as {
+      message: { userName: string };
+    };
+    expect(editedBody.message.userName).toBe("旧名");
+
+    const deleted = await app.request(
+      "/rooms/snap-room/messages/snap-1",
+      { method: "DELETE", headers: ownerHeaders },
+      env,
+    );
+    expect(deleted.status).toBe(200);
+    // 論理削除後も sender_name 列はスナップショットを保持する。
+    const row = await db
+      .select()
+      .from(messagesTable)
+      .where(eq(messagesTable.id, "snap-1"));
+    expect(row[0]?.senderName).toBe("旧名");
   });
 
   test("GET /rooms は myRole を返す", async () => {
@@ -948,6 +1000,7 @@ describe("API ルート", () => {
       id: "editlen-msg",
       roomId: "editlen-room",
       userId: "editlen-owner",
+      senderName: "Owner",
       body: "before",
       createdAt: new Date(),
     });
@@ -988,6 +1041,7 @@ describe("API ルート", () => {
       id: "emojiedit-msg",
       roomId: "emojiedit-room",
       userId: "emojiedit-owner",
+      senderName: "Owner",
       body: "before",
       createdAt: new Date(),
     });

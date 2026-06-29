@@ -54,6 +54,9 @@ export const roomMembers = sqliteTable(
 /**
  * ルーム内のメッセージ。
  *
+ * `senderName` は送信時点の送信者表示名のスナップショット。送信者が後で改名しても
+ * 過去メッセージの表示名は固定される（`user.name` を都度 JOIN しない）。
+ *
  * 編集すると `editedAt` に時刻が入る（初回投稿時は null）。
  * 削除は論理削除で、`deletedAt` に時刻、`body` は空文字に書き換える。
  */
@@ -67,6 +70,7 @@ export const messages = sqliteTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    senderName: text("sender_name").notNull(),
     body: text("body").notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()

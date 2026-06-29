@@ -76,7 +76,7 @@ export const messagesApp = new Hono<{ Bindings: Bindings }>()
 
       const updated = toChatMessage({
         ...existing,
-        userName: s.user.name,
+        userName: existing.senderName,
         body,
         editedAt,
       });
@@ -109,7 +109,7 @@ export const messagesApp = new Hono<{ Bindings: Bindings }>()
 
     const updated = toChatMessage({
       ...existing,
-      userName: s.user.name,
+      userName: existing.senderName,
       body: "",
       deletedAt,
     });
