@@ -38,7 +38,7 @@ export function AuthForm() {
     setError(null);
     const result = await signIn.passkey();
     setPending(false);
-    if (result?.error) {
+    if (result.error) {
       setError(result.error.message ?? "パスキーでのログインに失敗しました");
     }
     // 成功時は useSession が更新され、ページ側でチャットに切り替わる。
