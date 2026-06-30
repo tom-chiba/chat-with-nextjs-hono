@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
+  resolveWebAuthnRp,
   sendPasswordResetEmailWithResend,
   sendVerificationEmailWithResend,
 } from "../src/auth";
@@ -9,6 +10,29 @@ const baseEmail = {
   to: "user@example.net",
   url: "https://api.example.com/verify-email?token=token",
 };
+
+describe("resolveWebAuthnRp", () => {
+  test("本番 URL からホスト名を RP ID に、origin をそのまま導出する", () => {
+    expect(resolveWebAuthnRp("https://chat.tom-chiba.com")).toEqual({
+      rpID: "chat.tom-chiba.com",
+      origin: "https://chat.tom-chiba.com",
+    });
+  });
+
+  test("ローカル URL（http・ポート付き）でも正しく導出する", () => {
+    expect(resolveWebAuthnRp("http://localhost:3000")).toEqual({
+      rpID: "localhost",
+      origin: "http://localhost:3000",
+    });
+  });
+
+  test("末尾スラッシュは origin から除去する（rpID には影響しない）", () => {
+    expect(resolveWebAuthnRp("https://chat.tom-chiba.com/")).toEqual({
+      rpID: "chat.tom-chiba.com",
+      origin: "https://chat.tom-chiba.com",
+    });
+  });
+});
 
 describe("sendVerificationEmailWithResend", () => {
   afterEach(() => {
