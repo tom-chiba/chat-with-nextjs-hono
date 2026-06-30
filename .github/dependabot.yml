@@ -1,0 +1,51 @@
+version: 2
+updates:
+  # npm（pnpm）依存の更新。ワークスペースのルート "/" のみを対象にする。
+  # pnpm-lock.yaml はルートに 1 つだけ存在する単一ロックファイルなので、
+  # /apps/* や /packages/* を個別ディレクトリとして列挙すると、メンバーの
+  # package.json は更新されてもルートのロックファイルが更新されず、CI の
+  # frozen-lockfile install で ERR_PNPM_OUTDATED_LOCKFILE になる
+  # （dependabot-core#11135 / #10758 の既知挙動）。ルートだけを対象にすれば
+  # Dependabot がワークスペース全メンバーの package.json を辿って更新し、
+  # 同一 PR でルートの pnpm-lock.yaml も更新する。
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    # pnpm-workspace.yaml の minimumReleaseAge（3日）に満たない版は CI / Vercel /
+    # 本番デプロイの install で弾かれるため、公開から 4 日（境界の余裕込み）
+    # 経過した版のみ提案させる。これでロックファイルも Dependabot 自身が
+    # 更新でき、各 install がポリシーを緩めずに通る。
+    # 注意: cooldown は version-updates のみで security-updates には効かない。
+    cooldown:
+      default-days: 4
+    # PR 乱立を抑えるため関連更新をグループ化する。
+    groups:
+      # patch/minor はまとめて 1 PR にする（破壊的変更が少なく確認が軽い）。
+      production-minor-patch:
+        applies-to: version-updates
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      development-minor-patch:
+        applies-to: version-updates
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+      # 脆弱性ベースの更新もまとめる。
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # GitHub Actions の更新。
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
