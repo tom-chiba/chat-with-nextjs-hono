@@ -1,7 +1,8 @@
+import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { D1Database } from "@cloudflare/workers-types";
-import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@repo/shared";
+import { APP_NAME, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@repo/shared";
 import { Resend } from "resend";
 import { createDb, schema } from "./db";
 
@@ -176,6 +177,22 @@ export async function sendPasswordResetEmailWithResend({
 }
 
 /**
+ * パスキー（WebAuthn）の RP ID / origin を FE オリジン（WEB_URL）から導出する。
+ *
+ * ブラウザの navigator.credentials が走るのは FE オリジンなので、RP ID は
+ * そのホスト名に一致させ、origin は末尾スラッシュを除いた WEB_URL をそのまま使う。
+ * 例) ローカル: http://localhost:3000  → rpID "localhost" / origin "http://localhost:3000"（http/localhost も WebAuthn 許容）
+ *     本番:   https://chat.tom-chiba.com → rpID "chat.tom-chiba.com" / origin "https://chat.tom-chiba.com"
+ */
+export function resolveWebAuthnRp(webUrl: string): {
+  rpID: string;
+  origin: string;
+} {
+  const origin = webUrl.replace(/\/$/, "");
+  return { rpID: new URL(origin).hostname, origin };
+}
+
+/**
  * リクエストごとの環境から Better Auth インスタンスを生成する。
  * Workers では D1 バインディングがリクエストスコープのため、都度生成する。
  */
@@ -183,11 +200,20 @@ export function createAuth(env: AuthEnv) {
   const db = createDb(env.DB);
   const resend = new Resend(env.RESEND_API_KEY);
 
+  const { rpID, origin: webOrigin } = resolveWebAuthnRp(env.WEB_URL);
+
   return betterAuth({
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: [env.WEB_URL],
     database: drizzleAdapter(db, { provider: "sqlite", schema }),
+    plugins: [
+      passkey({
+        rpID,
+        rpName: APP_NAME,
+        origin: webOrigin,
+      }),
+    ],
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
@@ -229,6 +255,13 @@ export function createAuth(env: AuthEnv) {
         "/sign-up/email": { window: 60, max: 5 },
         "/request-password-reset": { window: 60, max: 5 },
         "/reset-password": { window: 60, max: 5 },
+        // パスキー：チャレンジ発行（generate-*-options）と検証（verify-*）の各
+        // エンドポイントを総当たり抑制のため絞る。パス名は @better-auth/passkey の
+        // 実エンドポイントに一致させる（完全一致でのみマッチするため）。
+        "/passkey/generate-authenticate-options": { window: 60, max: 10 },
+        "/passkey/verify-authentication": { window: 60, max: 10 },
+        "/passkey/generate-register-options": { window: 60, max: 10 },
+        "/passkey/verify-registration": { window: 60, max: 10 },
       },
     },
   });

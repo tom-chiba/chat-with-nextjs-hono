@@ -4,6 +4,7 @@ import { APP_NAME } from "@repo/shared";
 import { useRef, useState } from "react";
 import { AuthForm } from "@/components/auth-form";
 import { ChatRoom } from "@/components/chat-room";
+import { PasskeyManager } from "@/components/passkey-manager";
 import { ProfileForm } from "@/components/profile-form";
 import { PushNotificationControl } from "@/components/push-notification-control";
 import { RoomList, type RoomListHandle } from "@/components/room-list";
@@ -33,6 +34,7 @@ export default function Home() {
               ログアウト
             </button>
           </div>
+          <PasskeyManager />
           <div className="app-shell" data-mobile-pane={roomId ? "chat" : "list"}>
             <div className="roomlist-pane">
               <RoomList

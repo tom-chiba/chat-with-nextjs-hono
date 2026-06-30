@@ -11,9 +11,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@better-auth/passkey": "^1.6.22",
     "@repo/api": "workspace:*",
     "@repo/shared": "workspace:*",
-    "better-auth": "^1.6.18",
+    "better-auth": "^1.6.22",
     "hono": "^4.12.25",
     "next": "^16.2.9",
     "react": "^19.2.7",
