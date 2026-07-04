@@ -740,6 +740,26 @@ a {
   font-size: var(--text-sm);
   color: var(--danger);
 }
+/* メール検証待ちの案内ボックス。サインアップ後・未検証ログイン時に表示する。 */
+.verify-notice {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--accent-weak);
+  border: 1px solid var(--accent-weak-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+.verify-notice p {
+  margin: 0;
+}
+.verify-notice-title {
+  font-weight: 600;
+  color: var(--accent);
+}
+.verify-notice-hint {
+  color: var(--ink-muted);
+}
 .profile-form {
   display: flex;
   gap: var(--space-2);

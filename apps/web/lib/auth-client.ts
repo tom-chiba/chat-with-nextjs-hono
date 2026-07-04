@@ -15,3 +15,5 @@ export const { signIn, signUp, signOut, useSession } = authClient;
 export const requestPasswordReset =
   authClient.requestPasswordReset.bind(authClient);
 export const resetPassword = authClient.resetPassword.bind(authClient);
+export const sendVerificationEmail =
+  authClient.sendVerificationEmail.bind(authClient);
