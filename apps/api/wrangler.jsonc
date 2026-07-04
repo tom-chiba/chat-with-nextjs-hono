@@ -33,6 +33,13 @@
 			"migrations_dir": "migrations"
 		}
 	],
+	// 画像添付の実体は R2 に保存する（DB には attachments メタデータのみ）。
+	"r2_buckets": [
+		{
+			"binding": "ATTACHMENTS",
+			"bucket_name": "chat-attachments"
+		}
+	],
 	// チャットルーム = 1 Durable Object。WebSocket Hibernation で接続を保持する。
 	"durable_objects": {
 		"bindings": [
