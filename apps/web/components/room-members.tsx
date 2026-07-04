@@ -1,95 +1,47 @@
 "use client";
 
-import type { RoomMember } from "@repo/shared";
-import { useEffect, useMemo, useState } from "react";
-import {
-  addRoomMember,
-  listRoomMembers,
-  removeRoomMember,
-} from "@/lib/rooms";
+import type { RoomMembersState } from "@/lib/use-room-members";
 
+/**
+ * メンバー一覧シートの本体。
+ *
+ * 状態・操作は {@link RoomMembersState}（`useRoomMembers`）から受け取る presentational
+ * コンポーネント。ChatRoom のヘッダーにあるアバタースタックと同じ情報源を共有し、
+ * オーバーレイ（モバイル=ボトムシート／デスクトップ=右ドックパネル）として表示される。
+ */
 export function RoomMembers({
-  roomId,
-  currentUserId,
-}: {
-  roomId: string;
-  currentUserId: string;
-}) {
-  const [members, setMembers] = useState<RoomMember[]>([]);
-  const [draftEmail, setDraftEmail] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
-  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const myRole = useMemo(
-    () => members.find((m) => m.userId === currentUserId)?.role ?? "member",
-    [currentUserId, members],
-  );
-  const isOwner = myRole === "owner";
-
-  const loadMembers = async (signal: { active: boolean }) => {
-    try {
-      const list = await listRoomMembers(roomId);
-      if (!signal.active) return;
-      setMembers(list);
-      setError(null);
-    } catch (err) {
-      if (signal.active) {
-        setError(err instanceof Error ? err.message : "メンバー一覧の取得に失敗しました");
-      }
-    } finally {
-      if (signal.active) setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const signal = { active: true };
-    setLoading(true);
-    void loadMembers(signal);
-    return () => {
-      signal.active = false;
-    };
-  }, [roomId]);
-
-  const submitAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const email = draftEmail.trim();
-    if (!email || adding) return;
-
-    setAdding(true);
-    setError(null);
-    try {
-      await addRoomMember(roomId, email);
-      setDraftEmail("");
-      await loadMembers({ active: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "メンバーの追加に失敗しました");
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  const submitRemove = async (member: RoomMember) => {
-    if (!window.confirm(`${member.userName} をこのルームから削除しますか？`)) return;
-
-    setRemovingUserId(member.userId);
-    setError(null);
-    try {
-      await removeRoomMember(roomId, member.userId);
-      setMembers((prev) => prev.filter((m) => m.userId !== member.userId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "メンバーの削除に失敗しました");
-    } finally {
-      setRemovingUserId(null);
-    }
-  };
-
+  members,
+  loading,
+  error,
+  isOwner,
+  draftEmail,
+  setDraftEmail,
+  adding,
+  removingUserId,
+  submitAdd,
+  submitRemove,
+  onClose,
+}: RoomMembersState & { onClose: () => void }) {
   return (
-    <details className="card">
-      <summary className="members-summary">
-        メンバー {loading ? "" : `(${members.length})`}
-      </summary>
+    <div
+      className="member-sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-label="メンバー一覧"
+    >
+      <div className="member-sheet-head">
+        <strong className="eyebrow">
+          メンバー {loading ? "" : `(${members.length})`}
+        </strong>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="メンバー一覧を閉じる"
+          className="warn-close"
+        >
+          ✕
+        </button>
+      </div>
 
       <div className="members-body">
         {error && <p className="action-error">{error}</p>}
@@ -109,7 +61,7 @@ export function RoomMembers({
                   {canRemove && (
                     <button
                       type="button"
-                      onClick={() => void submitRemove(member)}
+                      onClick={() => submitRemove(member)}
                       disabled={removingUserId === member.userId}
                       className="btn-quiet btn-danger"
                     >
@@ -140,6 +92,6 @@ export function RoomMembers({
           </form>
         )}
       </div>
-    </details>
+    </div>
   );
 }

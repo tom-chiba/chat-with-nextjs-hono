@@ -6,6 +6,7 @@ import {
   listRoomMembers,
   removeRoomMember,
 } from "@/lib/rooms";
+import { useRoomMembers } from "@/lib/use-room-members";
 
 vi.mock("@/lib/rooms", () => ({
   addRoomMember: vi.fn(),
@@ -16,6 +17,22 @@ vi.mock("@/lib/rooms", () => ({
 const mockedListRoomMembers = vi.mocked(listRoomMembers);
 const mockedAddRoomMember = vi.mocked(addRoomMember);
 const mockedRemoveRoomMember = vi.mocked(removeRoomMember);
+
+/**
+ * ChatRoom と同じ構成（useRoomMembers → RoomMembers シート）でメンバー機能を検証する。
+ * フェッチ・追加・削除は `useRoomMembers` に移り、RoomMembers は表示専用のため
+ * 実利用と同じ結線でテストする。
+ */
+function RoomMembersHarness({
+  roomId,
+  currentUserId,
+}: {
+  roomId: string;
+  currentUserId: string;
+}) {
+  const state = useRoomMembers(roomId, currentUserId);
+  return <RoomMembers {...state} onClose={() => {}} />;
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -52,9 +69,9 @@ test("オーナーはメンバーを追加して一覧を再取得できる", as
     ]);
   mockedAddRoomMember.mockResolvedValue();
 
-  render(<RoomMembers roomId="room-1" currentUserId="owner-1" />);
+  render(<RoomMembersHarness roomId="room-1" currentUserId="owner-1" />);
 
-  fireEvent.click(await screen.findByText("メンバー (1)"));
+  await screen.findByText("メンバー (1)");
   fireEvent.change(
     screen.getByPlaceholderText("追加するメンバーのメールアドレス"),
     {
@@ -86,9 +103,9 @@ test("追加に失敗するとエラー文言を表示する", async () => {
     new Error("そのメールアドレスのユーザーが見つかりません"),
   );
 
-  render(<RoomMembers roomId="room-1" currentUserId="owner-1" />);
+  render(<RoomMembersHarness roomId="room-1" currentUserId="owner-1" />);
 
-  fireEvent.click(await screen.findByText("メンバー (1)"));
+  await screen.findByText("メンバー (1)");
   fireEvent.change(
     screen.getByPlaceholderText("追加するメンバーのメールアドレス"),
     {
@@ -121,9 +138,9 @@ test("オーナーは owner 以外のメンバーを削除できる", async () =
   ]);
   mockedRemoveRoomMember.mockResolvedValue();
 
-  render(<RoomMembers roomId="room-1" currentUserId="owner-1" />);
+  render(<RoomMembersHarness roomId="room-1" currentUserId="owner-1" />);
 
-  fireEvent.click(await screen.findByText("メンバー (2)"));
+  await screen.findByText("メンバー (2)");
   fireEvent.click(screen.getByRole("button", { name: "削除" }));
 
   await waitFor(() => {
@@ -148,9 +165,9 @@ test("一般メンバーには追加フォームと削除ボタンを表示し�
     },
   ]);
 
-  render(<RoomMembers roomId="room-1" currentUserId="member-1" />);
+  render(<RoomMembersHarness roomId="room-1" currentUserId="member-1" />);
 
-  fireEvent.click(await screen.findByText("メンバー (2)"));
+  await screen.findByText("メンバー (2)");
 
   expect(
     screen.queryByPlaceholderText("追加するメンバーのメールアドレス"),

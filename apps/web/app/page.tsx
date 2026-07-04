@@ -26,6 +26,9 @@ export default function Home() {
     if (typeof window === "undefined") return null;
     return new URLSearchParams(window.location.search).get("room");
   });
+  const [roomName, setRoomName] = useState<string | null>(null);
+  // モバイルのルーム一覧ドロワーの開閉。デスクトップでは常設サイドバーのため無視される。
+  const [roomsDrawerOpen, setRoomsDrawerOpen] = useState(false);
   const roomListRef = useRef<RoomListHandle>(null);
 
   return (
@@ -56,7 +59,19 @@ export default function Home() {
       {isPending ? (
         <p className="muted">読み込み中…</p>
       ) : session ? (
-        <div className="app-shell" data-mobile-pane={roomId ? "chat" : "list"}>
+        <div
+          className="app-shell"
+          data-drawer={roomsDrawerOpen ? "open" : "closed"}
+        >
+          {/* モバイルのドロワー背面。開いている間だけ描画し、クリックで閉じる。 */}
+          {roomsDrawerOpen && (
+            <button
+              type="button"
+              className="drawer-backdrop mobile-only"
+              aria-label="ルーム一覧を閉じる"
+              onClick={() => setRoomsDrawerOpen(false)}
+            />
+          )}
           <div className="roomlist-pane">
             {/* 遅延読み込み中の一瞬を埋める。ペインごとに境界を分け、ルーム選択で
                 ChatRoom を読み込む間もルーム一覧が消えないようにする。 */}
@@ -64,7 +79,12 @@ export default function Home() {
               <RoomList
                 ref={roomListRef}
                 selectedRoomId={roomId}
-                onSelect={setRoomId}
+                onSelect={(id) => {
+                  setRoomId(id);
+                  // 選択したらドロワーを閉じ、チャット全画面へ戻す（モバイル）。
+                  setRoomsDrawerOpen(false);
+                }}
+                onSelectedNameChange={setRoomName}
               />
             </Suspense>
           </div>
@@ -75,8 +95,9 @@ export default function Home() {
                 <ChatRoom
                   key={roomId}
                   roomId={roomId}
+                  roomName={roomName}
                   currentUserId={session.user.id}
-                  onBack={() => setRoomId(null)}
+                  onOpenRooms={() => setRoomsDrawerOpen(true)}
                   onRead={() => {
                     // 自ルームの未読を 0 に楽観反映し、他ルーム分は再取得で同期する。
                     roomListRef.current?.markRoomReadLocally(roomId);
@@ -85,9 +106,18 @@ export default function Home() {
                 />
               </Suspense>
             ) : (
-              <p className="muted">
-                ルームを選択するか、新しく作成してください。
-              </p>
+              <div className="chat-empty">
+                <p className="muted">
+                  ルームを選択するか、新しく作成してください。
+                </p>
+                <button
+                  type="button"
+                  className="mobile-only"
+                  onClick={() => setRoomsDrawerOpen(true)}
+                >
+                  ルーム一覧を開く
+                </button>
+              </div>
             )}
           </div>
         </div>
