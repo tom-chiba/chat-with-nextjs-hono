@@ -16,6 +16,7 @@ function msg(id: string, createdAt: number): ChatMessage {
     userId: "user-1",
     userName: "user-1",
     body: `body-${id}`,
+    attachments: [],
     createdAt,
     editedAt: null,
     deletedAt: null,

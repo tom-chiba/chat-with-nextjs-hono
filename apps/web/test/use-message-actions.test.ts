@@ -18,6 +18,7 @@ const message: ChatMessage = {
   userId: "u1",
   userName: "Alice",
   body: "before",
+  attachments: [],
   createdAt: 1,
   editedAt: null,
   deletedAt: null,

@@ -127,6 +127,7 @@ describe("push subscription helpers", () => {
         userId: "push-error-sender",
         userName: "Sender",
         body: "hello",
+        attachments: [],
         createdAt: Date.now(),
         editedAt: null,
         deletedAt: null,

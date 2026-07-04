@@ -6,8 +6,10 @@
 export const APP_NAME = "chat" as const;
 
 export type {
+  AllowedImageMimeType,
   ChatMessage,
   ClientMessage,
+  MessageAttachment,
   MessageBodyToken,
   Room,
   RoomMember,
@@ -16,20 +18,27 @@ export type {
   ServerMessage,
 } from "./chat";
 export {
+  ALLOWED_IMAGE_MIME_TYPES,
+  allowedImageMimeTypeSchema,
   chatMessageSchema,
   clientMessageSchema,
   HISTORY_LIMIT,
+  isAllowedImageMimeType,
   isWithinMessageLength,
   isWithinRoomNameLength,
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENTS_PER_MESSAGE,
   MAX_MESSAGE_LENGTH,
   MAX_ROOM_NAME_LENGTH,
   MENTION_PATTERN,
   MESSAGE_PAGE_SIZE,
   MESSAGE_PAGE_SIZE_MAX,
+  messageAttachmentSchema,
   messageBodySchema,
   nonceSchema,
   parseMentionCandidates,
   roomNameSchema,
+  sendMessageBodySchema,
   serverErrorCodeSchema,
   serverMessageSchema,
   tokenizeMessageBody,
