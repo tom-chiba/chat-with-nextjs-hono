@@ -6,6 +6,18 @@ import {
   listPushSubscriptionsForRoomMembers,
 } from "./db/push-subscriptions";
 
+/**
+ * Push 送信が必要とする環境変数だけを抜き出した型。
+ *
+ * `AuthEnv` 全体を要求すると、呼び出し元（DO の `this.env` は生成型 `Env`）から
+ * 渡すときに R2 バインディングの型ソース差で不整合になる。実際に使うのは VAPID と
+ * 送信元メールだけなので、その部分集合に絞って結合度を下げる。
+ */
+type PushEnv = Pick<
+  AuthEnv,
+  "VAPID_SUBJECT" | "EMAIL_FROM" | "VAPID_PUBLIC_KEY" | "VAPID_PRIVATE_KEY"
+>;
+
 type StoredPushSubscription = {
   endpoint: string;
   p256dh: string;
@@ -32,16 +44,16 @@ const AES_128_GCM_RECORD_SIZE = 4096;
 // delimiter (1), and authentication tag (16).
 const MAX_WEB_PUSH_PLAINTEXT_BYTES = 3993;
 
-export function vapidSubject(env: AuthEnv) {
+export function vapidSubject(env: PushEnv) {
   return env.VAPID_SUBJECT || `mailto:${env.EMAIL_FROM}`;
 }
 
-export function hasPushConfig(env: AuthEnv) {
+export function hasPushConfig(env: PushEnv) {
   return Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
 }
 
 export function createWebCryptoPushSender(
-  env: AuthEnv,
+  env: PushEnv,
   fetchImpl: FetchLike = (input, init) => fetch(input, init),
 ): PushSender | null {
   const publicKey = env.VAPID_PUBLIC_KEY;
@@ -64,7 +76,7 @@ export async function sendMessagePushNotifications({
   pushSender = createWebCryptoPushSender(env) ?? undefined,
 }: {
   db: Db;
-  env: AuthEnv;
+  env: PushEnv;
   message: ChatMessage;
   excludeUserIds?: Set<string>;
   /** メンションされた受信者 userId の集合。該当受信者は通知タイトルを差し替える。 */

@@ -12,6 +12,7 @@ import { disconnectRoomAll } from "../realtime";
 import type { Bindings } from "../types";
 import { jsonValidator } from "../validators";
 import { membersApp } from "./members";
+import { attachmentsApp } from "./attachments";
 import { messagesApp } from "./messages";
 
 /** `/rooms`: ルームの一覧 / 作成 / 更新 / 削除 / 既読、メンバー・メッセージのサブルート。 */
@@ -104,6 +105,7 @@ export const roomsApp = new Hono<{ Bindings: Bindings }>()
       return c.json({ ok: true } as const);
     },
   )
-  // members / messages は自身の path に `/:roomId/...` を含むため `/` でマウントする。
+  // members / messages / attachments は自身の path に `/:roomId/...` を含むため `/` でマウントする。
   .route("/", membersApp)
-  .route("/", messagesApp);
+  .route("/", messagesApp)
+  .route("/", attachmentsApp);

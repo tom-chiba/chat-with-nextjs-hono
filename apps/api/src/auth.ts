@@ -1,7 +1,7 @@
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import type { D1Database } from "@cloudflare/workers-types";
+import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
 import { APP_NAME, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@repo/shared";
 import { Resend } from "resend";
 import { createDb, schema } from "./db";
@@ -13,6 +13,12 @@ type ResendEmailSender = Pick<Resend["emails"], "send">;
  */
 export type AuthEnv = {
   DB: D1Database;
+  /**
+   * 画像添付の実体を保存する R2 バケット（`wrangler.jsonc` の `ATTACHMENTS`）。
+   * 型は `@cloudflare/workers-types` の `R2Bucket`（`D1Database` と同様、
+   * web 側の tsc からも解決できるパッケージ型を使う）。
+   */
+  ATTACHMENTS: R2Bucket;
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
   WEB_URL: string;
