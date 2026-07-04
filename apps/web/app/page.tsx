@@ -2,11 +2,23 @@
 
 import { APP_NAME } from "@repo/shared";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { AuthForm } from "@/components/auth-form";
-import { ChatRoom } from "@/components/chat-room";
-import { RoomList, type RoomListHandle } from "@/components/room-list";
+import type { RoomListHandle } from "@/components/room-list";
 import { useSession } from "@/lib/auth-client";
+
+// 認証後にしか描画しないチャット系コンポーネントは別チャンクへ分割し、
+// 未認証（AuthForm 表示）時の初期 JS 転送量を抑える。これらは session 確定後
+// （クライアント）にしか描画されないため SSR されず、遅延読み込みで問題ない。
+// next/dynamic ではなく React.lazy を使うのは、RoomList が ref 経由の命令的
+// ハンドル（refresh / markRoomReadLocally）を公開しており、next/dynamic の
+// ラッパは ref を内部コンポーネントへ転送しない（React.lazy は転送する）ため。
+const ChatRoom = lazy(() =>
+  import("@/components/chat-room").then((m) => ({ default: m.ChatRoom })),
+);
+const RoomList = lazy(() =>
+  import("@/components/room-list").then((m) => ({ default: m.RoomList })),
+);
 
 export default function Home() {
   const { data: session, isPending } = useSession();
@@ -46,26 +58,32 @@ export default function Home() {
       ) : session ? (
         <div className="app-shell" data-mobile-pane={roomId ? "chat" : "list"}>
           <div className="roomlist-pane">
-            <RoomList
-              ref={roomListRef}
-              selectedRoomId={roomId}
-              onSelect={setRoomId}
-            />
+            {/* 遅延読み込み中の一瞬を埋める。ペインごとに境界を分け、ルーム選択で
+                ChatRoom を読み込む間もルーム一覧が消えないようにする。 */}
+            <Suspense fallback={<p className="muted">読み込み中…</p>}>
+              <RoomList
+                ref={roomListRef}
+                selectedRoomId={roomId}
+                onSelect={setRoomId}
+              />
+            </Suspense>
           </div>
           <div className="chat-pane">
             {roomId ? (
               // key でルーム切替時に ChatRoom を再マウントし、状態を初期化する。
-              <ChatRoom
-                key={roomId}
-                roomId={roomId}
-                currentUserId={session.user.id}
-                onBack={() => setRoomId(null)}
-                onRead={() => {
-                  // 自ルームの未読を 0 に楽観反映し、他ルーム分は再取得で同期する。
-                  roomListRef.current?.markRoomReadLocally(roomId);
-                  roomListRef.current?.refresh();
-                }}
-              />
+              <Suspense fallback={<p className="muted">読み込み中…</p>}>
+                <ChatRoom
+                  key={roomId}
+                  roomId={roomId}
+                  currentUserId={session.user.id}
+                  onBack={() => setRoomId(null)}
+                  onRead={() => {
+                    // 自ルームの未読を 0 に楽観反映し、他ルーム分は再取得で同期する。
+                    roomListRef.current?.markRoomReadLocally(roomId);
+                    roomListRef.current?.refresh();
+                  }}
+                />
+              </Suspense>
             ) : (
               <p className="muted">
                 ルームを選択するか、新しく作成してください。

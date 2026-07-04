@@ -27,7 +27,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-test("ログイン時は設定への導線を表示し、設定系 UI はトップに置かない", () => {
+test("ログイン時は設定への導線を表示し、設定系 UI はトップに置かない", async () => {
   mockedUseSession.mockReturnValue({
     data: { user: { id: "u1", name: "たろう", email: "taro@example.com" } },
     isPending: false,
@@ -40,7 +40,8 @@ test("ログイン時は設定への導線を表示し、設定系 UI はトッ�
   expect(link).toHaveAttribute("href", "/settings");
 
   // トップ本体はルーム一覧・チャットに集中する。
-  expect(screen.getByText("room-list")).toBeInTheDocument();
+  // RoomList は React.lazy で遅延読み込みするため、解決を待って検証する。
+  expect(await screen.findByText("room-list")).toBeInTheDocument();
 
   // 退避済みの設定系 UI がトップに残っていないこと。
   // これらの子コンポーネントはあえて mock せず、トップへ再追加する回帰が
