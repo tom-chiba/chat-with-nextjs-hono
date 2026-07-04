@@ -24,8 +24,10 @@ export const RoomList = forwardRef<
   {
     selectedRoomId: string | null;
     onSelect: (roomId: string | null) => void;
+    /** 選択中ルーム名が変わるたびに呼ばれる（ヘッダー表示・URL 初期選択に対応）。 */
+    onSelectedNameChange?: (name: string | null) => void;
   }
->(function RoomList({ selectedRoomId, onSelect }, ref) {
+>(function RoomList({ selectedRoomId, onSelect, onSelectedNameChange }, ref) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +46,15 @@ export const RoomList = forwardRef<
   onSelectRef.current = onSelect;
   const selectedRef = useRef(selectedRoomId);
   selectedRef.current = selectedRoomId;
+  const onSelectedNameChangeRef = useRef(onSelectedNameChange);
+  onSelectedNameChangeRef.current = onSelectedNameChange;
+
+  // 選択中ルーム名を親へ通知する。ユーザー選択・URL 初期選択・ルーム名編集の
+  // いずれでも rooms / selectedRoomId が変わればヘッダー表示が追従する。
+  useEffect(() => {
+    const selected = rooms.find((r) => r.id === selectedRoomId) ?? null;
+    onSelectedNameChangeRef.current?.(selected?.name ?? null);
+  }, [rooms, selectedRoomId]);
 
   const fetchRooms = async (signal: { active: boolean }) => {
     try {

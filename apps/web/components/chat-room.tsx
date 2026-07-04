@@ -5,8 +5,17 @@ import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
 import { markRoomRead } from "@/lib/rooms";
 import { useMessageActions } from "@/lib/use-message-actions";
 import { useRoomChat } from "@/lib/use-room-chat";
+import { useRoomMembers } from "@/lib/use-room-members";
 import { MessageList } from "./message-list";
 import { RoomMembers } from "./room-members";
+
+/** アバタースタックに並べるメンバーの最大数。超過分は "+N" にまとめる。 */
+const MAX_AVATARS = 3;
+
+/** 表示名の先頭 1 文字（サロゲートペア・結合文字を割らない）を返す。 */
+function initialOf(name: string): string {
+  return Array.from(name)[0] ?? "?";
+}
 
 const STATUS_LABEL = {
   connecting: "接続中…",
@@ -26,16 +35,19 @@ const READ_DEBOUNCE_MS = 200;
  */
 export function ChatRoom({
   roomId,
+  roomName,
   currentUserId,
   onRead,
-  onBack,
+  onOpenRooms,
 }: {
   roomId: string;
+  /** ヘッダーに表示するルーム名（一覧ロード前は null になり得る）。 */
+  roomName: string | null;
   currentUserId: string;
   /** 既読化が完了した際に呼ばれる（一覧側の未読バッジ更新用）。 */
   onRead?: () => void;
-  /** モバイル時の「← 一覧へ」ボタン押下で呼ばれる（デスクトップでは表示されない）。 */
-  onBack?: () => void;
+  /** ヘッダーのハンバーガー押下で呼ばれる（モバイルのルーム一覧ドロワーを開く）。 */
+  onOpenRooms?: () => void;
 }) {
   const {
     messages,
@@ -60,7 +72,9 @@ export function ChatRoom({
     submitEdit,
     submitDelete,
   } = useMessageActions(roomId);
+  const members = useRoomMembers(roomId, currentUserId);
   const [draft, setDraft] = useState("");
+  const [membersOpen, setMembersOpen] = useState(false);
 
   const onReadRef = useRef(onRead);
   onReadRef.current = onRead;
@@ -138,27 +152,88 @@ export function ChatRoom({
 
   return (
     <div className="chat">
-      <div className="chat-top">
-        {onBack && (
+      <div className="chat-header">
+        {onOpenRooms && (
           <button
             type="button"
-            className="mobile-only"
-            onClick={onBack}
-            aria-label="ルーム一覧へ戻る"
+            className="icon-btn chat-hamburger mobile-only"
+            onClick={onOpenRooms}
+            aria-label="ルーム一覧を開く"
           >
-            ← 一覧
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
           </button>
         )}
-        <div className="chat-status">
+
+        <div className="chat-heading">
           <span
             className={`presence-dot${status === "open" ? " is-open" : ""}`}
+            title={STATUS_LABEL[status]}
             aria-hidden="true"
           />
-          状態: {STATUS_LABEL[status]}
+          <span className="chat-room-name">{roomName ?? "ルーム"}</span>
+          <span className="sr-only" role="status">
+            状態: {STATUS_LABEL[status]}
+          </span>
         </div>
-      </div>
 
-      <RoomMembers roomId={roomId} currentUserId={currentUserId} />
+        {/* メンバー取得前・失敗時も導線を残す（シートを開けば error を確認できる）。 */}
+        <button
+          type="button"
+          className="member-avatars"
+          onClick={() => setMembersOpen(true)}
+          aria-label={
+            members.members.length > 0
+              ? `メンバー ${members.members.length} 人を表示`
+              : "メンバーを表示"
+          }
+        >
+          {members.members.length > 0 ? (
+            <>
+              {members.members.slice(0, MAX_AVATARS).map((m) => (
+                <span key={m.userId} className="avatar" aria-hidden="true">
+                  {initialOf(m.userName)}
+                </span>
+              ))}
+              {members.members.length > MAX_AVATARS && (
+                <span className="avatar avatar-more" aria-hidden="true">
+                  +{members.members.length - MAX_AVATARS}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="member-avatars-icon" aria-hidden="true">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+          )}
+        </button>
+      </div>
 
       <MessageList
         messages={messages}
@@ -213,6 +288,19 @@ export function ChatRoom({
           送信
         </button>
       </form>
+
+      {membersOpen && (
+        <>
+          {/* 背面のバックドロップ。クリックで閉じる。 */}
+          <button
+            type="button"
+            className="sheet-backdrop"
+            aria-label="メンバー一覧を閉じる"
+            onClick={() => setMembersOpen(false)}
+          />
+          <RoomMembers {...members} onClose={() => setMembersOpen(false)} />
+        </>
+      )}
     </div>
   );
 }

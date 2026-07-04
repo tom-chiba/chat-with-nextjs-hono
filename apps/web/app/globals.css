@@ -309,32 +309,105 @@ a {
   font-size: var(--text-sm);
 }
 
-/* 1 ペインずつ切替するモバイルレイアウトと、横並びにするデスクトップレイアウト。 */
+/* ドロワー型シェル。
+   モバイル: チャットを常時全画面表示し、ルーム一覧は左からのスライドドロワーに退避。
+   デスクトップ: ルーム一覧を常設サイドバーにして横並びにする。 */
 .app-shell {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-4);
   align-items: start;
 }
-.app-shell[data-mobile-pane="chat"] .roomlist-pane {
-  display: none;
+
+/* モバイルのドロワー背面。チャット・ヘッダーより前面に敷く。 */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: rgba(20, 18, 16, 0.32);
+  animation: overlay-fade var(--dur) var(--ease);
 }
-.app-shell[data-mobile-pane="list"] .chat-pane {
-  display: none;
+.drawer-backdrop:hover:not(:disabled) {
+  background: rgba(20, 18, 16, 0.32);
+  border-color: transparent;
 }
+
+/* モバイルでは一覧をオフキャンバスのドロワーにする。 */
+.roomlist-pane {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+  width: min(80%, 20rem);
+  padding: var(--space-4);
+  padding-left: max(var(--space-4), env(safe-area-inset-left));
+  padding-top: max(var(--space-4), env(safe-area-inset-top));
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  overflow-y: auto;
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  /* 閉じている間はタブ順序・アクセシビリティツリーから除外する（画面外へ
+     ずらすだけでは中の作成・編集・削除操作へフォーカスできてしまうため）。
+     スライドアウトを見せるため、visibility の切替は transform 後に遅延させる。 */
+  visibility: hidden;
+  transform: translateX(-100%);
+  transition:
+    transform var(--dur) var(--ease),
+    visibility 0s linear var(--dur);
+}
+.app-shell[data-drawer="open"] .roomlist-pane {
+  visibility: visible;
+  transform: translateX(0);
+  transition:
+    transform var(--dur) var(--ease),
+    visibility 0s;
+}
+
 .mobile-only {
   display: inline-flex;
 }
+
 @media (min-width: 48rem) {
   .app-shell {
     grid-template-columns: 16rem minmax(0, 1fr);
   }
-  .app-shell .roomlist-pane,
-  .app-shell .chat-pane {
-    display: block;
+  /* デスクトップは常設サイドバーへ戻す（ドロワーの装飾を解除）。 */
+  .roomlist-pane {
+    position: static;
+    width: auto;
+    padding: 0;
+    overflow-y: visible;
+    background: transparent;
+    box-shadow: none;
+    visibility: visible;
+    transform: none;
+    transition: none;
+  }
+  .drawer-backdrop {
+    display: none;
   }
   .mobile-only {
     display: none;
+  }
+  /* ハンバーガーは .icon-btn が display を上書きするため、複合セレクタで
+     詳細度を上げて確実に隠す（デスクトップは一覧が常設のため不要）。 */
+  .chat-header .chat-hamburger {
+    display: none;
+  }
+}
+
+@keyframes overlay-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
@@ -433,23 +506,9 @@ a {
 /* =========================================================================
    メンバー
    ========================================================================= */
-.card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  padding: var(--space-2) var(--space-3);
-}
-.members-summary {
-  cursor: pointer;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--ink-muted);
-}
 .members-body {
   display: grid;
   gap: var(--space-2);
-  margin-top: var(--space-2);
 }
 .member-items {
   list-style: none;
@@ -486,22 +545,184 @@ a {
    チャット
    ========================================================================= */
 .chat {
+  position: relative;
   display: grid;
   gap: var(--space-2);
 }
-.chat-top {
+/* ルーム名・接続状態・メンバー導線を 1 行に集約したチャットヘッダー。 */
+.chat-header {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex-wrap: wrap;
+  min-height: 40px;
 }
-.chat-status {
-  display: inline-flex;
+.chat-heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
+}
+.chat-room-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+/* アイコンのみの正方ボタン（ハンバーガーなど）。 */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-height: 36px;
+  min-width: 36px;
+  padding: var(--space-1);
+  background: transparent;
+  border-color: transparent;
   color: var(--ink-muted);
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--surface-sunken);
+  border-color: transparent;
+  color: var(--ink);
+}
+
+/* ヘッダー右端の重なりアバター。タップでメンバーシートを開く。 */
+.member-avatars {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-1);
+  background: transparent;
+  border-color: transparent;
+}
+.member-avatars:hover:not(:disabled) {
+  background: var(--surface-sunken);
+  border-color: transparent;
+}
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: -6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-weak);
+  color: var(--accent);
+  border: 2px solid var(--surface);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1;
+}
+.avatar:first-child {
+  margin-left: 0;
+}
+.avatar-more {
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+}
+/* メンバー未取得時（ロード中・エラー）のフォールバックアイコン。 */
+.member-avatars-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-muted);
+}
+
+/* メンバーシートのバックドロップ（チャット内オーバーレイ）。 */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: rgba(20, 18, 16, 0.32);
+  animation: overlay-fade var(--dur) var(--ease);
+}
+.sheet-backdrop:hover:not(:disabled) {
+  background: rgba(20, 18, 16, 0.32);
+  border-color: transparent;
+}
+/* メンバーシート本体。モバイル=ボトムシート、デスクトップ=右ドックパネル。 */
+.member-sheet {
+  position: fixed;
+  z-index: 50;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  gap: var(--space-3);
+  /* デスクトップの全高シートで行が引き伸ばされないよう上詰めにする。 */
+  align-content: start;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: var(--space-4);
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-2);
+  animation: sheet-up var(--dur) var(--ease);
+}
+.member-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+@media (min-width: 48rem) {
+  .member-sheet {
+    left: auto;
+    top: 0;
+    bottom: 0;
+    width: min(90%, 22rem);
+    max-height: none;
+    border-radius: 0;
+    animation: sheet-in var(--dur) var(--ease);
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes sheet-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* 空状態（未選択・ルーム 0 件）の導線。 */
+.chat-empty {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+
+/* スクリーンリーダー専用テキスト（視覚的に隠す）。 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 /* 接続状態の breathing presence dot。open のときだけ明滅する。 */
 .presence-dot {
