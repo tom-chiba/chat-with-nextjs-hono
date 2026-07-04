@@ -4,8 +4,12 @@ import { MAX_MESSAGE_LENGTH, MAX_ROOM_NAME_LENGTH } from "@repo/shared";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, test } from "vitest";
 import { createDb } from "../src/db";
+import { attachToMessage } from "../src/db/attachments";
+import { softDeleteMessage } from "../src/db/messages";
 import { createRoomWithOwner } from "../src/db/rooms";
 import {
+  attachments,
+  messages,
   pushSubscriptions,
   roomMembers,
   rooms,
@@ -1242,5 +1246,236 @@ describe("API ルート", () => {
         ),
       );
     expect(rows).toHaveLength(1);
+  });
+});
+
+
+// 1x1 PNG（テスト用の最小画像）。
+const PNG_1X1 = Uint8Array.from(
+  atob(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+  ),
+  (c) => c.charCodeAt(0),
+);
+
+function pngFile(name = "x.png") {
+  return new File([PNG_1X1], name, { type: "image/png" });
+}
+
+/** owner ユーザー行を先に作ってからルームを作る（room_members の FK を満たす）。 */
+async function seedRoomOwned(roomId: string, ownerId: string) {
+  await createSession(ownerId); // user 行を作る（返る session は使わない）
+  await seedRoom({ roomId, ownerId });
+}
+
+/** 添付をメッセージに紐付ける（配信テスト用の前提づくり）。 */
+async function linkAttachmentToMessage(
+  attachmentId: string,
+  roomId: string,
+  userId: string,
+) {
+  const db = createDb(env.DB);
+  const messageId = `msg-${crypto.randomUUID()}`;
+  await db.insert(messages).values({
+    id: messageId,
+    roomId,
+    userId,
+    senderName: userId,
+    body: "本文",
+    createdAt: new Date(),
+  });
+  await attachToMessage(db, {
+    messageId,
+    attachmentIds: [attachmentId],
+    roomId,
+    userId,
+  });
+  return messageId;
+}
+
+describe("画像添付ルート", () => {
+  test("POST はセッション無しで 401", async () => {
+    await seedRoomOwned("att-401", "att-owner");
+    const form = new FormData();
+    form.set("file", pngFile());
+    const res = await app.request(
+      "/rooms/att-401/attachments",
+      { method: "POST", body: form },
+      env,
+    );
+    expect(res.status).toBe(401);
+  });
+
+  test("POST は非メンバーに 403", async () => {
+    await seedRoomOwned("att-403", "att-owner2");
+    const headers = await createSession("att-outsider");
+    const form = new FormData();
+    form.set("file", pngFile());
+    const res = await app.request(
+      "/rooms/att-403/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  test("POST は file 欠落で 400", async () => {
+    await seedRoomOwned("att-400", "att-u400");
+    const headers = await createSession("att-u400");
+    const res = await app.request(
+      "/rooms/att-400/attachments",
+      { method: "POST", headers, body: new FormData() },
+      env,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  test("POST は非対応 MIME に 415", async () => {
+    await seedRoomOwned("att-415", "att-u415");
+    const headers = await createSession("att-u415");
+    const form = new FormData();
+    form.set("file", new File(["hello"], "x.txt", { type: "text/plain" }));
+    const res = await app.request(
+      "/rooms/att-415/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    expect(res.status).toBe(415);
+  });
+
+  test("POST は空ファイルに 413", async () => {
+    await seedRoomOwned("att-413", "att-u413");
+    const headers = await createSession("att-u413");
+    const form = new FormData();
+    form.set("file", new File([], "x.png", { type: "image/png" }));
+    const res = await app.request(
+      "/rooms/att-413/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    expect(res.status).toBe(413);
+  });
+
+  test("POST 成功で 201・R2 保存・未紐付け行を作る", async () => {
+    await seedRoomOwned("att-ok", "att-uok");
+    const headers = await createSession("att-uok");
+    const form = new FormData();
+    form.set("file", pngFile());
+    const res = await app.request(
+      "/rooms/att-ok/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      attachment: { id: string; mimeType: string; size: number };
+    };
+    expect(body.attachment.mimeType).toBe("image/png");
+    expect(body.attachment.size).toBe(PNG_1X1.byteLength);
+
+    const db = createDb(env.DB);
+    const row = (
+      await db
+        .select()
+        .from(attachments)
+        .where(eq(attachments.id, body.attachment.id))
+    )[0];
+    expect(row?.messageId).toBeNull();
+    expect(row?.roomId).toBe("att-ok");
+    const object = await env.ATTACHMENTS.get(row?.r2Key ?? "");
+    expect(object).not.toBeNull();
+  });
+
+  test("GET は実体を配信し nosniff を付ける", async () => {
+    await seedRoomOwned("att-get", "att-uget");
+    const headers = await createSession("att-uget");
+    const form = new FormData();
+    form.set("file", pngFile());
+    const up = await app.request(
+      "/rooms/att-get/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    const { attachment } = (await up.json()) as { attachment: { id: string } };
+    await linkAttachmentToMessage(attachment.id, "att-get", "att-uget");
+
+    const res = await app.request(
+      `/rooms/att-get/attachments/${attachment.id}`,
+      { headers },
+      env,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/png");
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(bytes.byteLength).toBe(PNG_1X1.byteLength);
+  });
+
+  test("GET は URL の roomId と実体不一致で 404", async () => {
+    await seedRoomOwned("att-r1", "att-ur");
+    await seedRoom({ roomId: "att-r2", ownerId: "att-ur" });
+    const headers = await createSession("att-ur");
+    const form = new FormData();
+    form.set("file", pngFile());
+    const up = await app.request(
+      "/rooms/att-r1/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    const { attachment } = (await up.json()) as { attachment: { id: string } };
+    const res = await app.request(
+      `/rooms/att-r2/attachments/${attachment.id}`,
+      { headers },
+      env,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  test("GET は紐付くメッセージが論理削除済みなら 404", async () => {
+    await seedRoomOwned("att-del", "att-udel");
+    const headers = await createSession("att-udel");
+    const form = new FormData();
+    form.set("file", pngFile());
+    const up = await app.request(
+      "/rooms/att-del/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    const { attachment } = (await up.json()) as { attachment: { id: string } };
+    const messageId = await linkAttachmentToMessage(
+      attachment.id,
+      "att-del",
+      "att-udel",
+    );
+    await softDeleteMessage(createDb(env.DB), messageId, new Date());
+
+    const res = await app.request(
+      `/rooms/att-del/attachments/${attachment.id}`,
+      { headers },
+      env,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  test("GET は非メンバーに 403", async () => {
+    await seedRoomOwned("att-getf", "att-ugetf");
+    const ownerHeaders = await createSession("att-ugetf");
+    const form = new FormData();
+    form.set("file", pngFile());
+    const up = await app.request(
+      "/rooms/att-getf/attachments",
+      { method: "POST", headers: ownerHeaders, body: form },
+      env,
+    );
+    const { attachment } = (await up.json()) as { attachment: { id: string } };
+    await linkAttachmentToMessage(attachment.id, "att-getf", "att-ugetf");
+
+    const outsider = await createSession("att-outsider2");
+    const res = await app.request(
+      `/rooms/att-getf/attachments/${attachment.id}`,
+      { headers: outsider },
+      env,
+    );
+    expect(res.status).toBe(403);
   });
 });

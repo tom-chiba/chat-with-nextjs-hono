@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import {
   chatMessageSchema,
   clientMessageSchema,
+  MAX_ATTACHMENTS_PER_MESSAGE,
   MAX_MESSAGE_LENGTH,
   MAX_ROOM_NAME_LENGTH,
   messageBodySchema,
@@ -115,6 +116,58 @@ test("clientMessageSchema は nonce を任意で受け付ける", () => {
     clientMessageSchema.safeParse({ type: "message", body: "hi", nonce: "" })
       .success,
   ).toBe(false);
+});
+
+test("clientMessageSchema は本文空でも添付があれば許可し、両方空は弾く", () => {
+  // 本文空 + 添付あり → OK（画像のみ送信）。
+  expect(
+    clientMessageSchema.safeParse({
+      type: "message",
+      body: "",
+      attachmentIds: ["a1"],
+    }).success,
+  ).toBe(true);
+  // 本文空 + 添付なし → reject（本文または添付が必要）。
+  expect(
+    clientMessageSchema.safeParse({ type: "message", body: "" }).success,
+  ).toBe(false);
+  // 空白のみ本文 + 添付なし → trim して空になり reject。
+  expect(
+    clientMessageSchema.safeParse({ type: "message", body: "   " }).success,
+  ).toBe(false);
+});
+
+test("clientMessageSchema は attachmentIds の枚数上限と空要素を検証する", () => {
+  const ids = Array.from(
+    { length: MAX_ATTACHMENTS_PER_MESSAGE },
+    (_, i) => `a${i}`,
+  );
+  // 上限ちょうど → OK。
+  expect(
+    clientMessageSchema.safeParse({ type: "message", body: "x", attachmentIds: ids })
+      .success,
+  ).toBe(true);
+  // 上限超過 → reject。
+  expect(
+    clientMessageSchema.safeParse({
+      type: "message",
+      body: "x",
+      attachmentIds: [...ids, "over"],
+    }).success,
+  ).toBe(false);
+  // 空文字の id → reject。
+  expect(
+    clientMessageSchema.safeParse({
+      type: "message",
+      body: "x",
+      attachmentIds: [""],
+    }).success,
+  ).toBe(false);
+});
+
+test("chatMessageSchema は attachments 省略時に空配列を補う", () => {
+  const parsed = chatMessageSchema.safeParse(validChatMessage);
+  expect(parsed.success && parsed.data.attachments).toEqual([]);
 });
 
 test("chatMessageSchema は editedAt/deletedAt の null と数値を許容する", () => {
