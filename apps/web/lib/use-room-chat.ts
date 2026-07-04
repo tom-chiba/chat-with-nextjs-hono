@@ -43,6 +43,11 @@ export function roomWebSocketUrl(roomId: string): string {
   return `${wsBase}/ws/room/${encodeURIComponent(roomId)}`;
 }
 
+/** 保留メッセージが持つプレビュー object URL を解放する（確定・破棄・失敗破棄時）。 */
+function revokePendingPreviews(p: PendingMessage): void {
+  for (const a of p.attachments ?? []) URL.revokeObjectURL(a.previewUrl);
+}
+
 /** 指数バックオフの遅延（ミリ秒）。上限 15 秒。 */
 function reconnectDelay(attempts: number): number {
   return Math.min(1000 * 2 ** (attempts - 1), 15_000);
@@ -202,6 +207,9 @@ export function useRoomChat(roomId: string) {
           // 自分の送信のエコーなら、対応する保留を確定（除去）する。
           if (data.nonce) {
             const confirmed = data.nonce;
+            // 確定した保留のプレビュー URL を解放（確定後は配信画像を参照するため不要）。
+            const done = pendingRef.current.find((p) => p.nonce === confirmed);
+            if (done) revokePendingPreviews(done);
             setPending((prev) => prev.filter((p) => p.nonce !== confirmed));
           }
         } else if (data.type === "update") {
@@ -308,6 +316,8 @@ export function useRoomChat(roomId: string) {
 
   /** 保留中のメッセージを破棄する（再送せず取り下げる）。 */
   const discard = useCallback((nonce: string) => {
+    const target = pendingRef.current.find((p) => p.nonce === nonce);
+    if (target) revokePendingPreviews(target);
     setPending((prev) => prev.filter((p) => p.nonce !== nonce));
   }, []);
 

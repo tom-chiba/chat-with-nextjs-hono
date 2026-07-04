@@ -113,7 +113,11 @@ export function Composer({
     if (!canSend) return;
     const body = draft.trim();
     const ready = attachments.filter((a) => a.status === "ready" && a.remoteId);
-    // プレビュー URL は送信中バブルが引き続き参照するため、ここでは解放しない。
+    // 送信に載らない添付（アップロード中/失敗）は保留バブルへ渡らないため、ここで
+    // プレビュー URL を解放する。ready の URL は送信中バブルが参照するので解放しない。
+    for (const a of attachments) {
+      if (a.status !== "ready" || !a.remoteId) URL.revokeObjectURL(a.previewUrl);
+    }
     if (ready.length > 0) {
       onSend(body, {
         attachmentIds: ready.map((a) => a.remoteId as string),
