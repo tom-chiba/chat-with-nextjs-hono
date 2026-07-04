@@ -1,12 +1,17 @@
 import {
+  ATTACHMENT_UPLOAD_RATE_MAX,
+  ATTACHMENT_UPLOAD_RATE_WINDOW_MS,
   isAllowedImageMimeType,
   MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENT_STORAGE_BYTES_PER_USER,
 } from "@repo/shared";
 import { Hono } from "hono";
 import {
+  countRecentUploadsByUser,
   createAttachment,
   deleteUnlinkedAttachment,
   getAttachmentById,
+  sumAttachmentBytesByUser,
 } from "../db/attachments";
 import { getMessageById } from "../db/messages";
 import { requireMember, requireSession } from "../guards";
@@ -49,6 +54,18 @@ export const attachmentsApp = new Hono<{ Bindings: Bindings }>()
     }
     if (file.size === 0 || file.size > MAX_ATTACHMENT_BYTES) {
       return c.json({ error: "file too large" } as const, 413);
+    }
+
+    // アップロードのレート制限（ユーザー単位・直近ウィンドウの件数で判定）。
+    const since = new Date(Date.now() - ATTACHMENT_UPLOAD_RATE_WINDOW_MS);
+    const recent = await countRecentUploadsByUser(s.db, s.user.id, since);
+    if (recent >= ATTACHMENT_UPLOAD_RATE_MAX) {
+      return c.json({ error: "too many uploads" } as const, 429);
+    }
+    // 累積ストレージ上限（この 1 枚を足して超えるなら拒否）。
+    const used = await sumAttachmentBytesByUser(s.db, s.user.id);
+    if (used + file.size > MAX_ATTACHMENT_STORAGE_BYTES_PER_USER) {
+      return c.json({ error: "storage quota exceeded" } as const, 413);
     }
 
     const id = crypto.randomUUID();

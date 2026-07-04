@@ -1,10 +1,15 @@
 import { env } from "cloudflare:test";
 import type { ServerMessage } from "@repo/shared";
-import { MAX_MESSAGE_LENGTH, MAX_ROOM_NAME_LENGTH } from "@repo/shared";
+import {
+  ATTACHMENT_UPLOAD_RATE_MAX,
+  MAX_ATTACHMENT_STORAGE_BYTES_PER_USER,
+  MAX_MESSAGE_LENGTH,
+  MAX_ROOM_NAME_LENGTH,
+} from "@repo/shared";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, test } from "vitest";
 import { createDb } from "../src/db";
-import { attachToMessage } from "../src/db/attachments";
+import { attachToMessage, createAttachment } from "../src/db/attachments";
 import { softDeleteMessage } from "../src/db/messages";
 import { createRoomWithOwner } from "../src/db/rooms";
 import {
@@ -1598,5 +1603,55 @@ describe("画像添付ルート", () => {
     expect(
       await env.ATTACHMENTS.get(`rooms/att-msgdel/${attachment.id}`),
     ).toBeNull();
+  });
+
+  test("POST は累積ストレージ上限を超えると 413", async () => {
+    await seedRoomOwned("att-quota", "att-uquota");
+    const headers = await createSession("att-uquota");
+    // 上限ちょうどを消費する行を直接投入（R2 実体は不要、DB 合計だけ見る）。
+    const db = createDb(env.DB);
+    await createAttachment(db, {
+      id: "quota-filler",
+      roomId: "att-quota",
+      userId: "att-uquota",
+      r2Key: "rooms/att-quota/quota-filler",
+      mimeType: "image/png",
+      size: MAX_ATTACHMENT_STORAGE_BYTES_PER_USER,
+    });
+
+    const form = new FormData();
+    form.set("file", pngFile());
+    const res = await app.request(
+      "/rooms/att-quota/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    expect(res.status).toBe(413);
+  });
+
+  test("POST はアップロードのレート上限を超えると 429", async () => {
+    await seedRoomOwned("att-rate", "att-urate");
+    const headers = await createSession("att-urate");
+    // 直近ウィンドウ内に上限件数の行を直接投入（createdAt 既定＝now）。
+    const db = createDb(env.DB);
+    for (let i = 0; i < ATTACHMENT_UPLOAD_RATE_MAX; i += 1) {
+      await createAttachment(db, {
+        id: `rate-${i}`,
+        roomId: "att-rate",
+        userId: "att-urate",
+        r2Key: `rooms/att-rate/rate-${i}`,
+        mimeType: "image/png",
+        size: 1,
+      });
+    }
+
+    const form = new FormData();
+    form.set("file", pngFile());
+    const res = await app.request(
+      "/rooms/att-rate/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    expect(res.status).toBe(429);
   });
 });

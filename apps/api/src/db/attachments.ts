@@ -1,6 +1,6 @@
 import type { MessageAttachment } from "@repo/shared";
 import { allowedImageMimeTypeSchema } from "@repo/shared";
-import { and, eq, inArray, isNull, lt } from "drizzle-orm";
+import { and, count, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { attachments } from "./schema";
 
@@ -187,4 +187,33 @@ export async function deleteAttachmentsByIds(
 ): Promise<void> {
   if (ids.length === 0) return;
   await db.delete(attachments).where(inArray(attachments.id, ids));
+}
+
+/** `since` 以降にそのユーザーが作成した添付の件数（アップロードのレート判定用）。 */
+export async function countRecentUploadsByUser(
+  db: Db,
+  userId: string,
+  since: Date,
+): Promise<number> {
+  const rows = await db
+    .select({ n: count() })
+    .from(attachments)
+    .where(
+      and(eq(attachments.userId, userId), gt(attachments.createdAt, since)),
+    );
+  return rows[0]?.n ?? 0;
+}
+
+/** そのユーザーが現在保持している添付の合計バイト数（累積ストレージ判定用）。 */
+export async function sumAttachmentBytesByUser(
+  db: Db,
+  userId: string,
+): Promise<number> {
+  const rows = await db
+    .select({
+      total: sql<number>`coalesce(sum(${attachments.size}), 0)`,
+    })
+    .from(attachments)
+    .where(eq(attachments.userId, userId));
+  return Number(rows[0]?.total ?? 0);
 }

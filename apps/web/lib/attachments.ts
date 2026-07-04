@@ -27,7 +27,13 @@ export async function uploadAttachment(
     { method: "POST", body: form, credentials: "include" },
   );
   if (!res.ok) {
-    if (res.status === 413) throw new Error("画像サイズが大きすぎます");
+    if (res.status === 429)
+      throw new Error(
+        "アップロードが多すぎます。少し待ってから再度お試しください",
+      );
+    // 413 は 1 ファイルのサイズ超過と累積ストレージ上限の両方で返る。
+    if (res.status === 413)
+      throw new Error("画像サイズまたは保存容量の上限に達しました");
     if (res.status === 415) throw new Error("対応していない画像形式です");
     throw new Error("画像のアップロードに失敗しました");
   }
