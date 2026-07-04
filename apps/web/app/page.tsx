@@ -4,6 +4,7 @@ import { APP_NAME } from "@repo/shared";
 import { useRef, useState } from "react";
 import { AuthForm } from "@/components/auth-form";
 import { ChatRoom } from "@/components/chat-room";
+import { EmailChangeForm } from "@/components/email-change-form";
 import { PasskeyManager } from "@/components/passkey-manager";
 import { ProfileForm } from "@/components/profile-form";
 import { PushNotificationControl } from "@/components/push-notification-control";
@@ -29,6 +30,7 @@ export default function Home() {
           <div className="util-row">
             <span>{session.user.name} としてログイン中</span>
             <ProfileForm currentName={session.user.name} />
+            <EmailChangeForm currentEmail={session.user.email} />
             <PushNotificationControl />
             <button type="button" onClick={() => signOut()}>
               ログアウト

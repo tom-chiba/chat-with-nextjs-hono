@@ -17,3 +17,4 @@ export const requestPasswordReset =
 export const resetPassword = authClient.resetPassword.bind(authClient);
 export const sendVerificationEmail =
   authClient.sendVerificationEmail.bind(authClient);
+export const changeEmail = authClient.changeEmail.bind(authClient);
