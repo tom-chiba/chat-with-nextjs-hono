@@ -106,6 +106,12 @@ export const attachments = sqliteTable(
     r2Key: text("r2_key").notNull(),
     mimeType: text("mime_type").notNull(),
     size: integer("size").notNull(),
+    /**
+     * メッセージ内の表示順（0 始まり）。送信時に指定順で採番する。並行アップロードの
+     * 完了順に依存せず、ライブ配信と履歴再読込で同じ並びを保証するために持つ。
+     * 未紐付け（アップロード直後）は 0。
+     */
+    position: integer("position").notNull().default(0),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(CAST(unixepoch('subsec') * 1000 AS INTEGER))`),

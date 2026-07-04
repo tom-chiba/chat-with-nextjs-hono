@@ -160,6 +160,13 @@ export class RoomDO extends DurableObject<Env> {
       userId,
     });
 
+    // 添付が 1 件も紐付かず本文も空なら、実体のない空メッセージになる（例: 既に別
+    // メッセージへ紐付いた添付 id での再送）。挿入済みの行を取り消して配信しない。
+    if (message.body === "" && message.attachments.length === 0) {
+      await db.delete(messages).where(eq(messages.id, message.id));
+      return;
+    }
+
     const payload = JSON.stringify({
       type: "message",
       message,

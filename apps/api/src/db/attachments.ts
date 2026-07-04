@@ -65,30 +65,30 @@ export async function attachToMessage(
   const { messageId, attachmentIds, roomId, userId } = opts;
   if (attachmentIds.length === 0) return [];
 
-  const updated = await db
-    .update(attachments)
-    .set({ messageId })
-    .where(
-      and(
-        inArray(attachments.id, attachmentIds),
-        eq(attachments.roomId, roomId),
-        eq(attachments.userId, userId),
-        isNull(attachments.messageId),
-      ),
-    )
-    .returning({
-      id: attachments.id,
-      mimeType: attachments.mimeType,
-      size: attachments.size,
-      createdAt: attachments.createdAt,
-    });
-
-  // 送信時に指定された順序（attachmentIds）を保って返す。
-  const byId = new Map(updated.map((r) => [r.id, r]));
-  return attachmentIds
-    .map((id) => byId.get(id))
-    .filter((r): r is NonNullable<typeof r> => r != null)
-    .map(toMessageAttachment);
+  // 指定順に position を採番しながら 1 件ずつ紐付ける（最大 4 枚なのでループで十分）。
+  // 条件を満たさない id（他人・別ルーム・既紐付け）は 0 件更新となり自然に除外される。
+  const attached: MessageAttachment[] = [];
+  for (let i = 0; i < attachmentIds.length; i++) {
+    const updated = await db
+      .update(attachments)
+      .set({ messageId, position: i })
+      .where(
+        and(
+          eq(attachments.id, attachmentIds[i] as string),
+          eq(attachments.roomId, roomId),
+          eq(attachments.userId, userId),
+          isNull(attachments.messageId),
+        ),
+      )
+      .returning({
+        id: attachments.id,
+        mimeType: attachments.mimeType,
+        size: attachments.size,
+      });
+    const row = updated[0];
+    if (row) attached.push(toMessageAttachment(row));
+  }
+  return attached;
 }
 
 /**
@@ -108,15 +108,13 @@ export async function listAttachmentsForMessages(
       messageId: attachments.messageId,
       mimeType: attachments.mimeType,
       size: attachments.size,
-      createdAt: attachments.createdAt,
+      position: attachments.position,
     })
     .from(attachments)
     .where(inArray(attachments.messageId, messageIds));
 
-  rows.sort(
-    (a, b) =>
-      a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
-  );
+  // 送信時に採番した position 昇順で、ライブ配信と同じ並びを再現する。
+  rows.sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
 
   for (const row of rows) {
     if (row.messageId === null) continue;

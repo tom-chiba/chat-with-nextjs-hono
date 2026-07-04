@@ -4,6 +4,7 @@ import {
 } from "@repo/shared";
 import { Hono } from "hono";
 import { createAttachment, getAttachmentById } from "../db/attachments";
+import { getMessageById } from "../db/messages";
 import { requireMember, requireSession } from "../guards";
 import type { Bindings } from "../types";
 
@@ -81,6 +82,13 @@ export const attachmentsApp = new Hono<{ Bindings: Bindings }>()
     if (!attachment || attachment.roomId !== roomId) {
       return c.json({ error: "not found" } as const, 404);
     }
+    // 紐付くメッセージが論理削除済みなら、フィード同様に添付も伏せる（直接取得も 404）。
+    if (attachment.messageId) {
+      const message = await getMessageById(s.db, attachment.messageId);
+      if (!message || message.deletedAt !== null) {
+        return c.json({ error: "not found" } as const, 404);
+      }
+    }
 
     const object = await c.env.ATTACHMENTS.get(attachment.r2Key);
     if (!object) {
@@ -96,5 +104,7 @@ export const attachmentsApp = new Hono<{ Bindings: Bindings }>()
     // 添付は不変（id ごとに 1 実体）。長期キャッシュを許可する。
     headers.set("Cache-Control", "private, max-age=31536000, immutable");
     headers.set("Content-Disposition", "inline");
+    // 申告 MIME のみで inline 配信するため、ブラウザの content sniffing を止める。
+    headers.set("X-Content-Type-Options", "nosniff");
     return new Response(body, { headers });
   });

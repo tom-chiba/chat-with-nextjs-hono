@@ -1,0 +1,1 @@
+ALTER TABLE `attachments` ADD `position` integer DEFAULT 0 NOT NULL;
