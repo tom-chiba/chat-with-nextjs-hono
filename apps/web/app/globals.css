@@ -277,6 +277,18 @@ a {
   display: grid;
   gap: var(--space-4);
 }
+/* チャットシェル（.app-shell）を含むトップページだけをビューポート全高に固定し、
+   中の 2 ペインシェルへ縦の残余を渡す。高さを確定させることで、メッセージが
+   多くてもページ全体は伸びず、メッセージ領域が内部スクロールする。設定・
+   パスワード再設定・オフライン等の他ページ（同じ .page を使う）や、未認証の
+   認証フォーム・ローディング表示には及ぼさない。dvh はモバイルのアドレスバー
+   増減に追従する（vh はフォールバック）。 */
+.page:has(.app-shell) {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
 /* ワードマークと設定導線を同じ行にまとめるトップのヘッダー。 */
 .page-header {
   display: flex;
@@ -314,10 +326,13 @@ a {
    デスクトップ: ルーム一覧を常設サイドバーにして横並びにする。 */
 .app-shell {
   position: relative;
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: 1fr;
+  /* 単一行をシェル全高まで伸ばし、チャットペインに縦の残余を渡す。 */
+  grid-template-rows: minmax(0, 1fr);
   gap: var(--space-4);
-  align-items: start;
 }
 
 /* モバイルのドロワー背面。チャット・ヘッダーより前面に敷く。 */
@@ -377,12 +392,13 @@ a {
   .app-shell {
     grid-template-columns: 16rem minmax(0, 1fr);
   }
-  /* デスクトップは常設サイドバーへ戻す（ドロワーの装飾を解除）。 */
+  /* デスクトップは常設サイドバーへ戻す（ドロワーの装飾を解除）。
+     シェルは全高固定のため、ルームが多いときはサイドバー内でスクロールさせる。 */
   .roomlist-pane {
     position: static;
     width: auto;
     padding: 0;
-    overflow-y: visible;
+    overflow-y: auto;
     background: transparent;
     box-shadow: none;
     visibility: visible;
@@ -544,9 +560,23 @@ a {
 /* =========================================================================
    チャット
    ========================================================================= */
+/* チャットペインはシェル行の全高を受け取り、中の .chat へ縦に引き渡す。
+   縦フレックスにすることで、.chat は flex:1 で全高を占有し、ルーム未選択の
+   空状態（.chat-empty）や読み込み中プレースホルダは自然高さで上詰めになる
+   （row + stretch だと空状態が縦に引き伸ばされてしまう）。 */
+.chat-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
 .chat {
   position: relative;
-  display: grid;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
 }
 /* ルーム名・接続状態・メンバー導線を 1 行に集約したチャットヘッダー。 */
@@ -747,7 +777,9 @@ a {
 }
 
 .msg-scroll {
-  height: min(60vh, 360px);
+  /* 固定高さをやめ、ヘッダーと入力欄を除いた縦の残余を埋めて内部スクロールする。 */
+  flex: 1;
+  min-height: 0;
   padding: var(--space-3);
   overflow-y: auto;
   display: grid;
