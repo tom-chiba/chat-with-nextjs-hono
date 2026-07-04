@@ -4,6 +4,7 @@ import { MIN_PASSWORD_LENGTH } from "@repo/shared";
 import { useState } from "react";
 import {
   requestPasswordReset,
+  sendVerificationEmail,
   signIn,
   signUp,
 } from "@/lib/auth-client";
@@ -23,12 +24,16 @@ export function AuthForm() {
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // メール未検証で確認が必要な状態のとき、対象アドレスを保持する。
+  // セットされている間は検証待ちの案内と「確認メールを再送」を表示する。
+  const [verifyEmail, setVerifyEmail] = useState<string | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPending(true);
     setMessage(null);
     setError(null);
+    setVerifyEmail(null);
 
     if (mode === "signup") {
       // 検証リンクのリダイレクト先（callbackURL）を FE 自身に向ける。
@@ -44,7 +49,8 @@ export function AuthForm() {
         setError(result.error.message ?? "サインアップに失敗しました");
         return;
       }
-      setMessage("確認メールを送信しました。メール内のリンクで認証してからログインしてください。");
+      // 検証待ちの案内を表示し、認証後に使うログインタブへ切り替える。
+      setVerifyEmail(email);
       setMode("login");
       return;
     }
@@ -69,9 +75,32 @@ export function AuthForm() {
     const result = await signIn.email({ email, password });
     setPending(false);
     if (result.error) {
+      // メール未検証は 403（EMAIL_NOT_VERIFIED）で返る。汎用エラーにせず、
+      // 検証が必要な旨と再送導線を出す（サーバ側は sendOnSignIn で再送もされる）。
+      if (result.error.status === 403) {
+        setVerifyEmail(email);
+        return;
+      }
       setError(result.error.message ?? "ログインに失敗しました");
     }
     // 成功時は useSession が更新され、ページ側でチャットに切り替わる。
+  };
+
+  const resendVerification = async () => {
+    if (!verifyEmail) return;
+    setPending(true);
+    setMessage(null);
+    setError(null);
+    const result = await sendVerificationEmail({
+      email: verifyEmail,
+      callbackURL: window.location.origin,
+    });
+    setPending(false);
+    if (result.error) {
+      setError(result.error.message ?? "確認メールの再送に失敗しました");
+      return;
+    }
+    setMessage("確認メールを再送しました。受信箱をご確認ください。");
   };
 
   return (
@@ -157,6 +186,27 @@ export function AuthForm() {
           ログインに戻る
         </button>
       ) : null}
+
+      {verifyEmail && (
+        <div className="verify-notice" role="status">
+          <p className="verify-notice-title">メールアドレスの確認が必要です</p>
+          <p>
+            <strong>{verifyEmail}</strong>{" "}
+            宛に確認メールを送信しました。メール内のリンクを開いて認証を完了してから、ログインしてください。
+          </p>
+          <p className="verify-notice-hint">
+            メールが届かない場合は、迷惑メールフォルダもご確認ください。
+          </p>
+          <button
+            type="button"
+            onClick={resendVerification}
+            disabled={pending}
+            className="btn-quiet"
+          >
+            確認メールを再送する
+          </button>
+        </div>
+      )}
 
       {message && <p className="form-success">{message}</p>}
       {error && <p className="form-error">{error}</p>}
