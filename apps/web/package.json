@@ -11,10 +11,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@better-auth/passkey": "^1.6.23",
     "@repo/api": "workspace:*",
     "@repo/shared": "workspace:*",
-    "better-auth": "^1.6.18",
-    "hono": "^4.12.25",
+    "better-auth": "^1.6.23",
+    "hono": "^4.12.27",
     "next": "^16.2.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
@@ -27,7 +28,7 @@
     "@types/node": "catalog:",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.2",
+    "@vitejs/plugin-react": "^6.0.3",
     "jsdom": "^29.1.1",
     "typescript": "catalog:",
     "vitest": "catalog:"

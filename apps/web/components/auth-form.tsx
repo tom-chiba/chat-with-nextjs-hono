@@ -1,7 +1,7 @@
 "use client";
 
 import { MIN_PASSWORD_LENGTH } from "@repo/shared";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   requestPasswordReset,
   sendVerificationEmail,
@@ -27,6 +27,26 @@ export function AuthForm() {
   // メール未検証で確認が必要な状態のとき、対象アドレスを保持する。
   // セットされている間は検証待ちの案内と「確認メールを再送」を表示する。
   const [verifyEmail, setVerifyEmail] = useState<string | null>(null);
+  // WebAuthn 非対応ブラウザではパスキー UI を出さず、メール+パスワードのみにフォールバックする。
+  const [passkeySupported, setPasskeySupported] = useState(false);
+
+  useEffect(() => {
+    setPasskeySupported(
+      typeof window !== "undefined" && Boolean(window.PublicKeyCredential),
+    );
+  }, []);
+
+  const signInWithPasskey = async () => {
+    setPending(true);
+    setMessage(null);
+    setError(null);
+    const result = await signIn.passkey();
+    setPending(false);
+    if (result.error) {
+      setError(result.error.message ?? "パスキーでのログインに失敗しました");
+    }
+    // 成功時は useSession が更新され、ページ側でチャットに切り替わる。
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,6 +189,17 @@ export function AuthForm() {
               ? "登録"
               : "再設定メールを送る"}
       </button>
+
+      {mode === "login" && passkeySupported && (
+        <button
+          type="button"
+          onClick={signInWithPasskey}
+          disabled={pending}
+          className="btn-quiet"
+        >
+          パスキーでログイン
+        </button>
+      )}
 
       {mode === "login" ? (
         <button

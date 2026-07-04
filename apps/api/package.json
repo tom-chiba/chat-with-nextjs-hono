@@ -18,21 +18,22 @@
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote"
   },
   "dependencies": {
+    "@better-auth/passkey": "^1.6.23",
     "@hono/zod-validator": "^0.8.0",
     "@repo/shared": "workspace:*",
-    "better-auth": "^1.6.18",
+    "better-auth": "^1.6.23",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.12.25",
-    "resend": "^6.12.4",
+    "hono": "^4.12.27",
+    "resend": "^6.16.0",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.16.14",
-    "@cloudflare/workers-types": "^4.20260613.1",
+    "@cloudflare/vitest-pool-workers": "^0.16.20",
+    "@cloudflare/workers-types": "^4.20260626.1",
     "@repo/typescript-config": "workspace:*",
     "drizzle-kit": "^0.31.10",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "^4.100.0"
+    "wrangler": "^4.105.0"
   }
 }

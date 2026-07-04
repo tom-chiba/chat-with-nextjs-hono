@@ -771,6 +771,48 @@ a {
   gap: var(--space-1);
 }
 
+/* パスキー（WebAuthn）管理セクション。 */
+.passkey-manager {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.passkey-manager-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.passkey-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.passkey-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--text-sm);
+}
+.passkey-name {
+  font-weight: 500;
+}
+/* 名前と日付の間を空け、削除ボタンを右端へ寄せる。 */
+.passkey-item .muted {
+  margin-right: auto;
+}
+.passkey-add {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 /* =========================================================================
    モーション抑制
    ========================================================================= */
