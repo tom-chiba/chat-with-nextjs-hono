@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   resolveWebAuthnRp,
+  sendChangeEmailConfirmationWithResend,
   sendPasswordResetEmailWithResend,
   sendVerificationEmailWithResend,
 } from "../src/auth";
@@ -187,6 +188,64 @@ describe("sendPasswordResetEmailWithResend", () => {
 
     expect(consoleError).toHaveBeenCalledWith(
       "Password reset email delivery failed",
+      expect.any(Object),
+    );
+  });
+});
+
+describe("sendChangeEmailConfirmationWithResend", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test("Resend にメール変更の承認メールを現アドレスへ送信し、本文に新アドレスを含める", async () => {
+    const send = vi.fn().mockResolvedValue({
+      data: { id: "email-id" },
+      error: null,
+      headers: null,
+    });
+
+    await sendChangeEmailConfirmationWithResend({
+      emailSender: { send },
+      from: baseEmail.from,
+      to: baseEmail.to,
+      newEmail: "new@example.org",
+      url: baseEmail.url,
+    });
+
+    expect(send).toHaveBeenCalledWith({
+      from: baseEmail.from,
+      to: baseEmail.to,
+      subject: "メールアドレス変更の確認",
+      text: expect.stringContaining("new@example.org"),
+    });
+    expect(send.mock.calls[0]?.[0]?.text).toContain(baseEmail.url);
+  });
+
+  test("Resend API エラーは認証フローへ throw する", async () => {
+    const send = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        name: "invalid_api_key",
+        message: "Invalid API key",
+        statusCode: 401,
+      },
+      headers: null,
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      sendChangeEmailConfirmationWithResend({
+        emailSender: { send },
+        from: baseEmail.from,
+        to: baseEmail.to,
+        newEmail: "new@example.org",
+        url: baseEmail.url,
+      }),
+    ).rejects.toThrow("Change email confirmation email delivery failed");
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "Change email confirmation email delivery failed",
       expect.any(Object),
     );
   });
