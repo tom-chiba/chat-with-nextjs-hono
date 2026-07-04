@@ -79,7 +79,7 @@ test("サインアップ成功で検証待ちの案内と対象アドレスを�
 
 test("未検証ログイン(403)は汎用エラーではなく専用案内を表示する", async () => {
   mockedSignInEmail.mockResolvedValue({
-    error: { status: 403, message: "Email not verified" },
+    error: { status: 403, code: "EMAIL_NOT_VERIFIED", message: "Email not verified" },
   } as never);
 
   render(<AuthForm />);
@@ -112,9 +112,47 @@ test("403 以外のログイン失敗は従来どおり汎用エラーを表示�
   ).not.toBeInTheDocument();
 });
 
+test("EMAIL_NOT_VERIFIED 以外の 403 は検証案内ではなく汎用エラーにする", async () => {
+  mockedSignInEmail.mockResolvedValue({
+    error: { status: 403, code: "USER_BANNED", message: "アカウントが停止されています" },
+  } as never);
+
+  render(<AuthForm />);
+  fillCredentials();
+  submitForm("ログイン");
+
+  expect(
+    await screen.findByText("アカウントが停止されています"),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText("メールアドレスの確認が必要です"),
+  ).not.toBeInTheDocument();
+});
+
+test("タブを切り替えると検証待ちの案内をクリアする", async () => {
+  mockedSignInEmail.mockResolvedValue({
+    error: { status: 403, code: "EMAIL_NOT_VERIFIED", message: "Email not verified" },
+  } as never);
+
+  render(<AuthForm />);
+  fillCredentials();
+  submitForm("ログイン");
+
+  // 未検証ログインで案内が表示される。
+  expect(
+    await screen.findByText("メールアドレスの確認が必要です"),
+  ).toBeInTheDocument();
+
+  // サインアップタブへ切り替えると、文脈に合わない案内は消える。
+  fireEvent.click(screen.getByRole("button", { name: "サインアップ" }));
+  expect(
+    screen.queryByText("メールアドレスの確認が必要です"),
+  ).not.toBeInTheDocument();
+});
+
 test("再送ボタンで確認メールを再送し成功メッセージを表示する", async () => {
   mockedSignInEmail.mockResolvedValue({
-    error: { status: 403, message: "Email not verified" },
+    error: { status: 403, code: "EMAIL_NOT_VERIFIED", message: "Email not verified" },
   } as never);
   mockedSendVerificationEmail.mockResolvedValue({ error: null } as never);
 

@@ -75,9 +75,9 @@ export function AuthForm() {
     const result = await signIn.email({ email, password });
     setPending(false);
     if (result.error) {
-      // メール未検証は 403（EMAIL_NOT_VERIFIED）で返る。汎用エラーにせず、
-      // 検証が必要な旨と再送導線を出す（サーバ側は sendOnSignIn で再送もされる）。
-      if (result.error.status === 403) {
+      // メール未検証は code "EMAIL_NOT_VERIFIED"（HTTP 403）で返る。汎用エラーに
+      // せず、検証が必要な旨と再送導線を出す（サーバ側は sendOnSignIn で再送もされる）。
+      if (result.error.code === "EMAIL_NOT_VERIFIED") {
         setVerifyEmail(email);
         return;
       }
@@ -103,12 +103,21 @@ export function AuthForm() {
     setMessage("確認メールを再送しました。受信箱をご確認ください。");
   };
 
+  // タブ/導線でモードを切り替える際は、前モードの一時的なフィードバック
+  // （検証案内・成功/失敗メッセージ）を持ち越さない。
+  const changeMode = (next: Mode) => {
+    setMode(next);
+    setMessage(null);
+    setError(null);
+    setVerifyEmail(null);
+  };
+
   return (
     <form onSubmit={submit} className="form-card">
       <div className="auth-tabs">
         <button
           type="button"
-          onClick={() => setMode("login")}
+          onClick={() => changeMode("login")}
           aria-pressed={mode === "login"}
           className={`tab${mode === "login" ? " is-active" : ""}`}
         >
@@ -116,7 +125,7 @@ export function AuthForm() {
         </button>
         <button
           type="button"
-          onClick={() => setMode("signup")}
+          onClick={() => changeMode("signup")}
           aria-pressed={mode === "signup"}
           className={`tab${mode === "signup" ? " is-active" : ""}`}
         >
@@ -164,11 +173,7 @@ export function AuthForm() {
       {mode === "login" ? (
         <button
           type="button"
-          onClick={() => {
-            setMode("forgot");
-            setError(null);
-            setMessage(null);
-          }}
+          onClick={() => changeMode("forgot")}
           className="btn-link"
         >
           パスワードを忘れた方
@@ -176,11 +181,7 @@ export function AuthForm() {
       ) : mode === "forgot" ? (
         <button
           type="button"
-          onClick={() => {
-            setMode("login");
-            setError(null);
-            setMessage(null);
-          }}
+          onClick={() => changeMode("login")}
           className="btn-link"
         >
           ログインに戻る
