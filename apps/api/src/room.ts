@@ -162,8 +162,18 @@ export class RoomDO extends DurableObject<Env> {
 
     // 添付が 1 件も紐付かず本文も空なら、実体のない空メッセージになる（例: 既に別
     // メッセージへ紐付いた添付 id での再送）。挿入済みの行を取り消して配信しない。
+    // 送信元には nonce 付きエラーを返し、保留を「送信中」のまま固着させず失敗扱いにする。
     if (message.body === "" && message.attachments.length === 0) {
       await db.delete(messages).where(eq(messages.id, message.id));
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          code: "empty_message",
+          message:
+            "メッセージを送信できませんでした（添付が無効か、すでに送信済みです）。",
+          nonce,
+        } satisfies ServerMessage),
+      );
       return;
     }
 

@@ -191,8 +191,12 @@ export const clientMessageSchema = z
   });
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
-/** クライアントが分岐に使う想定のエラーコード。 */
-export const serverErrorCodeSchema = z.enum(["rate_limited"]);
+/**
+ * クライアントが分岐に使う想定のエラーコード。
+ * - `rate_limited`: 送信が早すぎる。
+ * - `empty_message`: 本文が空で、添付も 1 件も紐付かなかった（無効/既送信の添付 id 等）。
+ */
+export const serverErrorCodeSchema = z.enum(["rate_limited", "empty_message"]);
 export type ServerErrorCode = z.infer<typeof serverErrorCodeSchema>;
 
 /** サーバ → クライアント。 */

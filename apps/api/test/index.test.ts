@@ -1478,4 +1478,39 @@ describe("画像添付ルート", () => {
     );
     expect(res.status).toBe(403);
   });
+
+  test("PATCH 編集後も添付を保持して配信する", async () => {
+    await seedRoomOwned("att-edit", "att-uedit");
+    const headers = await createSession("att-uedit");
+    const form = new FormData();
+    form.set("file", pngFile());
+    const up = await app.request(
+      "/rooms/att-edit/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    const { attachment } = (await up.json()) as { attachment: { id: string } };
+    const messageId = await linkAttachmentToMessage(
+      attachment.id,
+      "att-edit",
+      "att-uedit",
+    );
+
+    const res = await app.request(
+      `/rooms/att-edit/messages/${messageId}`,
+      {
+        method: "PATCH",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "編集後の本文" }),
+      },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const { message } = (await res.json()) as {
+      message: { body: string; attachments: { id: string }[] };
+    };
+    expect(message.body).toBe("編集後の本文");
+    // 編集で添付が消えない（既定の [] で上書きされない）。
+    expect(message.attachments.map((a) => a.id)).toEqual([attachment.id]);
+  });
 });
