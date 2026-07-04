@@ -1,5 +1,10 @@
 import { env } from "cloudflare:test";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
+import {
+  cleanupOrphanAttachments,
+  deleteRoomAttachmentObjects,
+} from "../src/attachments-storage";
 import { createDb } from "../src/db";
 import {
   attachToMessage,
@@ -7,7 +12,7 @@ import {
   listAttachmentsForMessages,
 } from "../src/db/attachments";
 import { listMessages, toChatMessage } from "../src/db/messages";
-import { messages, rooms, user } from "../src/db/schema";
+import { attachments, messages, rooms, user } from "../src/db/schema";
 
 const ROOM = "room-attach";
 const OTHER_ROOM = "room-attach-other";
@@ -174,5 +179,86 @@ describe("R2 バケット（ATTACHMENTS binding）", () => {
     expect(object).not.toBeNull();
     const bytes = new Uint8Array((await object?.arrayBuffer()) ?? new ArrayBuffer(0));
     expect(Array.from(bytes)).toEqual([1, 2, 3]);
+  });
+});
+
+describe("孤児添付の回収", () => {
+  beforeEach(seed);
+
+  test("cleanupOrphanAttachments は未紐付けの古い添付を R2・DB とも削除し、紐付け済みは残す", async () => {
+    const db = createDb(env.DB);
+    // 未紐付け 2 件（R2 実体つき）。
+    for (const id of ["orphan1", "orphan2"]) {
+      const r2Key = `rooms/${ROOM}/${id}`;
+      await env.ATTACHMENTS.put(r2Key, new Uint8Array([1]).buffer);
+      await createAttachment(db, {
+        id,
+        roomId: ROOM,
+        userId: "alice",
+        r2Key,
+        mimeType: "image/png",
+        size: 1,
+      });
+    }
+    // 紐付け済み 1 件（削除されてはいけない）。
+    await makeUpload("linked1");
+    await insertMessage("msg-orphan");
+    await attachToMessage(db, {
+      messageId: "msg-orphan",
+      attachmentIds: ["linked1"],
+      roomId: ROOM,
+      userId: "alice",
+    });
+
+    // cutoff を未来にして、未紐付けはすべて期限切れ扱いにする。
+    // 他テストの未紐付け添付も対象になり得るため、件数は「2 件以上」で確認する。
+    const removed = await cleanupOrphanAttachments(
+      db,
+      env.ATTACHMENTS,
+      Date.now() + 60_000,
+    );
+    expect(removed).toBeGreaterThanOrEqual(2);
+
+    // 未紐付けは行も R2 実体も消える。
+    for (const id of ["orphan1", "orphan2"]) {
+      const rows = await db
+        .select()
+        .from(attachments)
+        .where(eq(attachments.id, id));
+      expect(rows).toHaveLength(0);
+      expect(await env.ATTACHMENTS.get(`rooms/${ROOM}/${id}`)).toBeNull();
+    }
+    // 紐付け済みは残る。
+    const linked = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.id, "linked1"));
+    expect(linked).toHaveLength(1);
+  });
+
+  test("cleanupOrphanAttachments は cutoff より新しい未紐付けを残す", async () => {
+    const db = createDb(env.DB);
+    await makeUpload("fresh-orphan");
+    // cutoff をエポックにすると、いま作った添付は対象外。
+    const removed = await cleanupOrphanAttachments(db, env.ATTACHMENTS, 0);
+    expect(removed).toBe(0);
+    const rows = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.id, "fresh-orphan"));
+    expect(rows).toHaveLength(1);
+  });
+
+  test("deleteRoomAttachmentObjects はルームのプレフィックス配下の R2 実体を全削除する", async () => {
+    await env.ATTACHMENTS.put("rooms/room-prefix/a", new Uint8Array([1]).buffer);
+    await env.ATTACHMENTS.put("rooms/room-prefix/b", new Uint8Array([2]).buffer);
+    // 別ルームは残ること。
+    await env.ATTACHMENTS.put("rooms/room-other/c", new Uint8Array([3]).buffer);
+
+    await deleteRoomAttachmentObjects(env.ATTACHMENTS, "room-prefix");
+
+    expect(await env.ATTACHMENTS.get("rooms/room-prefix/a")).toBeNull();
+    expect(await env.ATTACHMENTS.get("rooms/room-prefix/b")).toBeNull();
+    expect(await env.ATTACHMENTS.get("rooms/room-other/c")).not.toBeNull();
   });
 });

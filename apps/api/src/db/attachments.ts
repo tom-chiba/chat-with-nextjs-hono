@@ -1,6 +1,6 @@
 import type { MessageAttachment } from "@repo/shared";
 import { allowedImageMimeTypeSchema } from "@repo/shared";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt } from "drizzle-orm";
 import type { Db } from "./index";
 import { attachments } from "./schema";
 
@@ -123,4 +123,68 @@ export async function listAttachmentsForMessages(
     result.set(row.messageId, list);
   }
   return result;
+}
+
+/**
+ * 未送信（`messageId` が null）の添付を 1 件削除する。実体（R2）回収のため r2Key を返す。
+ *
+ * 「同一ルーム・同一アップロード者・未紐付け」だけを対象にし、他人や既にメッセージへ
+ * 紐付いた添付は削除しない（横取り・送信済みの巻き添え削除を防ぐ）。対象が無ければ null。
+ */
+export async function deleteUnlinkedAttachment(
+  db: Db,
+  opts: { id: string; roomId: string; userId: string },
+): Promise<string | null> {
+  const deleted = await db
+    .delete(attachments)
+    .where(
+      and(
+        eq(attachments.id, opts.id),
+        eq(attachments.roomId, opts.roomId),
+        eq(attachments.userId, opts.userId),
+        isNull(attachments.messageId),
+      ),
+    )
+    .returning({ r2Key: attachments.r2Key });
+  return deleted[0]?.r2Key ?? null;
+}
+
+/**
+ * あるメッセージに紐付く添付をすべて削除し、実体回収用に r2Key を返す。
+ * メッセージの論理削除時に、行と R2 実体をまとめて回収するために使う。
+ */
+export async function deleteAttachmentsForMessage(
+  db: Db,
+  messageId: string,
+): Promise<string[]> {
+  const deleted = await db
+    .delete(attachments)
+    .where(eq(attachments.messageId, messageId))
+    .returning({ r2Key: attachments.r2Key });
+  return deleted.map((r) => r.r2Key);
+}
+
+/**
+ * `cutoff`（ミリ秒エポック）より前に作られ、まだメッセージに紐付いていない孤児添付を
+ * 返す（TTL クリーンアップ用）。アップロードしたまま送信も削除もされなかったもの。
+ */
+export async function listOrphanAttachments(
+  db: Db,
+  cutoff: number,
+): Promise<{ id: string; r2Key: string }[]> {
+  return db
+    .select({ id: attachments.id, r2Key: attachments.r2Key })
+    .from(attachments)
+    .where(
+      and(isNull(attachments.messageId), lt(attachments.createdAt, new Date(cutoff))),
+    );
+}
+
+/** 指定 id の添付行を削除する（孤児クリーンアップで R2 削除後に呼ぶ）。 */
+export async function deleteAttachmentsByIds(
+  db: Db,
+  ids: string[],
+): Promise<void> {
+  if (ids.length === 0) return;
+  await db.delete(attachments).where(inArray(attachments.id, ids));
 }

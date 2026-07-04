@@ -6,7 +6,7 @@ import {
   isAllowedImageMimeType,
 } from "@repo/shared";
 import { useEffect, useRef, useState } from "react";
-import { uploadAttachment } from "@/lib/attachments";
+import { deleteAttachment, uploadAttachment } from "@/lib/attachments";
 import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
 import type { PendingAttachment } from "@/lib/use-room-chat";
 
@@ -103,7 +103,11 @@ export function Composer({
   const removeAttachment = (localId: string) => {
     setAttachments((prev) => {
       const target = prev.find((a) => a.localId === localId);
-      if (target) URL.revokeObjectURL(target.previewUrl);
+      if (target) {
+        URL.revokeObjectURL(target.previewUrl);
+        // アップロード済み（未送信）はサーバの R2 実体・DB 行も取り消す。
+        if (target.remoteId) void deleteAttachment(roomId, target.remoteId);
+      }
       return prev.filter((a) => a.localId !== localId);
     });
   };

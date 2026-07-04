@@ -40,6 +40,12 @@
 			"bucket_name": "chat-attachments"
 		}
 	],
+	// 毎時、送信も削除もされなかった孤児添付（未紐付け）を回収する（scheduled ハンドラ）。
+	"triggers": {
+		"crons": [
+			"0 * * * *"
+		]
+	},
 	// チャットルーム = 1 Durable Object。WebSocket Hibernation で接続を保持する。
 	"durable_objects": {
 		"bindings": [

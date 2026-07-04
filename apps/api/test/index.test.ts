@@ -17,8 +17,8 @@ import {
   user,
 } from "../src/db/schema";
 import app from "../src/index";
-// WS ルートは worker.ts 側で app に登録される。default export は同一の app インスタンス。
-import workerApp from "../src/worker";
+// WS ルートは worker.ts 側で app に登録される。workerApp は同一の Hono インスタンス。
+import { workerApp } from "../src/worker";
 
 async function signCookieValue(value: string) {
   const key = await crypto.subtle.importKey(
@@ -1512,5 +1512,91 @@ describe("画像添付ルート", () => {
     expect(message.body).toBe("編集後の本文");
     // 編集で添付が消えない（既定の [] で上書きされない）。
     expect(message.attachments.map((a) => a.id)).toEqual([attachment.id]);
+  });
+
+  test("DELETE は未送信添付を R2・DB とも取り消す", async () => {
+    await seedRoomOwned("att-unsend", "att-uunsend");
+    const headers = await createSession("att-uunsend");
+    const form = new FormData();
+    form.set("file", pngFile());
+    const up = await app.request(
+      "/rooms/att-unsend/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    const { attachment } = (await up.json()) as { attachment: { id: string } };
+
+    const del = await app.request(
+      `/rooms/att-unsend/attachments/${attachment.id}`,
+      { method: "DELETE", headers },
+      env,
+    );
+    expect(del.status).toBe(200);
+
+    const db = createDb(env.DB);
+    const rows = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.id, attachment.id));
+    expect(rows).toHaveLength(0);
+    expect(
+      await env.ATTACHMENTS.get(`rooms/att-unsend/${attachment.id}`),
+    ).toBeNull();
+  });
+
+  test("DELETE は送信済み（紐付け済み）添付には 404 を返す", async () => {
+    await seedRoomOwned("att-linked", "att-ulinked");
+    const headers = await createSession("att-ulinked");
+    const form = new FormData();
+    form.set("file", pngFile());
+    const up = await app.request(
+      "/rooms/att-linked/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    const { attachment } = (await up.json()) as { attachment: { id: string } };
+    await linkAttachmentToMessage(attachment.id, "att-linked", "att-ulinked");
+
+    const del = await app.request(
+      `/rooms/att-linked/attachments/${attachment.id}`,
+      { method: "DELETE", headers },
+      env,
+    );
+    expect(del.status).toBe(404);
+  });
+
+  test("メッセージ削除で添付の R2・DB 実体を回収する", async () => {
+    await seedRoomOwned("att-msgdel", "att-umsgdel");
+    const headers = await createSession("att-umsgdel");
+    const form = new FormData();
+    form.set("file", pngFile());
+    const up = await app.request(
+      "/rooms/att-msgdel/attachments",
+      { method: "POST", headers, body: form },
+      env,
+    );
+    const { attachment } = (await up.json()) as { attachment: { id: string } };
+    const messageId = await linkAttachmentToMessage(
+      attachment.id,
+      "att-msgdel",
+      "att-umsgdel",
+    );
+
+    const del = await app.request(
+      `/rooms/att-msgdel/messages/${messageId}`,
+      { method: "DELETE", headers },
+      env,
+    );
+    expect(del.status).toBe(200);
+
+    const db = createDb(env.DB);
+    const rows = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.id, attachment.id));
+    expect(rows).toHaveLength(0);
+    expect(
+      await env.ATTACHMENTS.get(`rooms/att-msgdel/${attachment.id}`),
+    ).toBeNull();
   });
 });

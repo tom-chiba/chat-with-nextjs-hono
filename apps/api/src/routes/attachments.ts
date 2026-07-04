@@ -3,7 +3,11 @@ import {
   MAX_ATTACHMENT_BYTES,
 } from "@repo/shared";
 import { Hono } from "hono";
-import { createAttachment, getAttachmentById } from "../db/attachments";
+import {
+  createAttachment,
+  deleteUnlinkedAttachment,
+  getAttachmentById,
+} from "../db/attachments";
 import { getMessageById } from "../db/messages";
 import { requireMember, requireSession } from "../guards";
 import type { Bindings } from "../types";
@@ -54,19 +58,46 @@ export const attachmentsApp = new Hono<{ Bindings: Bindings }>()
     await c.env.ATTACHMENTS.put(r2Key, await file.arrayBuffer(), {
       httpMetadata: { contentType: file.type },
     });
-    await createAttachment(s.db, {
-      id,
-      roomId,
-      userId: s.user.id,
-      r2Key,
-      mimeType: file.type,
-      size: file.size,
-    });
+    try {
+      await createAttachment(s.db, {
+        id,
+        roomId,
+        userId: s.user.id,
+        r2Key,
+        mimeType: file.type,
+        size: file.size,
+      });
+    } catch (e) {
+      // DB 記録に失敗したら、参照できない R2 実体を残さないよう put を巻き戻す。
+      await c.env.ATTACHMENTS.delete(r2Key);
+      throw e;
+    }
 
     return c.json(
       { attachment: { id, mimeType: file.type, size: file.size } } as const,
       201,
     );
+  })
+  // 未送信の添付を取り消す（サムネイルの × 削除）。要メンバー。自分の未紐付けのみ削除可。
+  .delete("/:roomId/attachments/:attachmentId", async (c) => {
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
+    const roomId = c.req.param("roomId");
+    const mem = await requireMember(c, s.db, s.user.id, roomId);
+    if (!mem.ok) return mem.res;
+
+    const attachmentId = c.req.param("attachmentId");
+    const r2Key = await deleteUnlinkedAttachment(s.db, {
+      id: attachmentId,
+      roomId,
+      userId: s.user.id,
+    });
+    // 対象が無い（他人・別ルーム・既にメッセージへ紐付け済み・存在しない）は 404。
+    if (!r2Key) {
+      return c.json({ error: "not found" } as const, 404);
+    }
+    await c.env.ATTACHMENTS.delete(r2Key);
+    return c.json({ ok: true } as const);
   })
   // 添付画像の実体を配信する。要メンバー（ルームの所属者だけが取得できる）。
   .get("/:roomId/attachments/:attachmentId", async (c) => {

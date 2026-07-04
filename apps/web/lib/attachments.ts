@@ -34,3 +34,22 @@ export async function uploadAttachment(
   const data = (await res.json()) as { attachment: MessageAttachment };
   return data.attachment;
 }
+
+/**
+ * まだ送信していない添付をサーバから削除する（サムネイルの × 削除時）。
+ * 送信前の取り消しで R2 実体・DB 行を残さないために呼ぶ。失敗は握りつぶす
+ * （最終的にサーバ側の孤児 TTL クリーンアップで回収されるため、UI を止めない）。
+ */
+export async function deleteAttachment(
+  roomId: string,
+  attachmentId: string,
+): Promise<void> {
+  try {
+    await fetch(
+      `${API_BASE}/rooms/${encodeURIComponent(roomId)}/attachments/${encodeURIComponent(attachmentId)}`,
+      { method: "DELETE", credentials: "include" },
+    );
+  } catch {
+    // ベストエフォート。
+  }
+}

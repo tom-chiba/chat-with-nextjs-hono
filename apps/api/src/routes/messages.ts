@@ -5,7 +5,10 @@ import {
   MESSAGE_PAGE_SIZE_MAX,
 } from "@repo/shared";
 import { Hono } from "hono";
-import { listAttachmentsForMessages } from "../db/attachments";
+import {
+  deleteAttachmentsForMessage,
+  listAttachmentsForMessages,
+} from "../db/attachments";
 import {
   getMessageById,
   listMessages,
@@ -115,6 +118,11 @@ export const messagesApp = new Hono<{ Bindings: Bindings }>()
 
     const deletedAt = new Date();
     await softDeleteMessage(s.db, messageId, deletedAt);
+
+    // 論理削除では本文・添付ともに伏せる（配信でも隠す）。添付の実体は残しても参照
+    // されないため、行と R2 実体をここで回収する。
+    const r2Keys = await deleteAttachmentsForMessage(s.db, messageId);
+    if (r2Keys.length > 0) await c.env.ATTACHMENTS.delete(r2Keys);
 
     const updated = toChatMessage({
       ...existing,

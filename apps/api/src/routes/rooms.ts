@@ -1,5 +1,6 @@
 import { roomNameInputSchema, roomReadSchema } from "@repo/shared";
 import { Hono } from "hono";
+import { deleteRoomAttachmentObjects } from "../attachments-storage";
 import {
   createRoomWithOwner,
   deleteRoom,
@@ -84,6 +85,8 @@ export const roomsApp = new Hono<{ Bindings: Bindings }>()
     if (!own.ok) return own.res;
 
     await deleteRoom(s.db, roomId);
+    // DB の attachments 行は FK CASCADE で消えるが R2 実体は残るため、明示的に回収する。
+    await deleteRoomAttachmentObjects(c.env.ATTACHMENTS, roomId);
     // 既存接続を切る（FK CASCADE 後の WS が古い状態のままになるのを防ぐ）。
     await disconnectRoomAll(c.env, roomId);
     return c.json({ ok: true } as const);
