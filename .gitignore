@@ -25,6 +25,7 @@ coverage/
 playwright-report/
 test-results/
 .playwright/
+.playwright-cli/
 blob-report/
 playwright/.cache/
 
