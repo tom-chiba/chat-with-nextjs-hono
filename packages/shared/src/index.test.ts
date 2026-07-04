@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { APP_NAME, parseMentionCandidates, tokenizeMessageBody } from "./index";
 
 test("APP_NAME はアプリ識別子を返す", () => {
-  expect(APP_NAME).toBe("chat-with-nextjs-hono");
+  expect(APP_NAME).toBe("chat");
 });
 
 test("parseMentionCandidates は本文中の @<name> を順に拾う", () => {

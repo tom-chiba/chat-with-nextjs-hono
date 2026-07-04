@@ -1,3 +1,4 @@
+import { APP_NAME } from "@repo/shared";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
@@ -23,13 +24,13 @@ const mono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "chat-with-nextjs-hono",
+  title: APP_NAME,
   description: "PWA を使った軽量チャットツール",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "chat-with-nextjs-hono",
+    title: APP_NAME,
   },
 };
 
