@@ -7,6 +7,7 @@ import {
 } from "@repo/shared";
 import { eq } from "drizzle-orm";
 import { createDb, type Db } from "./db";
+import { attachToMessage } from "./db/attachments";
 import { listMessages } from "./db/messages";
 import { getRoomMembership } from "./db/rooms";
 import { messages, user } from "./db/schema";
@@ -103,6 +104,7 @@ export class RoomDO extends DurableObject<Env> {
     const parsed = clientMessageSchema.safeParse(json);
     if (!parsed.success) return;
     const trimmed = parsed.data.body;
+    const attachmentIds = parsed.data.attachmentIds ?? [];
     // 楽観送信の相関キー。配信・拒否でそのままエコーし、送信側が確定 / 失敗を対応づける。
     const nonce = parsed.data.nonce;
 
@@ -134,6 +136,7 @@ export class RoomDO extends DurableObject<Env> {
       userId,
       userName,
       body: trimmed,
+      attachments: [],
       createdAt: now,
       editedAt: null,
       deletedAt: null,
@@ -147,6 +150,32 @@ export class RoomDO extends DurableObject<Env> {
       body: message.body,
       createdAt: new Date(message.createdAt),
     });
+
+    // 先行アップロード済みの添付を、このメッセージへ紐付ける（FK のためメッセージ挿入後）。
+    // 自分がこのルームにアップロードした未紐付けのものだけが対象で、順序は指定通り。
+    message.attachments = await attachToMessage(db, {
+      messageId: message.id,
+      attachmentIds,
+      roomId,
+      userId,
+    });
+
+    // 添付が 1 件も紐付かず本文も空なら、実体のない空メッセージになる（例: 既に別
+    // メッセージへ紐付いた添付 id での再送）。挿入済みの行を取り消して配信しない。
+    // 送信元には nonce 付きエラーを返し、保留を「送信中」のまま固着させず失敗扱いにする。
+    if (message.body === "" && message.attachments.length === 0) {
+      await db.delete(messages).where(eq(messages.id, message.id));
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          code: "empty_message",
+          message:
+            "メッセージを送信できませんでした（添付が無効か、すでに送信済みです）。",
+          nonce,
+        } satisfies ServerMessage),
+      );
+      return;
+    }
 
     const payload = JSON.stringify({
       type: "message",

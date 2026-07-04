@@ -14,6 +14,21 @@ export const WS_RATE_LIMIT_WINDOW_MS = 10_000;
 /** ウィンドウ内で許可される 1 ユーザーあたりの最大送信件数。 */
 export const WS_RATE_LIMIT_MAX = 20;
 
+/** 画像アップロードのレート制限ウィンドウ（ミリ秒）。 */
+export const ATTACHMENT_UPLOAD_RATE_WINDOW_MS = 60_000;
+/**
+ * ウィンドウ内で許可される 1 ユーザーあたりの最大アップロード件数。
+ * 1 メッセージ最大 4 枚を数回送れる程度に余裕を持たせつつ、濫用は頭打ちにする。
+ */
+export const ATTACHMENT_UPLOAD_RATE_MAX = 30;
+
+/**
+ * 1 ユーザーが保持できる添付の合計バイト数の上限（安全上限）。
+ * 送信済み・未送信を問わず現存する添付の合計で判定し、メッセージ/ルーム削除や
+ * 孤児回収で行が消えれば自然に解放される。通常利用では到達しない大きさにする。
+ */
+export const MAX_ATTACHMENT_STORAGE_BYTES_PER_USER = 500 * 1024 * 1024;
+
 /**
  * メールアドレスらしさの最小チェック用パターン。
  * 厳密な RFC 検証はせず、「空白を含まない local@domain.tld」程度に留める

@@ -71,11 +71,6 @@ describe("WebCryptoPushSender", () => {
     };
     const sender = createWebCryptoPushSender(
       {
-        DB: undefined as never,
-        BETTER_AUTH_SECRET: "test",
-        BETTER_AUTH_URL: "http://localhost:8787",
-        WEB_URL: "http://localhost:3000",
-        RESEND_API_KEY: "test",
         EMAIL_FROM: "test@example.com",
         VAPID_PUBLIC_KEY: vapid.publicKey,
         VAPID_PRIVATE_KEY: vapid.privateKey,

@@ -4,7 +4,8 @@ import { MAX_MESSAGE_LENGTH, WS_RATE_LIMIT_MAX } from "@repo/shared";
 import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
 import { createDb } from "../src/db";
-import { messages, roomMembers, rooms, user } from "../src/db/schema";
+import { createAttachment } from "../src/db/attachments";
+import { attachments, messages, roomMembers, rooms, user } from "../src/db/schema";
 
 /** テスト用にユーザー行を作成（messages.user_id の FK を満たすため）。 */
 async function seedUser(id: string, name: string) {
@@ -269,5 +270,75 @@ describe("RoomDO", () => {
       .where(eq(messages.roomId, "room-rate-limit"));
     expect(rows).toHaveLength(WS_RATE_LIMIT_MAX);
     expect(rows.find((r) => r.body === "overflow")).toBeUndefined();
+  });
+
+  test("先行アップロード済みの添付を指定して送るとメッセージに紐付いて配信される", async () => {
+    await seedRoom("room-attach-ws", ["alice"]);
+    const db = createDb(env.DB);
+    await createAttachment(db, {
+      id: "ws-att-1",
+      roomId: "room-attach-ws",
+      userId: "alice",
+      r2Key: "rooms/room-attach-ws/ws-att-1",
+      mimeType: "image/png",
+      size: 10,
+    });
+
+    const a = await connect("room-attach-ws", "alice");
+    expect((await a.next()).type).toBe("history");
+
+    a.ws.send(
+      JSON.stringify({
+        type: "message",
+        body: "",
+        attachmentIds: ["ws-att-1"],
+        nonce: "n-att",
+      }),
+    );
+
+    const received = await a.next();
+    expect(received.type).toBe("message");
+    if (received.type === "message") {
+      expect(received.nonce).toBe("n-att");
+      expect(received.message.attachments.map((x) => x.id)).toEqual(["ws-att-1"]);
+    }
+
+    // 添付行がこのメッセージに紐付いていること。
+    const linked = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.id, "ws-att-1"));
+    expect(linked[0]?.messageId).not.toBeNull();
+  });
+
+  test("本文空で添付が 1 件も紐付かない送信は empty_message エラーを返し保存しない", async () => {
+    await seedRoom("room-empty-att", ["alice"]);
+    const a = await connect("room-empty-att", "alice");
+    expect((await a.next()).type).toBe("history");
+
+    // 存在しない添付 id を指定 → 1 件も紐付かず本文も空 → error（nonce エコー）。
+    a.ws.send(
+      JSON.stringify({
+        type: "message",
+        body: "",
+        attachmentIds: ["does-not-exist"],
+        nonce: "n-empty",
+      }),
+    );
+
+    const rejected = await a.next();
+    expect(rejected.type).toBe("error");
+    if (rejected.type === "error") {
+      expect(rejected.code).toBe("empty_message");
+      expect(rejected.nonce).toBe("n-empty");
+    }
+
+    // 空メッセージ行は残らない。
+    const db = createDb(env.DB);
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.roomId, "room-empty-att"));
+    expect(rows).toHaveLength(0);
   });
 });

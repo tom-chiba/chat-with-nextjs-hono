@@ -6,6 +6,10 @@ import {
 } from "@repo/shared";
 import { Hono } from "hono";
 import {
+  deleteAttachmentsForMessage,
+  listAttachmentsForMessages,
+} from "../db/attachments";
+import {
   getMessageById,
   listMessages,
   softDeleteMessage,
@@ -74,12 +78,20 @@ export const messagesApp = new Hono<{ Bindings: Bindings }>()
       const editedAt = new Date();
       await updateMessageBody(s.db, messageId, body, editedAt);
 
-      const updated = toChatMessage({
-        ...existing,
-        userName: existing.senderName,
-        body,
-        editedAt,
-      });
+      // 編集は本文のみ変更する。添付は変わらないので、配信 update に元の添付を含める
+      // （渡さないと `toChatMessage` の既定 [] になり、編集直後に画像が消えてしまう）。
+      const attachments =
+        (await listAttachmentsForMessages(s.db, [messageId])).get(messageId) ??
+        [];
+      const updated = toChatMessage(
+        {
+          ...existing,
+          userName: existing.senderName,
+          body,
+          editedAt,
+        },
+        attachments,
+      );
       await broadcastMessageUpdate(c.env, roomId, updated);
       return c.json({ message: updated } as const);
     },
@@ -106,6 +118,11 @@ export const messagesApp = new Hono<{ Bindings: Bindings }>()
 
     const deletedAt = new Date();
     await softDeleteMessage(s.db, messageId, deletedAt);
+
+    // 論理削除では本文・添付ともに伏せる（配信でも隠す）。添付の実体は残しても参照
+    // されないため、行と R2 実体をここで回収する。
+    const r2Keys = await deleteAttachmentsForMessage(s.db, messageId);
+    if (r2Keys.length > 0) await c.env.ATTACHMENTS.delete(r2Keys);
 
     const updated = toChatMessage({
       ...existing,

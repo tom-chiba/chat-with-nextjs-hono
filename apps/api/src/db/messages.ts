@@ -1,5 +1,6 @@
-import type { ChatMessage } from "@repo/shared";
+import type { ChatMessage, MessageAttachment } from "@repo/shared";
 import { and, desc, eq, isNull, lt, or } from "drizzle-orm";
+import { listAttachmentsForMessages } from "./attachments";
 import type { Db } from "./index";
 import { messages } from "./schema";
 
@@ -22,8 +23,14 @@ type ChatMessageRow = {
  * DB 行を {@link ChatMessage} へ変換する単一の変換点。
  * 論理削除済みなら本文を伏せ（空文字）、`editedAt` も隠す。チャット履歴に穴を
  * 作らないため行は残し、「削除済み」プレースホルダとして返す。
+ *
+ * `attachments` は呼び出し側が別途取得して渡す。削除済みメッセージの添付は
+ * 本文同様に伏せる（空配列）。
  */
-export function toChatMessage(row: ChatMessageRow): ChatMessage {
+export function toChatMessage(
+  row: ChatMessageRow,
+  attachments: MessageAttachment[] = [],
+): ChatMessage {
   const deleted = row.deletedAt !== null;
   return {
     id: row.id,
@@ -31,6 +38,7 @@ export function toChatMessage(row: ChatMessageRow): ChatMessage {
     userId: row.userId,
     userName: row.userName,
     body: deleted ? "" : row.body,
+    attachments: deleted ? [] : attachments,
     createdAt: row.createdAt.getTime(),
     editedAt: deleted ? null : (row.editedAt?.getTime() ?? null),
     deletedAt: row.deletedAt?.getTime() ?? null,
@@ -82,7 +90,15 @@ export async function listMessages(
     .orderBy(desc(messages.createdAt), desc(messages.id))
     .limit(limit);
 
-  return rows.map(toChatMessage).toReversed();
+  // 返す分だけ添付をまとめて引く（N+1 を避ける）。削除済みは toChatMessage 側で伏せる。
+  const attachmentsByMessage = await listAttachmentsForMessages(
+    db,
+    rows.map((r) => r.id),
+  );
+
+  return rows
+    .map((row) => toChatMessage(row, attachmentsByMessage.get(row.id) ?? []))
+    .toReversed();
 }
 
 /**

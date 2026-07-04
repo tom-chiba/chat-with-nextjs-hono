@@ -1,6 +1,7 @@
 "use client";
 
 import type { PendingMessage } from "@/lib/use-room-chat";
+import { AttachmentGrid } from "./attachment-grid";
 import { MessageBody } from "./message-body";
 
 /** 保留状態ごとの注記文言。 */
@@ -30,7 +31,12 @@ export function PendingMessageItem({
       <div
         className={`bubble is-mine is-pending${isFailed ? " is-failed" : ""}`}
       >
-        <MessageBody body={pending.body} />
+        {pending.attachments && pending.attachments.length > 0 && (
+          <AttachmentGrid
+            images={pending.attachments.map((a) => ({ src: a.previewUrl }))}
+          />
+        )}
+        {pending.body.length > 0 && <MessageBody body={pending.body} />}
       </div>
       <div className={`pending-note${isFailed ? " is-failed" : ""}`}>
         <span>{STATUS_NOTE[pending.status]}</span>

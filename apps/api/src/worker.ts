@@ -4,10 +4,17 @@
  * RPC 型を共有する FE は `./index` を読むため、Worker ランタイム専用のコード
  * （Durable Object フォワード・`RoomDO`）はこのファイルに分離している。
  */
+import { cleanupOrphanAttachments } from "./attachments-storage";
 import { createAuth } from "./auth";
 import { createDb } from "./db";
 import { getRoomMembership } from "./db/rooms";
 import app from "./index";
+
+/**
+ * 孤児添付（アップロードしたまま送信も削除もされなかったもの）を回収する猶予時間。
+ * これより古い未紐付け添付を scheduled（cron）で削除する。
+ */
+const ORPHAN_ATTACHMENT_TTL_MS = 24 * 60 * 60 * 1000;
 
 // WebSocket 接続。セッションを検証し、ルームの Durable Object へ本人情報付きでフォワードする。
 app.get("/ws/room/:roomId", async (c) => {
@@ -52,5 +59,16 @@ app.get("/ws/room/:roomId", async (c) => {
   return stub.fetch(new Request(c.req.raw, { headers }));
 });
 
-export default app;
+// テスト用に Hono インスタンス（WS ルート登録済み）を名前付きでも公開する。
+export { app as workerApp };
+
+export default {
+  fetch: app.fetch,
+  // 定期実行: 期限切れの孤児添付を R2・DB から回収する。
+  async scheduled(_controller, env, ctx) {
+    const db = createDb(env.DB);
+    const cutoff = Date.now() - ORPHAN_ATTACHMENT_TTL_MS;
+    ctx.waitUntil(cleanupOrphanAttachments(db, env.ATTACHMENTS, cutoff));
+  },
+} satisfies ExportedHandler<Env>;
 export { RoomDO } from "./room";

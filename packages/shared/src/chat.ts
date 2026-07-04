@@ -55,6 +55,27 @@ export const isWithinMessageLength = (s: string): boolean =>
 export const isWithinRoomNameLength = (s: string): boolean =>
   countGraphemes(s) <= MAX_ROOM_NAME_LENGTH;
 
+/** 1 メッセージに添付できる画像の最大枚数。 */
+export const MAX_ATTACHMENTS_PER_MESSAGE = 4;
+
+/** 添付 1 ファイルの最大バイト数（10 MiB）。 */
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+/** 添付として受け付ける画像 MIME タイプ（allowlist）。 */
+export const ALLOWED_IMAGE_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+] as const;
+
+export const allowedImageMimeTypeSchema = z.enum(ALLOWED_IMAGE_MIME_TYPES);
+export type AllowedImageMimeType = z.infer<typeof allowedImageMimeTypeSchema>;
+
+/** MIME タイプが添付として許可されているかの純粋述語（FE の accept 制御と共有）。 */
+export const isAllowedImageMimeType = (m: string): boolean =>
+  (ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(m);
+
 /** メッセージ履歴 1 ページの既定/最大件数。 */
 export const MESSAGE_PAGE_SIZE = 30;
 export const MESSAGE_PAGE_SIZE_MAX = 100;
@@ -65,8 +86,21 @@ export const HISTORY_LIMIT = 50;
 /* ===== 共有スキーマ（型・検証の単一情報源） ===== */
 
 /**
+ * クライアントに配信する添付画像 1 件。実体（バイナリ）は別途
+ * `GET /rooms/:roomId/attachments/:id` で取得する。ここでは描画とレイアウトに
+ * 必要な最小限のメタデータのみ持つ。
+ */
+export const messageAttachmentSchema = z.object({
+  id: z.string(),
+  mimeType: allowedImageMimeTypeSchema,
+  /** バイト数。 */
+  size: z.number(),
+});
+export type MessageAttachment = z.infer<typeof messageAttachmentSchema>;
+
+/**
  * クライアントに配信する 1 メッセージのスキーマ。
- * DB の `messages` 行に送信者名（`userName`）を付与した形。
+ * DB の `messages` 行に送信者名（`userName`）と添付（`attachments`）を付与した形。
  */
 export const chatMessageSchema = z.object({
   id: z.string(),
@@ -74,6 +108,8 @@ export const chatMessageSchema = z.object({
   userId: z.string(),
   userName: z.string(),
   body: z.string(),
+  /** 添付画像（最大 {@link MAX_ATTACHMENTS_PER_MESSAGE} 枚）。無ければ空配列。 */
+  attachments: z.array(messageAttachmentSchema).default([]),
   /** ミリ秒エポック（`messages.created_at`）。 */
   createdAt: z.number(),
   /** ミリ秒エポック。未編集なら null。 */
@@ -125,15 +161,42 @@ export const nonceSchema = z.string().min(1).max(100);
  * 送信側は「どの保留メッセージが確定 / 失敗したか」を一意に対応づけられる。
  * 旧クライアント（nonce 無し）との混在に耐えるため任意とし、無ければエコーしない。
  */
-export const clientMessageSchema = z.object({
-  type: z.literal("message"),
-  body: messageBodySchema,
-  nonce: nonceSchema.optional(),
-});
+/**
+ * 送信時の本文スキーマ。添付付き送信では本文が空でも良いため、編集で使う
+ * {@link messageBodySchema}（`min(1)`）とは別に、空を許す（trim・上限のみ）版を使う。
+ * 「本文か添付のどちらかは必須」は {@link clientMessageSchema} 側で担保する。
+ */
+export const sendMessageBodySchema = z
+  .string()
+  .trim()
+  .refine(isWithinMessageLength);
+
+export const clientMessageSchema = z
+  .object({
+    type: z.literal("message"),
+    body: sendMessageBodySchema,
+    /**
+     * 先行アップロード済みの添付 id（最大 {@link MAX_ATTACHMENTS_PER_MESSAGE} 枚）。
+     * サーバは送信者・ルーム・未紐付けを条件に、このメッセージへ紐付ける。
+     */
+    attachmentIds: z
+      .array(z.string().min(1))
+      .max(MAX_ATTACHMENTS_PER_MESSAGE)
+      .optional(),
+    nonce: nonceSchema.optional(),
+  })
+  // 本文が空なら添付が 1 枚以上必要（両方空の送信は弾く）。
+  .refine((m) => m.body.length > 0 || (m.attachmentIds?.length ?? 0) > 0, {
+    message: "本文または添付が必要です",
+  });
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
-/** クライアントが分岐に使う想定のエラーコード。 */
-export const serverErrorCodeSchema = z.enum(["rate_limited"]);
+/**
+ * クライアントが分岐に使う想定のエラーコード。
+ * - `rate_limited`: 送信が早すぎる。
+ * - `empty_message`: 本文が空で、添付も 1 件も紐付かなかった（無効/既送信の添付 id 等）。
+ */
+export const serverErrorCodeSchema = z.enum(["rate_limited", "empty_message"]);
 export type ServerErrorCode = z.infer<typeof serverErrorCodeSchema>;
 
 /** サーバ → クライアント。 */
