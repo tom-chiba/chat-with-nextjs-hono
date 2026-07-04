@@ -16,6 +16,13 @@ export type ChatStatus = "connecting" | "open" | "closed";
  */
 export type PendingStatus = "sending" | "queued" | "failed";
 
+/** 楽観表示中の添付プレビュー。送信中バブルに出す（ローカルの object URL）。 */
+export type PendingAttachment = {
+  /** `URL.createObjectURL` で作ったプレビュー URL。 */
+  previewUrl: string;
+  mimeType: string;
+};
+
 /** 楽観表示中のメッセージ。サーバ採番前なので相関キー `nonce` で同定する。 */
 export type PendingMessage = {
   nonce: string;
@@ -23,6 +30,10 @@ export type PendingMessage = {
   status: PendingStatus;
   /** 表示順用のローカル時刻（ミリ秒エポック）。常に既存メッセージ末尾の後ろへ並べる。 */
   createdAt: number;
+  /** アップロード済み添付の id。再送時にそのまま載せ直す。 */
+  attachmentIds?: string[];
+  /** 送信中バブルに表示する添付プレビュー。 */
+  attachments?: PendingAttachment[];
 };
 
 /** API の URL（http/https）から WebSocket の URL（ws/wss）を組み立てる。 */
@@ -38,9 +49,19 @@ function reconnectDelay(attempts: number): number {
 }
 
 /** メッセージ送信ペイロードを組み立てて送出する（send / retry / flush の単一経路）。 */
-function sendClientMessage(ws: WebSocket, body: string, nonce: string): void {
+function sendClientMessage(
+  ws: WebSocket,
+  body: string,
+  nonce: string,
+  attachmentIds?: string[],
+): void {
   ws.send(
-    JSON.stringify({ type: "message", body, nonce } satisfies ClientMessage),
+    JSON.stringify({
+      type: "message",
+      body,
+      nonce,
+      ...(attachmentIds && attachmentIds.length > 0 ? { attachmentIds } : {}),
+    } satisfies ClientMessage),
   );
 }
 
@@ -134,7 +155,8 @@ export function useRoomChat(roomId: string) {
         // 再送しても重複は生じない（sending は close 時に failed へ倒すので含まれない）。
         const toFlush = pendingRef.current.filter((p) => p.status === "queued");
         if (toFlush.length > 0) {
-          for (const p of toFlush) sendClientMessage(ws, p.body, p.nonce);
+          for (const p of toFlush)
+            sendClientMessage(ws, p.body, p.nonce, p.attachmentIds);
           const flushed = new Set(toFlush.map((p) => p.nonce));
           setPending((prev) =>
             prev.map((p) =>
@@ -238,19 +260,33 @@ export function useRoomChat(roomId: string) {
     };
   }, [roomId]);
 
-  const send = useCallback((body: string) => {
-    const ws = wsRef.current;
-    const isOpen = ws?.readyState === WebSocket.OPEN;
-    // 送信時にエラー表示を消す（新たなレート制限が来たら setErrorMessage で再表示）。
-    setErrorMessage(null);
-    const nonce = crypto.randomUUID();
-    // 楽観表示。OPEN なら即送出して sending、切断中は queued で積み再接続時に flush。
-    setPending((prev) => [
-      ...prev,
-      { nonce, body, status: isOpen ? "sending" : "queued", createdAt: Date.now() },
-    ]);
-    if (isOpen && ws) sendClientMessage(ws, body, nonce);
-  }, []);
+  const send = useCallback(
+    (
+      body: string,
+      opts?: { attachmentIds?: string[]; attachments?: PendingAttachment[] },
+    ) => {
+      const ws = wsRef.current;
+      const isOpen = ws?.readyState === WebSocket.OPEN;
+      const attachmentIds = opts?.attachmentIds;
+      // 送信時にエラー表示を消す（新たなレート制限が来たら setErrorMessage で再表示）。
+      setErrorMessage(null);
+      const nonce = crypto.randomUUID();
+      // 楽観表示。OPEN なら即送出して sending、切断中は queued で積み再接続時に flush。
+      setPending((prev) => [
+        ...prev,
+        {
+          nonce,
+          body,
+          status: isOpen ? "sending" : "queued",
+          createdAt: Date.now(),
+          attachmentIds,
+          attachments: opts?.attachments,
+        },
+      ]);
+      if (isOpen && ws) sendClientMessage(ws, body, nonce, attachmentIds);
+    },
+    [],
+  );
 
   /** 失敗 / 保留中のメッセージを再送する。OPEN なら即送出、切断中は queued に戻す。 */
   const retry = useCallback((nonce: string) => {
@@ -259,7 +295,8 @@ export function useRoomChat(roomId: string) {
     const ws = wsRef.current;
     const isOpen = ws?.readyState === WebSocket.OPEN;
     setErrorMessage(null);
-    if (isOpen && ws) sendClientMessage(ws, target.body, nonce);
+    if (isOpen && ws)
+      sendClientMessage(ws, target.body, nonce, target.attachmentIds);
     setPending((prev) =>
       prev.map((p) =>
         p.nonce === nonce

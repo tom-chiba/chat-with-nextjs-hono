@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
 import { markRoomRead } from "@/lib/rooms";
 import { useMessageActions } from "@/lib/use-message-actions";
 import { useRoomChat } from "@/lib/use-room-chat";
 import { useRoomMembers } from "@/lib/use-room-members";
+import { Composer } from "./composer";
 import { MessageList } from "./message-list";
 import { RoomMembers } from "./room-members";
 
@@ -73,7 +73,6 @@ export function ChatRoom({
     submitDelete,
   } = useMessageActions(roomId);
   const members = useRoomMembers(roomId, currentUserId);
-  const [draft, setDraft] = useState("");
   const [membersOpen, setMembersOpen] = useState(false);
 
   const onReadRef = useRef(onRead);
@@ -129,26 +128,6 @@ export function ChatRoom({
       flushRead();
     };
   }, [flushRead]);
-
-  // 長さ判定はサーバと同じく書記素数で行う（絵文字・結合文字を 1 文字として数える）。
-  const draftTooLong = isMessageTooLong(draft);
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const body = draft.trim();
-    if (body.length === 0 || isMessageTooLong(body)) return;
-    // 切断中でも send はローカルキューに積む（再接続時に flush）。本文は楽観表示の
-    // 保留バブルに残るため、入力欄は即クリアしてよい。
-    send(body);
-    setDraft("");
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Shift+Enter は改行、IME 変換中の Enter は確定なので送信しない。
-    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
-    e.preventDefault();
-    submit(e);
-  };
 
   return (
     <div className="chat">
@@ -269,25 +248,7 @@ export function ChatRoom({
         </div>
       )}
 
-      {draftTooLong && <p className="action-error">{MESSAGE_TOO_LONG_MESSAGE}</p>}
-
-      <form onSubmit={submit} className="composer">
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="メッセージを入力（Shift+Enter で改行）"
-          rows={2}
-        />
-        <button
-          type="submit"
-          className="btn-primary"
-          // 切断中も送信を許可する（ローカルキューに積み、再接続時に flush する）。
-          disabled={draft.trim().length === 0 || draftTooLong}
-        >
-          送信
-        </button>
-      </form>
+      <Composer roomId={roomId} onSend={send} />
 
       {membersOpen && (
         <>

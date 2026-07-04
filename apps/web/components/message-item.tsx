@@ -1,8 +1,10 @@
 "use client";
 
 import type { ChatMessage } from "@repo/shared";
+import { attachmentUrl } from "@/lib/attachments";
 import { formatDay } from "@/lib/datetime";
 import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
+import { AttachmentGrid } from "./attachment-grid";
 import { MessageBody } from "./message-body";
 
 /**
@@ -91,7 +93,17 @@ export function MessageItem({
             {isDeleted ? (
               "（このメッセージは削除されました）"
             ) : (
-              <MessageBody body={message.body} />
+              <>
+                {message.attachments.length > 0 && (
+                  <AttachmentGrid
+                    images={message.attachments.map((a) => {
+                      const url = attachmentUrl(message.roomId, a.id);
+                      return { src: url, href: url };
+                    })}
+                  />
+                )}
+                {message.body.length > 0 && <MessageBody body={message.body} />}
+              </>
             )}
             {message.editedAt !== null && !isDeleted && (
               <span className="msg-edited" title="編集済み">

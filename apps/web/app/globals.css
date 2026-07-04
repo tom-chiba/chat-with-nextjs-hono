@@ -940,6 +940,174 @@ a {
   background: var(--surface-sunken);
 }
 
+/* 添付バー方式コンポーザー全体のラッパ（ドロップ判定・サムネ列を内包する）。 */
+.composer-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+/* 画面外から画像をドラッグ中に入力欄全体へ重ねるドロップターゲット。 */
+.composer-dropzone {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-weak);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-md);
+}
+
+/* 添付サムネイル列（入力欄の上）。横にあふれたらスクロールする。 */
+.composer-thumbs {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.composer-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.composer-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.composer-thumb.is-uploading {
+  opacity: 0.6;
+}
+.composer-thumb.is-error {
+  border-color: var(--danger);
+}
+.composer-thumb-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  line-height: 1;
+  color: #fff;
+  background: var(--ink);
+  border: 2px solid var(--surface);
+  border-radius: var(--radius-pill);
+}
+/* サムネ列末尾の「＋」追加ボタン。 */
+.composer-thumb-add {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  min-height: 0;
+  font-size: var(--text-lg);
+  color: var(--ink-muted);
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+}
+
+/* 添付ボタン（＋）とポップアップメニューの土台。 */
+.composer-attach {
+  position: relative;
+  flex-shrink: 0;
+}
+.composer-menu {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 4;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+.composer-menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+.composer-menu button:hover {
+  background: var(--surface-sunken);
+}
+.composer-menu-note {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+/* メニュー外クリックで閉じるための透明バックドロップ。 */
+.composer-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+/* バブル内の画像グリッド（1〜4 枚）。 */
+.attach-grid {
+  display: grid;
+  gap: 4px;
+  margin-bottom: var(--space-1);
+  max-width: 320px;
+}
+.attach-grid[data-count="1"] {
+  grid-template-columns: 1fr;
+}
+.attach-grid[data-count="2"],
+.attach-grid[data-count="3"],
+.attach-grid[data-count="4"] {
+  grid-template-columns: 1fr 1fr;
+}
+/* 3 枚は上 1 枚を横いっぱいに、残り 2 枚を下段へ。 */
+.attach-grid[data-count="3"] > .attach-cell:first-child {
+  grid-column: 1 / span 2;
+}
+.attach-cell {
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  aspect-ratio: 1 / 1;
+}
+.attach-grid[data-count="1"] .attach-cell {
+  aspect-ratio: 4 / 3;
+}
+.attach-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 /* WS エラー等の警告。 */
 .warn {
   display: flex;
