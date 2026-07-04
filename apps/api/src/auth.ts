@@ -43,6 +43,13 @@ class PasswordResetEmailDeliveryError extends Error {
   }
 }
 
+class ChangeEmailConfirmationEmailDeliveryError extends Error {
+  constructor() {
+    super("Change email confirmation email delivery failed");
+    this.name = "ChangeEmailConfirmationEmailDeliveryError";
+  }
+}
+
 const emailAddressPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 
 function maskEmailAddresses(value: string) {
@@ -176,6 +183,32 @@ export async function sendPasswordResetEmailWithResend({
   });
 }
 
+export async function sendChangeEmailConfirmationWithResend({
+  emailSender,
+  from,
+  to,
+  newEmail,
+  url,
+}: {
+  emailSender: ResendEmailSender;
+  from: string;
+  /** 承認リンクの送信先。なりすまし防止のため現在のメールアドレスに送る。 */
+  to: string;
+  /** 変更先の新しいメールアドレス（本文で本人に明示する）。 */
+  newEmail: string;
+  url: string;
+}) {
+  await sendAuthEmailWithResend({
+    emailSender,
+    from,
+    to,
+    subject: "メールアドレス変更の確認",
+    text: `${newEmail} へのメールアドレス変更を承認するには、以下のリンクを開いてください（リンクは一定時間で失効します）:\n${url}\n\n身に覚えがない場合はこのメールを無視してください。`,
+    logLabel: "Change email confirmation email delivery failed",
+    ErrorCtor: ChangeEmailConfirmationEmailDeliveryError,
+  });
+}
+
 /**
  * パスキー（WebAuthn）の RP ID / origin を FE オリジン（WEB_URL）から導出する。
  *
@@ -230,6 +263,23 @@ export function createAuth(env: AuthEnv) {
         });
       },
     },
+    user: {
+      // メールアドレスの変更。ログイン中ユーザーは検証済み（requireEmailVerification）
+      // のため、sendChangeEmailConfirmation で現アドレスへ承認リンクを送る二段階フロー
+      // になる（承認後、新アドレスへ emailVerification.sendVerificationEmail で検証メール）。
+      changeEmail: {
+        enabled: true,
+        async sendChangeEmailConfirmation({ user, newEmail, url }) {
+          await sendChangeEmailConfirmationWithResend({
+            emailSender: resend.emails,
+            from: env.EMAIL_FROM,
+            to: user.email,
+            newEmail,
+            url,
+          });
+        },
+      },
+    },
     emailVerification: {
       sendOnSignUp: true,
       sendOnSignIn: true,
@@ -255,6 +305,8 @@ export function createAuth(env: AuthEnv) {
         "/sign-up/email": { window: 60, max: 5 },
         "/request-password-reset": { window: 60, max: 5 },
         "/reset-password": { window: 60, max: 5 },
+        // メールアドレス変更：承認リンク送信の濫用（総当たり・スパム）を抑える。
+        "/change-email": { window: 60, max: 5 },
         // パスキー：チャレンジ発行（generate-*-options）と検証（verify-*）の各
         // エンドポイントを総当たり抑制のため絞る。パス名は @better-auth/passkey の
         // 実エンドポイントに一致させる（完全一致でのみマッチするため）。

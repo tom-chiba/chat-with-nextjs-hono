@@ -695,6 +695,11 @@ a {
   font-size: var(--text-xs);
   color: var(--danger);
 }
+.action-notice {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
 
 /* =========================================================================
    認証・フォーム系カード
