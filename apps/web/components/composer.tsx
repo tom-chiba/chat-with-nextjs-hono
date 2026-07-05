@@ -10,6 +10,7 @@ import {
   uploadAttachment,
 } from "@/lib/attachments";
 import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
+import { useCoarsePointer } from "@/lib/use-coarse-pointer";
 import type { PendingAttachment } from "@/lib/use-room-chat";
 
 /** コンポーザー内でアップロード中/済みの添付を追跡するローカル状態。 */
@@ -40,6 +41,7 @@ export function Composer({
   ) => void;
 }) {
   const [draft, setDraft] = useState("");
+  const coarsePointer = useCoarsePointer();
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -159,6 +161,8 @@ export function Composer({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // タッチ端末では Enter は改行のみ（送信はボタンで行う）。
+    if (coarsePointer) return;
     // Shift+Enter は改行、IME 変換中の Enter は確定なので送信しない。
     if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
     e.preventDefault();
@@ -298,7 +302,9 @@ export function Composer({
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          placeholder="メッセージを入力（Shift+Enter で改行）"
+          placeholder={
+            coarsePointer ? "メッセージを入力" : "メッセージを入力（Shift+Enter で改行）"
+          }
           rows={2}
         />
         <button
