@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    "apps/api/worker-configuration.d.ts",
+    "apps/api/migrations/meta/**",
+    ".agents/**",
+    ".claude/skills/**"
+  ]
+}
