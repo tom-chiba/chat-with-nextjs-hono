@@ -1,0 +1,31 @@
+# Git hooks 管理（lefthook）。
+# 目的: Claude を介さない手動コミット/プッシュにも CI と同じ品質基準を早期に効かせる。
+# フックは `pnpm install`（root の prepare スクリプト = `lefthook install`）で自動セットアップされる。
+#
+# 品質基準の一次情報は oxlint / oxfmt の設定と package.json の scripts に集約し、二重管理を避ける。
+# - pre-commit: ステージ済みファイルのみを対象に軽量な整形・lint（自動修正して再ステージ）。
+# - pre-push : リポジトリ全体の重い検査（typecheck / test）。turbo のキャッシュで高速化。
+#
+# 回避手段:
+# - 一時的に全フックを無効化: `LEFTHOOK=0 git commit ...` / `LEFTHOOK=0 git push ...`
+# - Git 標準の回避:           `git commit --no-verify` / `git push --no-verify`
+# node_modules/.bin は git フック実行時の PATH に無いため、ツールは `pnpm exec` 経由で呼ぶ。
+
+pre-commit:
+  commands:
+    # oxlint --fix と oxfmt は同じ staged ファイルを in-place 書き換えするため、
+    # 並列化せず 1 コマンド内で逐次実行する（並列だと lost-update で片方の自動修正が消えうる）。
+    # 順序は lint 自動修正 → 整形。整形を最後に置き lint 修正後のコードを正規化する。
+    # glob は oxfmt/oxlint に無関係なステージ済みファイル（画像等）を渡さないための前段フィルタ。
+    # 対象種別の一次情報はあくまで oxlint / oxfmt の設定側にある。
+    fix:
+      glob: "*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"
+      run: pnpm exec oxlint --fix {staged_files} && pnpm exec oxfmt {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    typecheck:
+      run: pnpm typecheck
+    test:
+      run: pnpm test
