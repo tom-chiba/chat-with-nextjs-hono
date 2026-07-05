@@ -4,19 +4,19 @@ PWA を使った軽量チャットツール。
 
 ## 技術スタック
 
-| レイヤー | 採用技術 |
-| --- | --- |
-| フロントエンド | Next.js / TypeScript / Vercel |
-| バックエンド | Hono / TypeScript / Cloudflare Workers |
-| DB | Cloudflare D1 / Drizzle |
-| API | Hono RPC |
-| 認証 | Better Auth（メール + パスワード） |
-| メール | Resend |
-| 双方向通信 | WebSocket |
-| モノレポ | Turborepo / pnpm workspace |
-| バージョン管理 | git / mise / pnpm |
-| Lint / Format | oxc (Oxlint) |
-| テスト | Vitest / React Testing Library / Playwright |
+| レイヤー       | 採用技術                                    |
+| -------------- | ------------------------------------------- |
+| フロントエンド | Next.js / TypeScript / Vercel               |
+| バックエンド   | Hono / TypeScript / Cloudflare Workers      |
+| DB             | Cloudflare D1 / Drizzle                     |
+| API            | Hono RPC                                    |
+| 認証           | Better Auth（メール + パスワード）          |
+| メール         | Resend                                      |
+| 双方向通信     | WebSocket                                   |
+| モノレポ       | Turborepo / pnpm workspace                  |
+| バージョン管理 | git / mise / pnpm                           |
+| Lint / Format  | oxc (Oxlint)                                |
+| テスト         | Vitest / React Testing Library / Playwright |
 
 ## リポジトリ構成（予定）
 
@@ -52,11 +52,11 @@ pnpm test
 
 ### モノレポ構成
 
-| ワークスペース | 内容 |
-| --- | --- |
-| `apps/web` | Next.js（Vercel） |
-| `apps/api` | Hono（Cloudflare Workers） |
-| `packages/shared` | 共有型・ドメインロジック（Hono RPC 型など） |
+| ワークスペース               | 内容                                            |
+| ---------------------------- | ----------------------------------------------- |
+| `apps/web`                   | Next.js（Vercel）                               |
+| `apps/api`                   | Hono（Cloudflare Workers）                      |
+| `packages/shared`            | 共有型・ドメインロジック（Hono RPC 型など）     |
 | `packages/typescript-config` | 共有 TypeScript 設定（base / nextjs / workers） |
 
 ### ローカル起動
@@ -90,13 +90,13 @@ pnpm --filter @repo/api db:migrate:remote
 
 ローカル開発では `apps/api/.dev.vars`（`.dev.vars.example` をコピー）に以下を設定する。
 
-| 変数 | 用途 |
-| --- | --- |
-| `BETTER_AUTH_SECRET` | セッション署名用シークレット |
-| `BETTER_AUTH_URL` | API のベース URL（dev: `http://localhost:8787`） |
-| `WEB_URL` | フロントの origin（CORS / 信頼オリジン、dev: `http://localhost:3000`） |
-| `RESEND_API_KEY` | Resend API キー（メール実送信時に必要） |
-| `EMAIL_FROM` | 送信元アドレス（Resend で検証済みのもの） |
+| 変数                 | 用途                                                                   |
+| -------------------- | ---------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET` | セッション署名用シークレット                                           |
+| `BETTER_AUTH_URL`    | API のベース URL（dev: `http://localhost:8787`）                       |
+| `WEB_URL`            | フロントの origin（CORS / 信頼オリジン、dev: `http://localhost:3000`） |
+| `RESEND_API_KEY`     | Resend API キー（メール実送信時に必要）                                |
+| `EMAIL_FROM`         | 送信元アドレス（Resend で検証済みのもの）                              |
 
 フロントは `apps/web/lib/auth-client.ts`（`NEXT_PUBLIC_API_URL` で API を指定）から `signIn` / `signUp` / `signOut` / `useSession` を利用する。
 

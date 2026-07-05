@@ -30,10 +30,7 @@ export type PushSendResult =
   | { status: "failed"; statusCode?: number };
 
 export interface PushSender {
-  send(
-    subscription: StoredPushSubscription,
-    payload: string,
-  ): Promise<PushSendResult>;
+  send(subscription: StoredPushSubscription, payload: string): Promise<PushSendResult>;
 }
 
 export type FetchLike = typeof fetch;
@@ -143,10 +140,7 @@ class WebCryptoPushSender implements PushSender {
     },
   ) {}
 
-  async send(
-    subscription: StoredPushSubscription,
-    payload: string,
-  ): Promise<PushSendResult> {
+  async send(subscription: StoredPushSubscription, payload: string): Promise<PushSendResult> {
     if (encoder.encode(payload).length > MAX_WEB_PUSH_PLAINTEXT_BYTES) {
       return { status: "failed" };
     }
@@ -229,10 +223,7 @@ async function importVapidPrivateKey(publicKey: string, privateKey: string) {
   );
 }
 
-async function encryptPayload(
-  subscription: StoredPushSubscription,
-  payload: string,
-) {
+async function encryptPayload(subscription: StoredPushSubscription, payload: string) {
   const receiverPublicKeyBytes = base64UrlToBytes(subscription.p256dh);
   const authSecret = base64UrlToBytes(subscription.auth);
   const receiverPublicKey = await crypto.subtle.importKey(
@@ -242,13 +233,11 @@ async function encryptPayload(
     false,
     [],
   );
-  const senderKeys = await crypto.subtle.generateKey(
-    { name: "ECDH", namedCurve: "P-256" },
-    true,
-    ["deriveBits"],
-  ) as CryptoKeyPair;
+  const senderKeys = (await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, [
+    "deriveBits",
+  ])) as CryptoKeyPair;
   const senderPublicKey = new Uint8Array(
-    await crypto.subtle.exportKey("raw", senderKeys.publicKey) as ArrayBuffer,
+    (await crypto.subtle.exportKey("raw", senderKeys.publicKey)) as ArrayBuffer,
   );
   const sharedSecret = new Uint8Array(
     await crypto.subtle.deriveBits(
@@ -262,24 +251,12 @@ async function encryptPayload(
   const prkKey = await hkdfExtract(authSecret, sharedSecret);
   const ikm = await hkdfExpand(
     prkKey,
-    concatBytes(
-      encoder.encode("WebPush: info\0"),
-      receiverPublicKeyBytes,
-      senderPublicKey,
-    ),
+    concatBytes(encoder.encode("WebPush: info\0"), receiverPublicKeyBytes, senderPublicKey),
     32,
   );
   const prk = await hkdfExtract(salt, ikm);
-  const cek = await hkdfExpand(
-    prk,
-    encoder.encode("Content-Encoding: aes128gcm\0"),
-    16,
-  );
-  const nonce = await hkdfExpand(
-    prk,
-    encoder.encode("Content-Encoding: nonce\0"),
-    12,
-  );
+  const cek = await hkdfExpand(prk, encoder.encode("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await hkdfExpand(prk, encoder.encode("Content-Encoding: nonce\0"), 12);
 
   const contentEncryptionKey = await crypto.subtle.importKey(
     "raw",
@@ -317,11 +294,7 @@ async function hkdfExtract(salt: Uint8Array, ikm: Uint8Array) {
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, toArrayBuffer(ikm)));
 }
 
-async function hkdfExpand(
-  prk: Uint8Array,
-  info: Uint8Array,
-  length: number,
-) {
+async function hkdfExpand(prk: Uint8Array, info: Uint8Array, length: number) {
   const key = await crypto.subtle.importKey(
     "raw",
     toArrayBuffer(prk),
@@ -330,11 +303,7 @@ async function hkdfExpand(
     ["sign"],
   );
   const result = new Uint8Array(
-    await crypto.subtle.sign(
-      "HMAC",
-      key,
-      toArrayBuffer(concatBytes(info, new Uint8Array([0x01]))),
-    ),
+    await crypto.subtle.sign("HMAC", key, toArrayBuffer(concatBytes(info, new Uint8Array([0x01])))),
   );
   return result.slice(0, length);
 }
@@ -400,10 +369,7 @@ function concatBytes(...parts: Uint8Array[]) {
 }
 
 function toArrayBuffer(bytes: Uint8Array) {
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
 function uint32(value: number) {

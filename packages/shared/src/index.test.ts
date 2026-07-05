@@ -6,10 +6,7 @@ test("APP_NAME はアプリ識別子を返す", () => {
 });
 
 test("parseMentionCandidates は本文中の @<name> を順に拾う", () => {
-  expect(parseMentionCandidates("hello @alice and @bob.")).toEqual([
-    "alice",
-    "bob",
-  ]);
+  expect(parseMentionCandidates("hello @alice and @bob.")).toEqual(["alice", "bob"]);
 });
 
 test("parseMentionCandidates は日本語名と全角句点を扱える", () => {
@@ -40,9 +37,7 @@ test("tokenizeMessageBody はリンク末尾の句読点を剥がす", () => {
 });
 
 test("tokenizeMessageBody はメンションとリンクを同時に拾う", () => {
-  expect(
-    tokenizeMessageBody("@alice https://example.com 見て"),
-  ).toEqual([
+  expect(tokenizeMessageBody("@alice https://example.com 見て")).toEqual([
     { type: "mention", value: "@alice" },
     { type: "text", value: " " },
     { type: "link", value: "https://example.com" },

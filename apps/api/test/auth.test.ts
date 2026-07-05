@@ -80,16 +80,13 @@ describe("sendVerificationEmailWithResend", () => {
       }),
     ).resolves.toBeUndefined();
 
-    expect(consoleError).toHaveBeenCalledWith(
-      "Verification email delivery failed",
-      {
-        recipientDomain: "example.net",
-        error: {
-          ...error,
-          message: "Email [email] is suppressed",
-        },
+    expect(consoleError).toHaveBeenCalledWith("Verification email delivery failed", {
+      recipientDomain: "example.net",
+      error: {
+        ...error,
+        message: "Email [email] is suppressed",
       },
-    );
+    });
   });
 
   test("suppression 以外の Resend API エラーは認証フローへ throw する", async () => {
@@ -112,13 +109,10 @@ describe("sendVerificationEmailWithResend", () => {
       }),
     ).rejects.toThrow("Verification email delivery failed");
 
-    expect(consoleError).toHaveBeenCalledWith(
-      "Verification email delivery failed",
-      {
-        recipientDomain: "example.net",
-        error,
-      },
-    );
+    expect(consoleError).toHaveBeenCalledWith("Verification email delivery failed", {
+      recipientDomain: "example.net",
+      error,
+    });
   });
 
   test("Resend クライアントの例外は認証フローへ throw する", async () => {
@@ -132,13 +126,10 @@ describe("sendVerificationEmailWithResend", () => {
       }),
     ).rejects.toThrow("Verification email delivery failed");
 
-    expect(consoleError).toHaveBeenCalledWith(
-      "Verification email delivery failed",
-      {
-        recipientDomain: "example.net",
-        error: { message: "network failed", name: "Error" },
-      },
-    );
+    expect(consoleError).toHaveBeenCalledWith("Verification email delivery failed", {
+      recipientDomain: "example.net",
+      error: { message: "network failed", name: "Error" },
+    });
   });
 });
 

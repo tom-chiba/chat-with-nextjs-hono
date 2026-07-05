@@ -50,12 +50,8 @@ test("ログイン時は設定への導線を表示し、設定系 UI はトッ�
   expect(screen.queryByText("表示名を変更")).not.toBeInTheDocument(); // ProfileForm
   expect(screen.queryByText("メールアドレスを変更")).not.toBeInTheDocument(); // EmailChangeForm
   expect(screen.queryByRole("button", { name: /通知/ })).not.toBeInTheDocument(); // PushNotificationControl
-  expect(
-    screen.queryByRole("heading", { name: "パスキー" }),
-  ).not.toBeInTheDocument(); // PasskeyManager
-  expect(
-    screen.queryByRole("button", { name: "ログアウト" }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "パスキー" })).not.toBeInTheDocument(); // PasskeyManager
+  expect(screen.queryByRole("button", { name: "ログアウト" })).not.toBeInTheDocument();
 });
 
 test("未ログイン時は AuthForm を表示し、設定導線は出さない", () => {

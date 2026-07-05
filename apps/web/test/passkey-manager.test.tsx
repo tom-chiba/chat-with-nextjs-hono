@@ -1,12 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PasskeyManager } from "@/components/passkey-manager";
-import {
-  type Passkey,
-  addPasskey,
-  deletePasskey,
-  listPasskeys,
-} from "@/lib/passkeys";
+import { type Passkey, addPasskey, deletePasskey, listPasskeys } from "@/lib/passkeys";
 
 vi.mock("@/lib/passkeys", () => ({
   listPasskeys: vi.fn(),
@@ -34,9 +29,7 @@ afterEach(() => {
 });
 
 test("登録済みパスキーの一覧を表示する", async () => {
-  mockedListPasskeys.mockResolvedValue([
-    passkey({ id: "pk-1", name: "My Passkey" }),
-  ]);
+  mockedListPasskeys.mockResolvedValue([passkey({ id: "pk-1", name: "My Passkey" })]);
 
   render(<PasskeyManager />);
 
@@ -48,9 +41,7 @@ test("パスキーが無いときは空表示にする", async () => {
 
   render(<PasskeyManager />);
 
-  expect(
-    await screen.findByText("登録済みのパスキーはありません。"),
-  ).toBeInTheDocument();
+  expect(await screen.findByText("登録済みのパスキーはありません。")).toBeInTheDocument();
 });
 
 test("パスキーを追加して一覧を再取得する", async () => {
@@ -83,9 +74,7 @@ test("追加に失敗するとエラー文言を表示し再取得しない", as
   await screen.findByText("登録済みのパスキーはありません。");
   fireEvent.click(screen.getByRole("button", { name: "パスキーを追加" }));
 
-  expect(
-    await screen.findByText("パスキーの登録に失敗しました"),
-  ).toBeInTheDocument();
+  expect(await screen.findByText("パスキーの登録に失敗しました")).toBeInTheDocument();
   // 一覧の再取得は初回のみ（追加失敗時はリロードしない）。
   expect(mockedListPasskeys).toHaveBeenCalledTimes(1);
 });
@@ -111,9 +100,7 @@ test("取得に失敗するとエラー文言を表示する", async () => {
 
   render(<PasskeyManager />);
 
-  expect(
-    await screen.findByText("パスキーの取得に失敗しました"),
-  ).toBeInTheDocument();
+  expect(await screen.findByText("パスキーの取得に失敗しました")).toBeInTheDocument();
 });
 
 test("非対応ブラウザではフォールバックを表示する", () => {
@@ -121,8 +108,6 @@ test("非対応ブラウザではフォールバックを表示する", () => {
 
   render(<PasskeyManager />);
 
-  expect(
-    screen.getByText("このブラウザはパスキーに対応していません。"),
-  ).toBeInTheDocument();
+  expect(screen.getByText("このブラウザはパスキーに対応していません。")).toBeInTheDocument();
   expect(mockedListPasskeys).not.toHaveBeenCalled();
 });

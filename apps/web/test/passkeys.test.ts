@@ -70,9 +70,7 @@ describe("addPasskey", () => {
     await expect(addPasskeyWrapper("x")).rejects.toThrow("cancelled");
 
     addPasskey.mockResolvedValue({ data: null, error: {} });
-    await expect(addPasskeyWrapper("x")).rejects.toThrow(
-      "パスキーの登録に失敗しました",
-    );
+    await expect(addPasskeyWrapper("x")).rejects.toThrow("パスキーの登録に失敗しました");
   });
 });
 
@@ -91,8 +89,6 @@ describe("deletePasskey", () => {
     await expect(deletePasskeyWrapper("pk-1")).rejects.toThrow("not found");
 
     deletePasskey.mockResolvedValue({ data: null, error: {} });
-    await expect(deletePasskeyWrapper("pk-1")).rejects.toThrow(
-      "パスキーの削除に失敗しました",
-    );
+    await expect(deletePasskeyWrapper("pk-1")).rejects.toThrow("パスキーの削除に失敗しました");
   });
 });

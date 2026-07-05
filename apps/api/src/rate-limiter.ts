@@ -23,9 +23,7 @@ export class RateLimiter {
    */
   allow(userId: string, now: number): boolean {
     const cutoff = now - this.windowMs;
-    const recent = (this.recentByUser.get(userId) ?? []).filter(
-      (t) => t > cutoff,
-    );
+    const recent = (this.recentByUser.get(userId) ?? []).filter((t) => t > cutoff);
 
     if (recent.length >= this.max) {
       this.recentByUser.set(userId, recent);

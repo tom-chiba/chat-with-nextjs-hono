@@ -115,10 +115,7 @@ describe("RoomDO", () => {
     }
 
     const db = createDb(env.DB);
-    const rows = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.roomId, "room-broadcast"));
+    const rows = await db.select().from(messages).where(eq(messages.roomId, "room-broadcast"));
     expect(rows).toHaveLength(1);
     expect(rows[0]?.body).toBe("こんにちは");
     expect(rows[0]?.userId).toBe("alice");
@@ -131,9 +128,7 @@ describe("RoomDO", () => {
     const a = await connect("room-nonce", "alice");
     expect((await a.next()).type).toBe("history");
 
-    a.ws.send(
-      JSON.stringify({ type: "message", body: "やあ", nonce: "nonce-xyz" }),
-    );
+    a.ws.send(JSON.stringify({ type: "message", body: "やあ", nonce: "nonce-xyz" }));
 
     const received = await a.next();
     expect(received.type).toBe("message");
@@ -152,9 +147,7 @@ describe("RoomDO", () => {
       expect((await a.next()).type).toBe("message");
     }
 
-    a.ws.send(
-      JSON.stringify({ type: "message", body: "overflow", nonce: "n-of" }),
-    );
+    a.ws.send(JSON.stringify({ type: "message", body: "overflow", nonce: "n-of" }));
     const rejected = await a.next();
     expect(rejected.type).toBe("error");
     if (rejected.type === "error") {
@@ -170,9 +163,7 @@ describe("RoomDO", () => {
 
     a.ws.send(JSON.stringify({ type: "message", body: "   " }));
     a.ws.send(JSON.stringify({ type: "ping" }));
-    a.ws.send(
-      JSON.stringify({ type: "message", body: "a".repeat(MAX_MESSAGE_LENGTH + 1) }),
-    );
+    a.ws.send(JSON.stringify({ type: "message", body: "a".repeat(MAX_MESSAGE_LENGTH + 1) }));
     a.ws.send(JSON.stringify({ type: "message", body: "有効" }));
 
     // 無視された 3 件は配信されず、有効な 1 件だけが届く。
@@ -183,10 +174,7 @@ describe("RoomDO", () => {
     }
 
     const db = createDb(env.DB);
-    const rows = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.roomId, "room-ignore"));
+    const rows = await db.select().from(messages).where(eq(messages.roomId, "room-ignore"));
     expect(rows).toHaveLength(1);
   });
 
@@ -197,12 +185,8 @@ describe("RoomDO", () => {
 
     // 絵文字は String.length では上限の 2 倍だが、書記素数では 1 文字あたり 1。
     // 超過（MAX+1）は無視され、境界ちょうど（MAX）は配信・保存される。
-    a.ws.send(
-      JSON.stringify({ type: "message", body: "😀".repeat(MAX_MESSAGE_LENGTH + 1) }),
-    );
-    a.ws.send(
-      JSON.stringify({ type: "message", body: "😀".repeat(MAX_MESSAGE_LENGTH) }),
-    );
+    a.ws.send(JSON.stringify({ type: "message", body: "😀".repeat(MAX_MESSAGE_LENGTH + 1) }));
+    a.ws.send(JSON.stringify({ type: "message", body: "😀".repeat(MAX_MESSAGE_LENGTH) }));
 
     const received = await a.next();
     expect(received.type).toBe("message");
@@ -211,10 +195,7 @@ describe("RoomDO", () => {
     }
 
     const db = createDb(env.DB);
-    const rows = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.roomId, "room-emoji-len"));
+    const rows = await db.select().from(messages).where(eq(messages.roomId, "room-emoji-len"));
     expect(rows).toHaveLength(1);
   });
 
@@ -226,20 +207,12 @@ describe("RoomDO", () => {
     const db = createDb(env.DB);
     await db
       .delete(roomMembers)
-      .where(
-        and(
-          eq(roomMembers.roomId, "room-removed-member"),
-          eq(roomMembers.userId, "bob"),
-        ),
-      );
+      .where(and(eq(roomMembers.roomId, "room-removed-member"), eq(roomMembers.userId, "bob")));
 
     b.ws.send(JSON.stringify({ type: "message", body: "削除後の発言" }));
     await scheduler.wait(10);
 
-    const rows = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.roomId, "room-removed-member"));
+    const rows = await db.select().from(messages).where(eq(messages.roomId, "room-removed-member"));
     expect(rows).toHaveLength(0);
   });
 
@@ -264,10 +237,7 @@ describe("RoomDO", () => {
     }
 
     const db = createDb(env.DB);
-    const rows = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.roomId, "room-rate-limit"));
+    const rows = await db.select().from(messages).where(eq(messages.roomId, "room-rate-limit"));
     expect(rows).toHaveLength(WS_RATE_LIMIT_MAX);
     expect(rows.find((r) => r.body === "overflow")).toBeUndefined();
   });
@@ -304,10 +274,7 @@ describe("RoomDO", () => {
     }
 
     // 添付行がこのメッセージに紐付いていること。
-    const linked = await db
-      .select()
-      .from(attachments)
-      .where(eq(attachments.id, "ws-att-1"));
+    const linked = await db.select().from(attachments).where(eq(attachments.id, "ws-att-1"));
     expect(linked[0]?.messageId).not.toBeNull();
   });
 
@@ -335,10 +302,7 @@ describe("RoomDO", () => {
 
     // 空メッセージ行は残らない。
     const db = createDb(env.DB);
-    const rows = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.roomId, "room-empty-att"));
+    const rows = await db.select().from(messages).where(eq(messages.roomId, "room-empty-att"));
     expect(rows).toHaveLength(0);
   });
 });

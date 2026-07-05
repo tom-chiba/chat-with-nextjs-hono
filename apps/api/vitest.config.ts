@@ -1,16 +1,11 @@
 import path from "node:path";
-import {
-  cloudflareTest,
-  readD1Migrations,
-} from "@cloudflare/vitest-pool-workers";
+import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
 // workerd 内でテストを実行する。wrangler.jsonc の DB バインディングを miniflare が提供するため、
 // 本番 database_id は不要。マイグレーションはセットアップファイルでテスト用 D1 に適用する。
 export default defineConfig(async () => {
-  const migrations = await readD1Migrations(
-    path.join(import.meta.dirname, "migrations"),
-  );
+  const migrations = await readD1Migrations(path.join(import.meta.dirname, "migrations"));
 
   return {
     plugins: [

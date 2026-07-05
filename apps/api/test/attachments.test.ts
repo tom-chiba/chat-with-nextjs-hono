@@ -1,10 +1,7 @@
 import { env } from "cloudflare:test";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
-import {
-  cleanupOrphanAttachments,
-  deleteRoomAttachmentObjects,
-} from "../src/attachments-storage";
+import { cleanupOrphanAttachments, deleteRoomAttachmentObjects } from "../src/attachments-storage";
 import { createDb } from "../src/db";
 import {
   attachToMessage,
@@ -50,10 +47,7 @@ async function seed() {
 }
 
 /** 未紐付けの添付を 1 件作る（アップロード直後の状態）。 */
-async function makeUpload(
-  id: string,
-  opts?: { roomId?: string; userId?: string },
-) {
+async function makeUpload(id: string, opts?: { roomId?: string; userId?: string }) {
   const db = createDb(env.DB);
   await createAttachment(db, {
     id,
@@ -212,27 +206,17 @@ describe("孤児添付の回収", () => {
 
     // cutoff を未来にして、未紐付けはすべて期限切れ扱いにする。
     // 他テストの未紐付け添付も対象になり得るため、件数は「2 件以上」で確認する。
-    const removed = await cleanupOrphanAttachments(
-      db,
-      env.ATTACHMENTS,
-      Date.now() + 60_000,
-    );
+    const removed = await cleanupOrphanAttachments(db, env.ATTACHMENTS, Date.now() + 60_000);
     expect(removed).toBeGreaterThanOrEqual(2);
 
     // 未紐付けは行も R2 実体も消える。
     for (const id of ["orphan1", "orphan2"]) {
-      const rows = await db
-        .select()
-        .from(attachments)
-        .where(eq(attachments.id, id));
+      const rows = await db.select().from(attachments).where(eq(attachments.id, id));
       expect(rows).toHaveLength(0);
       expect(await env.ATTACHMENTS.get(`rooms/${ROOM}/${id}`)).toBeNull();
     }
     // 紐付け済みは残る。
-    const linked = await db
-      .select()
-      .from(attachments)
-      .where(eq(attachments.id, "linked1"));
+    const linked = await db.select().from(attachments).where(eq(attachments.id, "linked1"));
     expect(linked).toHaveLength(1);
   });
 
@@ -242,10 +226,7 @@ describe("孤児添付の回収", () => {
     // cutoff をエポックにすると、いま作った添付は対象外。
     const removed = await cleanupOrphanAttachments(db, env.ATTACHMENTS, 0);
     expect(removed).toBe(0);
-    const rows = await db
-      .select()
-      .from(attachments)
-      .where(eq(attachments.id, "fresh-orphan"));
+    const rows = await db.select().from(attachments).where(eq(attachments.id, "fresh-orphan"));
     expect(rows).toHaveLength(1);
   });
 

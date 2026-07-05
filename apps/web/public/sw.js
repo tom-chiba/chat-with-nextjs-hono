@@ -35,9 +35,7 @@ self.addEventListener("activate", (event) => {
     (async () => {
       // 旧バージョンのキャッシュを破棄する。
       const keys = await caches.keys();
-      await Promise.all(
-        keys.filter((k) => k !== STATIC_CACHE).map((k) => caches.delete(k)),
-      );
+      await Promise.all(keys.filter((k) => k !== STATIC_CACHE).map((k) => caches.delete(k)));
       await self.clients.claim();
     })(),
   );
@@ -64,9 +62,7 @@ async function putWithLimit(cache, request, response) {
   await cache.put(request, response);
   const keys = await cache.keys();
   if (keys.length > MAX_STATIC_ENTRIES) {
-    await Promise.all(
-      keys.slice(0, keys.length - MAX_STATIC_ENTRIES).map((k) => cache.delete(k)),
-    );
+    await Promise.all(keys.slice(0, keys.length - MAX_STATIC_ENTRIES).map((k) => cache.delete(k)));
   }
 }
 
@@ -131,8 +127,7 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     (async () => {
       const data = event.data?.json() ?? {};
-      const title =
-        typeof data.title === "string" ? data.title : "新着メッセージ";
+      const title = typeof data.title === "string" ? data.title : "新着メッセージ";
       const body = typeof data.body === "string" ? data.body : "";
       const url = typeof data.url === "string" ? data.url : "/";
 
@@ -140,10 +135,7 @@ self.addEventListener("push", (event) => {
         body,
         icon: "/icons/icon-192.png",
         badge: "/icons/icon-192.png",
-        tag:
-          typeof data.roomId === "string"
-            ? `room-${data.roomId}`
-            : "chat-message",
+        tag: typeof data.roomId === "string" ? `room-${data.roomId}` : "chat-message",
         data: { url },
       });
     })(),

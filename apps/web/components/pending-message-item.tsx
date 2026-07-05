@@ -28,13 +28,9 @@ export function PendingMessageItem({
   const isFailed = pending.status === "failed";
   return (
     <div className="msg is-mine">
-      <div
-        className={`bubble is-mine is-pending${isFailed ? " is-failed" : ""}`}
-      >
+      <div className={`bubble is-mine is-pending${isFailed ? " is-failed" : ""}`}>
         {pending.attachments && pending.attachments.length > 0 && (
-          <AttachmentGrid
-            images={pending.attachments.map((a) => ({ src: a.previewUrl }))}
-          />
+          <AttachmentGrid images={pending.attachments.map((a) => ({ src: a.previewUrl }))} />
         )}
         {pending.body.length > 0 && <MessageBody body={pending.body} />}
       </div>

@@ -230,11 +230,7 @@ export default function DemoPage() {
           <h1 className="wordmark">{APP_NAME}</h1>
           <span className="demo-badge">デモモード</span>
         </div>
-        <button
-          type="button"
-          className="btn-quiet"
-          onClick={() => router.push("/")}
-        >
+        <button type="button" className="btn-quiet" onClick={() => router.push("/")}>
           デモを終了
         </button>
       </header>
@@ -274,9 +270,7 @@ export default function DemoPage() {
                       aria-current={active ? "true" : undefined}
                     >
                       <span className="room-name">{room.name}</span>
-                      {room.unread > 0 && (
-                        <span className="unread-badge">{room.unread}</span>
-                      )}
+                      {room.unread > 0 && <span className="unread-badge">{room.unread}</span>}
                     </button>
                   </li>
                 );
@@ -341,9 +335,7 @@ export default function DemoPage() {
             </div>
 
             <div className="msg-scroll">
-              {messages.length === 0 && (
-                <p className="empty-note">まだメッセージはありません。</p>
-              )}
+              {messages.length === 0 && <p className="empty-note">まだメッセージはありません。</p>}
               {messages.map((m, idx) => {
                 const prev = messages[idx - 1];
                 const mine = m.userId === GUEST_ID;
@@ -354,17 +346,10 @@ export default function DemoPage() {
                   // 直接の子にする（.is-grouped の負マージンで連続発言を詰める前提）。
                   <Fragment key={m.id}>
                     {idx === 0 && <div className="date-divider">今日</div>}
-                    <div
-                      className={`msg${mine ? " is-mine" : ""}${grouped ? " is-grouped" : ""}`}
-                    >
-                      {!grouped && (
-                        <span className="msg-author">{m.userName}</span>
-                      )}
+                    <div className={`msg${mine ? " is-mine" : ""}${grouped ? " is-grouped" : ""}`}>
+                      {!grouped && <span className="msg-author">{m.userName}</span>}
                       {isEditing ? (
-                        <form
-                          className="edit-form"
-                          onSubmit={(e) => submitEdit(m, e)}
-                        >
+                        <form className="edit-form" onSubmit={(e) => submitEdit(m, e)}>
                           <textarea
                             autoFocus
                             value={editDraft}
@@ -387,10 +372,7 @@ export default function DemoPage() {
                           ) : (
                             <>
                               {m.attachments.length > 0 && (
-                                <div
-                                  className="attach-grid"
-                                  data-count={m.attachments.length}
-                                >
+                                <div className="attach-grid" data-count={m.attachments.length}>
                                   {m.attachments.map((a) => (
                                     <span key={a.id} className="attach-cell">
                                       <span className="demo-image">image</span>
@@ -499,9 +481,7 @@ export default function DemoPage() {
                           type="button"
                           role="menuitem"
                           onClick={addFakeThumb}
-                          disabled={
-                            thumbs.length >= MAX_ATTACHMENTS_PER_MESSAGE
-                          }
+                          disabled={thumbs.length >= MAX_ATTACHMENTS_PER_MESSAGE}
                         >
                           画像を追加（デモ用ダミー）
                         </button>
@@ -517,11 +497,7 @@ export default function DemoPage() {
                   placeholder="メッセージを入力（Shift+Enter で改行）"
                   rows={2}
                 />
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={sendDisabled}
-                >
+                <button type="submit" className="btn-primary" disabled={sendDisabled}>
                   送信
                 </button>
               </form>
@@ -543,9 +519,7 @@ export default function DemoPage() {
                 aria-label="メンバー一覧"
               >
                 <div className="member-sheet-head">
-                  <strong className="eyebrow">
-                    メンバー ({MEMBERS.length})
-                  </strong>
+                  <strong className="eyebrow">メンバー ({MEMBERS.length})</strong>
                   <button
                     type="button"
                     className="warn-close"

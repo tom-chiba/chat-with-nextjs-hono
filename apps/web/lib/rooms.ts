@@ -19,10 +19,7 @@ export async function createRoom(name: string): Promise<Room> {
 }
 
 /** ルーム名を変更する（オーナー専用）。 */
-export async function updateRoomName(
-  roomId: string,
-  name: string,
-): Promise<void> {
+export async function updateRoomName(roomId: string, name: string): Promise<void> {
   const res = await client.rooms[":roomId"].$patch({
     param: { roomId },
     json: { name },
@@ -71,18 +68,14 @@ export async function listRoomMembers(roomId: string): Promise<RoomMember[]> {
 }
 
 /** ルームへ登録済みユーザーをメールアドレスで追加する（オーナー専用）。 */
-export async function addRoomMember(
-  roomId: string,
-  email: string,
-): Promise<void> {
+export async function addRoomMember(roomId: string, email: string): Promise<void> {
   const res = await client.rooms[":roomId"].members.$post({
     param: { roomId },
     json: { email },
   });
   if (!res.ok) {
     if (res.status === 403) throw new Error("オーナーのみ追加できます");
-    if (res.status === 404)
-      throw new Error("そのメールアドレスのユーザーが見つかりません");
+    if (res.status === 404) throw new Error("そのメールアドレスのユーザーが見つかりません");
     if (res.status === 409) throw new Error("このユーザーは既にメンバーです");
     if (res.status === 400) throw new Error("メールアドレスの形式が正しくありません");
     throw new Error("メンバーの追加に失敗しました");
@@ -90,10 +83,7 @@ export async function addRoomMember(
 }
 
 /** ルームからメンバーを外す（オーナー専用）。 */
-export async function removeRoomMember(
-  roomId: string,
-  userId: string,
-): Promise<void> {
+export async function removeRoomMember(roomId: string, userId: string): Promise<void> {
   const res = await client.rooms[":roomId"].members[":userId"].$delete({
     param: { roomId, userId },
   });
@@ -106,11 +96,7 @@ export async function removeRoomMember(
 }
 
 /** メッセージ本文を編集する（本人のみ）。 */
-export async function editMessage(
-  roomId: string,
-  messageId: string,
-  body: string,
-): Promise<void> {
+export async function editMessage(roomId: string, messageId: string, body: string): Promise<void> {
   const res = await client.rooms[":roomId"].messages[":messageId"].$patch({
     param: { roomId, messageId },
     json: { body },
@@ -124,10 +110,7 @@ export async function editMessage(
 }
 
 /** メッセージを削除する（本人のみ・論理削除）。 */
-export async function deleteMessage(
-  roomId: string,
-  messageId: string,
-): Promise<void> {
+export async function deleteMessage(roomId: string, messageId: string): Promise<void> {
   const res = await client.rooms[":roomId"].messages[":messageId"].$delete({
     param: { roomId, messageId },
   });

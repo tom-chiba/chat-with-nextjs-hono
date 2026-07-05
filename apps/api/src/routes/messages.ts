@@ -5,10 +5,7 @@ import {
   MESSAGE_PAGE_SIZE_MAX,
 } from "@repo/shared";
 import { Hono } from "hono";
-import {
-  deleteAttachmentsForMessage,
-  listAttachmentsForMessages,
-} from "../db/attachments";
+import { deleteAttachmentsForMessage, listAttachmentsForMessages } from "../db/attachments";
 import {
   getMessageById,
   listMessages,
@@ -81,8 +78,7 @@ export const messagesApp = new Hono<{ Bindings: Bindings }>()
       // 編集は本文のみ変更する。添付は変わらないので、配信 update に元の添付を含める
       // （渡さないと `toChatMessage` の既定 [] になり、編集直後に画像が消えてしまう）。
       const attachments =
-        (await listAttachmentsForMessages(s.db, [messageId])).get(messageId) ??
-        [];
+        (await listAttachmentsForMessages(s.db, [messageId])).get(messageId) ?? [];
       const updated = toChatMessage(
         {
           ...existing,

@@ -1,11 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { RoomMembers } from "@/components/room-members";
-import {
-  addRoomMember,
-  listRoomMembers,
-  removeRoomMember,
-} from "@/lib/rooms";
+import { addRoomMember, listRoomMembers, removeRoomMember } from "@/lib/rooms";
 import { useRoomMembers } from "@/lib/use-room-members";
 
 vi.mock("@/lib/rooms", () => ({
@@ -23,13 +19,7 @@ const mockedRemoveRoomMember = vi.mocked(removeRoomMember);
  * フェッチ・追加・削除は `useRoomMembers` に移り、RoomMembers は表示専用のため
  * 実利用と同じ結線でテストする。
  */
-function RoomMembersHarness({
-  roomId,
-  currentUserId,
-}: {
-  roomId: string;
-  currentUserId: string;
-}) {
+function RoomMembersHarness({ roomId, currentUserId }: { roomId: string; currentUserId: string }) {
   const state = useRoomMembers(roomId, currentUserId);
   return <RoomMembers {...state} onClose={() => {}} />;
 }
@@ -72,19 +62,13 @@ test("オーナーはメンバーを追加して一覧を再取得できる", as
   render(<RoomMembersHarness roomId="room-1" currentUserId="owner-1" />);
 
   await screen.findByText("メンバー (1)");
-  fireEvent.change(
-    screen.getByPlaceholderText("追加するメンバーのメールアドレス"),
-    {
-      target: { value: "member@example.com" },
-    },
-  );
+  fireEvent.change(screen.getByPlaceholderText("追加するメンバーのメールアドレス"), {
+    target: { value: "member@example.com" },
+  });
   fireEvent.click(screen.getByRole("button", { name: "追加" }));
 
   await waitFor(() => {
-    expect(mockedAddRoomMember).toHaveBeenCalledWith(
-      "room-1",
-      "member@example.com",
-    );
+    expect(mockedAddRoomMember).toHaveBeenCalledWith("room-1", "member@example.com");
   });
   expect(await screen.findByText("Member")).toBeInTheDocument();
   expect(mockedListRoomMembers).toHaveBeenCalledTimes(2);
@@ -99,19 +83,14 @@ test("追加に失敗するとエラー文言を表示する", async () => {
       joinedAt: 1,
     },
   ]);
-  mockedAddRoomMember.mockRejectedValue(
-    new Error("そのメールアドレスのユーザーが見つかりません"),
-  );
+  mockedAddRoomMember.mockRejectedValue(new Error("そのメールアドレスのユーザーが見つかりません"));
 
   render(<RoomMembersHarness roomId="room-1" currentUserId="owner-1" />);
 
   await screen.findByText("メンバー (1)");
-  fireEvent.change(
-    screen.getByPlaceholderText("追加するメンバーのメールアドレス"),
-    {
-      target: { value: "ghost@example.com" },
-    },
-  );
+  fireEvent.change(screen.getByPlaceholderText("追加するメンバーのメールアドレス"), {
+    target: { value: "ghost@example.com" },
+  });
   fireEvent.click(screen.getByRole("button", { name: "追加" }));
 
   expect(
@@ -169,8 +148,6 @@ test("一般メンバーには追加フォームと削除ボタンを表示し�
 
   await screen.findByText("メンバー (2)");
 
-  expect(
-    screen.queryByPlaceholderText("追加するメンバーのメールアドレス"),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByPlaceholderText("追加するメンバーのメールアドレス")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "削除" })).not.toBeInTheDocument();
 });

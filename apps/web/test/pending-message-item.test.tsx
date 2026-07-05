@@ -16,9 +16,7 @@ function pending(overrides: Partial<PendingMessage> = {}): PendingMessage {
 function renderItem(p: PendingMessage) {
   const onRetry = vi.fn();
   const onDiscard = vi.fn();
-  render(
-    <PendingMessageItem pending={p} onRetry={onRetry} onDiscard={onDiscard} />,
-  );
+  render(<PendingMessageItem pending={p} onRetry={onRetry} onDiscard={onDiscard} />);
   return { onRetry, onDiscard };
 }
 
@@ -30,9 +28,7 @@ test("送信中は注記を出し再送 / 破棄ボタンを出さない", () =>
 
 test("送信待ち（切断中）は再接続後に送る旨を注記する", () => {
   renderItem(pending({ status: "queued" }));
-  expect(
-    screen.getByText("送信待ち（再接続後に送信します）"),
-  ).toBeInTheDocument();
+  expect(screen.getByText("送信待ち（再接続後に送信します）")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "再送" })).not.toBeInTheDocument();
 });
 

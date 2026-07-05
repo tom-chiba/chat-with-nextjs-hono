@@ -16,24 +16,19 @@ export function attachmentUrl(roomId: string, attachmentId: string): string {
  * 送信（WebSocket）に先行して呼び、得た id をメッセージの `attachmentIds` に載せる。
  * multipart のため RPC クライアントではなく fetch で直接送る（Cookie は include）。
  */
-export async function uploadAttachment(
-  roomId: string,
-  file: File,
-): Promise<MessageAttachment> {
+export async function uploadAttachment(roomId: string, file: File): Promise<MessageAttachment> {
   const form = new FormData();
   form.set("file", file);
-  const res = await fetch(
-    `${API_BASE}/rooms/${encodeURIComponent(roomId)}/attachments`,
-    { method: "POST", body: form, credentials: "include" },
-  );
+  const res = await fetch(`${API_BASE}/rooms/${encodeURIComponent(roomId)}/attachments`, {
+    method: "POST",
+    body: form,
+    credentials: "include",
+  });
   if (!res.ok) {
     if (res.status === 429)
-      throw new Error(
-        "アップロードが多すぎます。少し待ってから再度お試しください",
-      );
+      throw new Error("アップロードが多すぎます。少し待ってから再度お試しください");
     // 413 は 1 ファイルのサイズ超過と累積ストレージ上限の両方で返る。
-    if (res.status === 413)
-      throw new Error("画像サイズまたは保存容量の上限に達しました");
+    if (res.status === 413) throw new Error("画像サイズまたは保存容量の上限に達しました");
     if (res.status === 415) throw new Error("対応していない画像形式です");
     throw new Error("画像のアップロードに失敗しました");
   }
@@ -46,10 +41,7 @@ export async function uploadAttachment(
  * 送信前の取り消しで R2 実体・DB 行を残さないために呼ぶ。失敗は握りつぶす
  * （最終的にサーバ側の孤児 TTL クリーンアップで回収されるため、UI を止めない）。
  */
-export async function deleteAttachment(
-  roomId: string,
-  attachmentId: string,
-): Promise<void> {
+export async function deleteAttachment(roomId: string, attachmentId: string): Promise<void> {
   try {
     await fetch(
       `${API_BASE}/rooms/${encodeURIComponent(roomId)}/attachments/${encodeURIComponent(attachmentId)}`,

@@ -3,13 +3,8 @@ import { formatDay } from "@/lib/datetime";
 
 // formatDay はローカルタイムゾーン依存のため、ローカル日時から生成した
 // エポックで検証し、実行環境の TZ に依らず安定するようにする。
-const localEpoch = (
-  y: number,
-  m: number,
-  d: number,
-  hh = 0,
-  mm = 0,
-): number => new Date(y, m - 1, d, hh, mm).getTime();
+const localEpoch = (y: number, m: number, d: number, hh = 0, mm = 0): number =>
+  new Date(y, m - 1, d, hh, mm).getTime();
 
 describe("formatDay", () => {
   test("YYYY/MM/DD でゼロ埋めして返す", () => {

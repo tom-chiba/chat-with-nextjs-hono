@@ -41,22 +41,15 @@ export function MessageItem({
   const editTooLong = isMessageTooLong(editDraft);
   // 日付が変わる境目に区切りを挿入する（実在する時系列構造のみ）。
   const showDivider =
-    !prevMessage ||
-    formatDay(prevMessage.createdAt) !== formatDay(message.createdAt);
+    !prevMessage || formatDay(prevMessage.createdAt) !== formatDay(message.createdAt);
   // 同一送信者の連続メッセージは名前を先頭のみに集約する。
   const grouped =
-    !showDivider &&
-    prevMessage !== undefined &&
-    prevMessage.userId === message.userId;
+    !showDivider && prevMessage !== undefined && prevMessage.userId === message.userId;
 
   return (
     <>
-      {showDivider && (
-        <div className="date-divider">{formatDay(message.createdAt)}</div>
-      )}
-      <div
-        className={`msg${mine ? " is-mine" : ""}${grouped ? " is-grouped" : ""}`}
-      >
+      {showDivider && <div className="date-divider">{formatDay(message.createdAt)}</div>}
+      <div className={`msg${mine ? " is-mine" : ""}${grouped ? " is-grouped" : ""}`}>
         {!grouped && <span className="msg-author">{message.userName}</span>}
         {isEditing ? (
           <form
@@ -72,9 +65,7 @@ export function MessageItem({
               onChange={(e) => onEditDraftChange(e.target.value)}
               rows={2}
             />
-            {editTooLong && (
-              <p className="action-error">{MESSAGE_TOO_LONG_MESSAGE}</p>
-            )}
+            {editTooLong && <p className="action-error">{MESSAGE_TOO_LONG_MESSAGE}</p>}
             <div className="edit-actions">
               <button type="submit" disabled={editTooLong}>
                 保存
@@ -85,11 +76,7 @@ export function MessageItem({
             </div>
           </form>
         ) : (
-          <div
-            className={`bubble${mine ? " is-mine" : ""}${
-              isDeleted ? " is-deleted" : ""
-            }`}
-          >
+          <div className={`bubble${mine ? " is-mine" : ""}${isDeleted ? " is-deleted" : ""}`}>
             {isDeleted ? (
               "（このメッセージは削除されました）"
             ) : (

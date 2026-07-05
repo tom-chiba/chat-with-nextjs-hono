@@ -90,10 +90,7 @@ export const attachmentsApp = new Hono<{ Bindings: Bindings }>()
       throw e;
     }
 
-    return c.json(
-      { attachment: { id, mimeType: file.type, size: file.size } } as const,
-      201,
-    );
+    return c.json({ attachment: { id, mimeType: file.type, size: file.size } } as const, 201);
   })
   // 未送信の添付を取り消す（サムネイルの × 削除）。要メンバー。自分の未紐付けのみ削除可。
   .delete("/:roomId/attachments/:attachmentId", async (c) => {

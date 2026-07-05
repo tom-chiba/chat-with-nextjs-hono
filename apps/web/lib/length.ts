@@ -24,7 +24,5 @@ export const ROOM_NAME_TOO_LONG_MESSAGE = `ルーム名は ${MAX_ROOM_NAME_LENGT
  * trim（送信時に前後空白を除いた本文で判定）と否定だけをここで担う。これにより
  * ボタン活性・送信ガード・注記表示が、サーバの zod スキーマと同一基準で揃う。
  */
-export const isMessageTooLong = (value: string): boolean =>
-  !isWithinMessageLength(value.trim());
-export const isRoomNameTooLong = (value: string): boolean =>
-  !isWithinRoomNameLength(value.trim());
+export const isMessageTooLong = (value: string): boolean => !isWithinMessageLength(value.trim());
+export const isRoomNameTooLong = (value: string): boolean => !isWithinRoomNameLength(value.trim());

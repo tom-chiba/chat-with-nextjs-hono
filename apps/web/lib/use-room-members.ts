@@ -25,10 +25,7 @@ export type RoomMembersState = {
   submitRemove: (member: RoomMember) => void;
 };
 
-export function useRoomMembers(
-  roomId: string,
-  currentUserId: string,
-): RoomMembersState {
+export function useRoomMembers(roomId: string, currentUserId: string): RoomMembersState {
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [draftEmail, setDraftEmail] = useState("");
   const [loading, setLoading] = useState(true);
@@ -49,9 +46,7 @@ export function useRoomMembers(
       setError(null);
     } catch (err) {
       if (signal.active) {
-        setError(
-          err instanceof Error ? err.message : "メンバー一覧の取得に失敗しました",
-        );
+        setError(err instanceof Error ? err.message : "メンバー一覧の取得に失敗しました");
       }
     } finally {
       if (signal.active) setLoading(false);

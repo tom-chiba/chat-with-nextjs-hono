@@ -98,9 +98,7 @@ function setDocumentHidden(hidden: boolean) {
 
 test("送信本文が上限を超えると送信ボタンを無効化し注記を表示する", () => {
   renderChatRoom();
-  const textarea = screen.getByPlaceholderText(
-    "メッセージを入力（Shift+Enter で改行）",
-  );
+  const textarea = screen.getByPlaceholderText("メッセージを入力（Shift+Enter で改行）");
   // 絵文字は String.length では上限の 2 倍だが、書記素数では 1 文字あたり 1。
   fireEvent.change(textarea, {
     target: { value: "😀".repeat(MAX_MESSAGE_LENGTH + 1) },
@@ -112,9 +110,7 @@ test("送信本文が上限を超えると送信ボタンを無効化し注記�
 
 test("送信本文が上限ちょうど（絵文字）なら送信でき注記を出さない", () => {
   renderChatRoom();
-  const textarea = screen.getByPlaceholderText(
-    "メッセージを入力（Shift+Enter で改行）",
-  );
+  const textarea = screen.getByPlaceholderText("メッセージを入力（Shift+Enter で改行）");
   fireEvent.change(textarea, {
     target: { value: "😀".repeat(MAX_MESSAGE_LENGTH) },
   });
@@ -126,9 +122,7 @@ test("送信本文が上限ちょうど（絵文字）なら送信でき注記�
 test("切断中でも本文があれば送信ボタンは有効（ローカルキューへ積む）", () => {
   chatState.status = "closed";
   renderChatRoom();
-  const textarea = screen.getByPlaceholderText(
-    "メッセージを入力（Shift+Enter で改行）",
-  );
+  const textarea = screen.getByPlaceholderText("メッセージを入力（Shift+Enter で改行）");
   fireEvent.change(textarea, { target: { value: "切断中でも送る" } });
 
   const button = screen.getByRole("button", { name: "送信" });
@@ -139,9 +133,7 @@ test("切断中でも本文があれば送信ボタンは有効（ローカル�
 
 test("上限超過のまま Enter で送信しても send を呼ばない", () => {
   renderChatRoom();
-  const textarea = screen.getByPlaceholderText(
-    "メッセージを入力（Shift+Enter で改行）",
-  );
+  const textarea = screen.getByPlaceholderText("メッセージを入力（Shift+Enter で改行）");
   fireEvent.change(textarea, {
     target: { value: "😀".repeat(MAX_MESSAGE_LENGTH + 1) },
   });

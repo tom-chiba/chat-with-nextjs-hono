@@ -9,9 +9,7 @@ const members: MentionMember[] = [
 
 describe("resolveMentions", () => {
   test("最長一致で表示名を解決する（千葉さん を 千葉 より優先）", () => {
-    expect(resolveMentions(["千葉さん"], members)).toEqual(
-      new Set(["u-chiba-san"]),
-    );
+    expect(resolveMentions(["千葉さん"], members)).toEqual(new Set(["u-chiba-san"]));
   });
 
   test("短い名前は短い名前にマッチする", () => {
@@ -19,9 +17,7 @@ describe("resolveMentions", () => {
   });
 
   test("前方一致で解決する（候補がメンバー名で始まれば採用）", () => {
-    expect(resolveMentions(["千葉さんへ"], members)).toEqual(
-      new Set(["u-chiba-san"]),
-    );
+    expect(resolveMentions(["千葉さんへ"], members)).toEqual(new Set(["u-chiba-san"]));
   });
 
   test("複数候補をまとめて解決する", () => {

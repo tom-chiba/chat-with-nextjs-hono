@@ -12,8 +12,7 @@ import {
 type PushStatus = "checking" | "subscribed" | "unsubscribed";
 
 export function PushNotificationControl() {
-  const [capability, setCapability] =
-    useState<PushNotificationCapability>("unsupported");
+  const [capability, setCapability] = useState<PushNotificationCapability>("unsupported");
   const [status, setStatus] = useState<PushStatus>("checking");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -67,10 +66,8 @@ export function PushNotificationControl() {
     }
   };
 
-  const disabled =
-    busy || status === "checking" || capability !== "supported";
-  const label =
-    status === "subscribed" ? "通知を解除" : busy ? "処理中…" : "通知を有効化";
+  const disabled = busy || status === "checking" || capability !== "supported";
+  const label = status === "subscribed" ? "通知を解除" : busy ? "処理中…" : "通知を有効化";
 
   return (
     <div className="push-control">
@@ -82,9 +79,7 @@ export function PushNotificationControl() {
         {label}
       </button>
       {capability === "denied" ? (
-        <span className="action-error">
-          ブラウザ設定で通知がブロックされています
-        </span>
+        <span className="action-error">ブラウザ設定で通知がブロックされています</span>
       ) : capability === "unsupported" ? (
         <span className="faint" style={{ fontSize: "var(--text-xs)" }}>
           このブラウザは通知に対応していません

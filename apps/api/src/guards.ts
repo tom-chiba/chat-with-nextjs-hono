@@ -34,12 +34,7 @@ export async function requireSession(c: GuardCtx) {
  * `roomId` の所属メンバーであることを要求する。ルームが無ければ 404、
  * メンバーでなければ 403 を `res` で返す。
  */
-export async function requireMember(
-  c: GuardCtx,
-  db: Db,
-  userId: string,
-  roomId: string,
-) {
+export async function requireMember(c: GuardCtx, db: Db, userId: string, roomId: string) {
   const membership = await getRoomMembership(db, roomId, userId);
   if (membership.status === "not_found") {
     return { ok: false as const, res: c.json({ error: "room not found" } as const, 404) };
@@ -54,12 +49,7 @@ export async function requireMember(
  * `roomId` のオーナーであることを要求する。ルームが無ければ 404、
  * オーナーでなければ 403 を `res` で返す。
  */
-export async function requireOwner(
-  c: GuardCtx,
-  db: Db,
-  userId: string,
-  roomId: string,
-) {
+export async function requireOwner(c: GuardCtx, db: Db, userId: string, roomId: string) {
   const owner = await requireRoomOwner(db, roomId, userId);
   if (owner.status === "not_found") {
     return { ok: false as const, res: c.json({ error: "room not found" } as const, 404) };

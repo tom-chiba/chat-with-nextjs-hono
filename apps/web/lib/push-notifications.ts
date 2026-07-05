@@ -1,9 +1,6 @@
 import { client } from "./rpc";
 
-export type PushNotificationCapability =
-  | "supported"
-  | "unsupported"
-  | "denied";
+export type PushNotificationCapability = "supported" | "unsupported" | "denied";
 
 export function getPushNotificationCapability(): PushNotificationCapability {
   if (

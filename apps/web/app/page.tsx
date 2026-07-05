@@ -59,10 +59,7 @@ export default function Home() {
       {isPending ? (
         <p className="muted">読み込み中…</p>
       ) : session ? (
-        <div
-          className="app-shell"
-          data-drawer={roomsDrawerOpen ? "open" : "closed"}
-        >
+        <div className="app-shell" data-drawer={roomsDrawerOpen ? "open" : "closed"}>
           {/* モバイルのドロワー背面。開いている間だけ描画し、クリックで閉じる。 */}
           {roomsDrawerOpen && (
             <button
@@ -107,9 +104,7 @@ export default function Home() {
               </Suspense>
             ) : (
               <div className="chat-empty">
-                <p className="muted">
-                  ルームを選択するか、新しく作成してください。
-                </p>
+                <p className="muted">ルームを選択するか、新しく作成してください。</p>
                 <button
                   type="button"
                   className="mobile-only"

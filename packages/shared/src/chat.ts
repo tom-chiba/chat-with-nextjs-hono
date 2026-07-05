@@ -131,21 +131,13 @@ export type ChatMessage = z.infer<typeof chatMessageSchema>;
  * 前後空白を除去し、空・上限超過を弾く。出力は trim 済みの本文。
  * 長さは書記素数で判定する（絵文字・結合文字を体感どおり 1 文字として数える）。
  */
-export const messageBodySchema = z
-  .string()
-  .trim()
-  .min(1)
-  .refine(isWithinMessageLength);
+export const messageBodySchema = z.string().trim().min(1).refine(isWithinMessageLength);
 
 /**
  * ルーム名（作成 / 改名）の検証スキーマ。trim 済みを返す。
  * 長さは書記素数で判定する。
  */
-export const roomNameSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .refine(isWithinRoomNameLength);
+export const roomNameSchema = z.string().trim().min(1).refine(isWithinRoomNameLength);
 
 /**
  * 楽観送信の相関キー `nonce` のスキーマ（FE 採番 / BE エコーで共有する単一情報源）。
@@ -166,10 +158,7 @@ export const nonceSchema = z.string().min(1).max(100);
  * {@link messageBodySchema}（`min(1)`）とは別に、空を許す（trim・上限のみ）版を使う。
  * 「本文か添付のどちらかは必須」は {@link clientMessageSchema} 側で担保する。
  */
-export const sendMessageBodySchema = z
-  .string()
-  .trim()
-  .refine(isWithinMessageLength);
+export const sendMessageBodySchema = z.string().trim().refine(isWithinMessageLength);
 
 export const clientMessageSchema = z
   .object({
@@ -179,10 +168,7 @@ export const clientMessageSchema = z
      * 先行アップロード済みの添付 id（最大 {@link MAX_ATTACHMENTS_PER_MESSAGE} 枚）。
      * サーバは送信者・ルーム・未紐付けを条件に、このメッセージへ紐付ける。
      */
-    attachmentIds: z
-      .array(z.string().min(1))
-      .max(MAX_ATTACHMENTS_PER_MESSAGE)
-      .optional(),
+    attachmentIds: z.array(z.string().min(1)).max(MAX_ATTACHMENTS_PER_MESSAGE).optional(),
     nonce: nonceSchema.optional(),
   })
   // 本文が空なら添付が 1 枚以上必要（両方空の送信は弾く）。

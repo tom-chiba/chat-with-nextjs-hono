@@ -33,11 +33,7 @@ async function signCookieValue(value: string) {
     false,
     ["sign"],
   );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(value),
-  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value));
   return `${value}.${btoa(String.fromCharCode(...new Uint8Array(signature)))}`;
 }
 
@@ -299,10 +295,7 @@ describe("API ルート", () => {
       }),
     ).rejects.toThrow();
 
-    const orphanRooms = await db
-      .select()
-      .from(rooms)
-      .where(eq(rooms.id, "orphan-rollback"));
+    const orphanRooms = await db.select().from(rooms).where(eq(rooms.id, "orphan-rollback"));
     expect(orphanRooms).toHaveLength(0);
   });
 
@@ -348,9 +341,30 @@ describe("API ルート", () => {
     const db = createDb(env.DB);
     const { messages: messagesTable } = await import("../src/db/schema");
     await db.insert(messagesTable).values([
-      { id: "c1", roomId: "cursor-room", userId: "cursor-owner", senderName: "Owner", body: "1", createdAt: new Date(1000) },
-      { id: "c2", roomId: "cursor-room", userId: "cursor-owner", senderName: "Owner", body: "2", createdAt: new Date(2000) },
-      { id: "c3", roomId: "cursor-room", userId: "cursor-owner", senderName: "Owner", body: "3", createdAt: new Date(3000) },
+      {
+        id: "c1",
+        roomId: "cursor-room",
+        userId: "cursor-owner",
+        senderName: "Owner",
+        body: "1",
+        createdAt: new Date(1000),
+      },
+      {
+        id: "c2",
+        roomId: "cursor-room",
+        userId: "cursor-owner",
+        senderName: "Owner",
+        body: "2",
+        createdAt: new Date(2000),
+      },
+      {
+        id: "c3",
+        roomId: "cursor-room",
+        userId: "cursor-owner",
+        senderName: "Owner",
+        body: "3",
+        createdAt: new Date(3000),
+      },
     ]);
 
     // before だけ → 400（カーソルを黙って無視せずエラーにする）。
@@ -502,11 +516,7 @@ describe("API ルート", () => {
       memberIds: ["list-member"],
     });
 
-    const res = await app.request(
-      "/rooms/list-room/members",
-      { headers: ownerHeaders },
-      env,
-    );
+    const res = await app.request("/rooms/list-room/members", { headers: ownerHeaders }, env);
     expect(res.status).toBe(200);
     const body = await res.json<{
       members: { userId: string; userName: string; role: string }[];
@@ -527,11 +537,7 @@ describe("API ルート", () => {
     );
 
     // 未所属ユーザーは一覧を閲覧できない。
-    const forbidden = await app.request(
-      "/rooms/list-room/members",
-      { headers: otherHeaders },
-      env,
-    );
+    const forbidden = await app.request("/rooms/list-room/members", { headers: otherHeaders }, env);
     expect(forbidden.status).toBe(403);
     expect(await forbidden.json()).toEqual({ error: "forbidden" });
   });
@@ -643,10 +649,7 @@ describe("API ルート", () => {
     expect(ok.status).toBe(200);
 
     const db = createDb(env.DB);
-    const row = await db
-      .select()
-      .from(rooms)
-      .where(eq(rooms.id, "rename-room"));
+    const row = await db.select().from(rooms).where(eq(rooms.id, "rename-room"));
     expect(row[0]?.name).toBe("新しい名前");
   });
 
@@ -706,10 +709,7 @@ describe("API ルート", () => {
     expect(closeEvent.reason).toBe("room deleted");
 
     const db = createDb(env.DB);
-    const remaining = await db
-      .select()
-      .from(rooms)
-      .where(eq(rooms.id, "delete-room"));
+    const remaining = await db.select().from(rooms).where(eq(rooms.id, "delete-room"));
     expect(remaining).toHaveLength(0);
     const members = await db
       .select()
@@ -775,10 +775,7 @@ describe("API ルート", () => {
     );
     expect(ok.status).toBe(200);
 
-    const row = await db
-      .select()
-      .from(messagesTable)
-      .where(eq(messagesTable.id, messageId));
+    const row = await db.select().from(messagesTable).where(eq(messagesTable.id, messageId));
     expect(row[0]?.body).toBe("after");
     expect(row[0]?.editedAt).not.toBeNull();
   });
@@ -818,10 +815,7 @@ describe("API ルート", () => {
     );
     expect(ok.status).toBe(200);
 
-    const row = await db
-      .select()
-      .from(messagesTable)
-      .where(eq(messagesTable.id, "msg-del-1"));
+    const row = await db.select().from(messagesTable).where(eq(messagesTable.id, "msg-del-1"));
     expect(row[0]?.body).toBe("");
     expect(row[0]?.deletedAt).not.toBeNull();
   });
@@ -869,10 +863,7 @@ describe("API ルート", () => {
     );
     expect(deleted.status).toBe(200);
     // 論理削除後も sender_name 列はスナップショットを保持する。
-    const row = await db
-      .select()
-      .from(messagesTable)
-      .where(eq(messagesTable.id, "snap-1"));
+    const row = await db.select().from(messagesTable).where(eq(messagesTable.id, "snap-1"));
     expect(row[0]?.senderName).toBe("旧名");
   });
 
@@ -889,21 +880,13 @@ describe("API ルート", () => {
     const ownerBody = await ownerRes.json<{
       rooms: { id: string; myRole: string }[];
     }>();
-    expect(
-      ownerBody.rooms.find((r) => r.id === "role-room")?.myRole,
-    ).toBe("owner");
+    expect(ownerBody.rooms.find((r) => r.id === "role-room")?.myRole).toBe("owner");
 
-    const memberRes = await app.request(
-      "/rooms",
-      { headers: memberHeaders },
-      env,
-    );
+    const memberRes = await app.request("/rooms", { headers: memberHeaders }, env);
     const memberBody = await memberRes.json<{
       rooms: { id: string; myRole: string }[];
     }>();
-    expect(
-      memberBody.rooms.find((r) => r.id === "role-room")?.myRole,
-    ).toBe("member");
+    expect(memberBody.rooms.find((r) => r.id === "role-room")?.myRole).toBe("member");
   });
 
   test("ルーム作成/改名は名前の上限超過を 400、境界長を許可する", async () => {
@@ -1104,12 +1087,7 @@ describe("API ルート", () => {
     const afterAt = await db
       .select()
       .from(roomMembers)
-      .where(
-        and(
-          eq(roomMembers.roomId, "read-room"),
-          eq(roomMembers.userId, "read-user"),
-        ),
-      );
+      .where(and(eq(roomMembers.roomId, "read-room"), eq(roomMembers.userId, "read-user")));
     expect(afterAt[0]?.lastReadAt?.getTime()).toBe(at);
 
     // at 省略 → 現在時刻にフォールバックして進む。
@@ -1126,12 +1104,7 @@ describe("API ルート", () => {
     const afterOmit = await db
       .select()
       .from(roomMembers)
-      .where(
-        and(
-          eq(roomMembers.roomId, "read-room"),
-          eq(roomMembers.userId, "read-user"),
-        ),
-      );
+      .where(and(eq(roomMembers.roomId, "read-room"), eq(roomMembers.userId, "read-user")));
     expect(afterOmit[0]?.lastReadAt?.getTime() ?? 0).toBeGreaterThan(at);
 
     // 不正な at（負数・非数値）は 400。
@@ -1244,16 +1217,10 @@ describe("API ルート", () => {
     const rows = await db
       .select()
       .from(roomMembers)
-      .where(
-        and(
-          eq(roomMembers.roomId, "trim-room"),
-          eq(roomMembers.userId, "trim-target"),
-        ),
-      );
+      .where(and(eq(roomMembers.roomId, "trim-room"), eq(roomMembers.userId, "trim-target")));
     expect(rows).toHaveLength(1);
   });
 });
-
 
 // 1x1 PNG（テスト用の最小画像）。
 const PNG_1X1 = Uint8Array.from(
@@ -1274,11 +1241,7 @@ async function seedRoomOwned(roomId: string, ownerId: string) {
 }
 
 /** 添付をメッセージに紐付ける（配信テスト用の前提づくり）。 */
-async function linkAttachmentToMessage(
-  attachmentId: string,
-  roomId: string,
-  userId: string,
-) {
+async function linkAttachmentToMessage(attachmentId: string, roomId: string, userId: string) {
   const db = createDb(env.DB);
   const messageId = `msg-${crypto.randomUUID()}`;
   await db.insert(messages).values({
@@ -1380,10 +1343,7 @@ describe("画像添付ルート", () => {
 
     const db = createDb(env.DB);
     const row = (
-      await db
-        .select()
-        .from(attachments)
-        .where(eq(attachments.id, body.attachment.id))
+      await db.select().from(attachments).where(eq(attachments.id, body.attachment.id))
     )[0];
     expect(row?.messageId).toBeNull();
     expect(row?.roomId).toBe("att-ok");
@@ -1404,11 +1364,7 @@ describe("画像添付ルート", () => {
     const { attachment } = (await up.json()) as { attachment: { id: string } };
     await linkAttachmentToMessage(attachment.id, "att-get", "att-uget");
 
-    const res = await app.request(
-      `/rooms/att-get/attachments/${attachment.id}`,
-      { headers },
-      env,
-    );
+    const res = await app.request(`/rooms/att-get/attachments/${attachment.id}`, { headers }, env);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("image/png");
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
@@ -1428,11 +1384,7 @@ describe("画像添付ルート", () => {
       env,
     );
     const { attachment } = (await up.json()) as { attachment: { id: string } };
-    const res = await app.request(
-      `/rooms/att-r2/attachments/${attachment.id}`,
-      { headers },
-      env,
-    );
+    const res = await app.request(`/rooms/att-r2/attachments/${attachment.id}`, { headers }, env);
     expect(res.status).toBe(404);
   });
 
@@ -1447,18 +1399,10 @@ describe("画像添付ルート", () => {
       env,
     );
     const { attachment } = (await up.json()) as { attachment: { id: string } };
-    const messageId = await linkAttachmentToMessage(
-      attachment.id,
-      "att-del",
-      "att-udel",
-    );
+    const messageId = await linkAttachmentToMessage(attachment.id, "att-del", "att-udel");
     await softDeleteMessage(createDb(env.DB), messageId, new Date());
 
-    const res = await app.request(
-      `/rooms/att-del/attachments/${attachment.id}`,
-      { headers },
-      env,
-    );
+    const res = await app.request(`/rooms/att-del/attachments/${attachment.id}`, { headers }, env);
     expect(res.status).toBe(404);
   });
 
@@ -1495,11 +1439,7 @@ describe("画像添付ルート", () => {
       env,
     );
     const { attachment } = (await up.json()) as { attachment: { id: string } };
-    const messageId = await linkAttachmentToMessage(
-      attachment.id,
-      "att-edit",
-      "att-uedit",
-    );
+    const messageId = await linkAttachmentToMessage(attachment.id, "att-edit", "att-uedit");
 
     const res = await app.request(
       `/rooms/att-edit/messages/${messageId}`,
@@ -1539,14 +1479,9 @@ describe("画像添付ルート", () => {
     expect(del.status).toBe(200);
 
     const db = createDb(env.DB);
-    const rows = await db
-      .select()
-      .from(attachments)
-      .where(eq(attachments.id, attachment.id));
+    const rows = await db.select().from(attachments).where(eq(attachments.id, attachment.id));
     expect(rows).toHaveLength(0);
-    expect(
-      await env.ATTACHMENTS.get(`rooms/att-unsend/${attachment.id}`),
-    ).toBeNull();
+    expect(await env.ATTACHMENTS.get(`rooms/att-unsend/${attachment.id}`)).toBeNull();
   });
 
   test("DELETE は送信済み（紐付け済み）添付には 404 を返す", async () => {
@@ -1581,11 +1516,7 @@ describe("画像添付ルート", () => {
       env,
     );
     const { attachment } = (await up.json()) as { attachment: { id: string } };
-    const messageId = await linkAttachmentToMessage(
-      attachment.id,
-      "att-msgdel",
-      "att-umsgdel",
-    );
+    const messageId = await linkAttachmentToMessage(attachment.id, "att-msgdel", "att-umsgdel");
 
     const del = await app.request(
       `/rooms/att-msgdel/messages/${messageId}`,
@@ -1595,14 +1526,9 @@ describe("画像添付ルート", () => {
     expect(del.status).toBe(200);
 
     const db = createDb(env.DB);
-    const rows = await db
-      .select()
-      .from(attachments)
-      .where(eq(attachments.id, attachment.id));
+    const rows = await db.select().from(attachments).where(eq(attachments.id, attachment.id));
     expect(rows).toHaveLength(0);
-    expect(
-      await env.ATTACHMENTS.get(`rooms/att-msgdel/${attachment.id}`),
-    ).toBeNull();
+    expect(await env.ATTACHMENTS.get(`rooms/att-msgdel/${attachment.id}`)).toBeNull();
   });
 
   test("POST は累積ストレージ上限を超えると 413", async () => {

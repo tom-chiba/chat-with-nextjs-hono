@@ -49,9 +49,7 @@ test("現在と同じメールアドレスなら送信せずにフォームを�
   fireEvent.click(screen.getByRole("button", { name: "確認メールを送る" }));
 
   await waitFor(() =>
-    expect(
-      screen.getByRole("button", { name: "メールアドレスを編集" }),
-    ).toBeInTheDocument(),
+    expect(screen.getByRole("button", { name: "メールアドレスを編集" })).toBeInTheDocument(),
   );
   expect(mockedChangeEmail).not.toHaveBeenCalled();
 });
@@ -70,7 +68,5 @@ test("API エラー時はエラーメッセージを表示する", async () => {
   });
   fireEvent.click(screen.getByRole("button", { name: "確認メールを送る" }));
 
-  expect(
-    await screen.findByText("このメールアドレスは使用できません"),
-  ).toBeInTheDocument();
+  expect(await screen.findByText("このメールアドレスは使用できません")).toBeInTheDocument();
 });

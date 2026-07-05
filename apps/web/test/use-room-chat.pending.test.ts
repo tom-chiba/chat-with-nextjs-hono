@@ -233,11 +233,7 @@ test("複数の queued は open で積んだ順に全件 flush され全て send
   });
 
   // 積んだ順に全件送出される。
-  expect(MockWebSocket.latest.sent.map((m) => m.body)).toEqual([
-    "1番目",
-    "2番目",
-    "3番目",
-  ]);
+  expect(MockWebSocket.latest.sent.map((m) => m.body)).toEqual(["1番目", "2番目", "3番目"]);
   expect(result.current.pending.every((p) => p.status === "sending")).toBe(true);
 });
 

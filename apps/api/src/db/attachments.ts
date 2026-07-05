@@ -38,11 +38,7 @@ export async function createAttachment(
 
 /** id で添付を 1 件取得する（配信・削除の認可判定用）。無ければ null。 */
 export async function getAttachmentById(db: Db, id: string) {
-  const rows = await db
-    .select()
-    .from(attachments)
-    .where(eq(attachments.id, id))
-    .limit(1);
+  const rows = await db.select().from(attachments).where(eq(attachments.id, id)).limit(1);
   return rows[0] ?? null;
 }
 
@@ -153,10 +149,7 @@ export async function deleteUnlinkedAttachment(
  * あるメッセージに紐付く添付をすべて削除し、実体回収用に r2Key を返す。
  * メッセージの論理削除時に、行と R2 実体をまとめて回収するために使う。
  */
-export async function deleteAttachmentsForMessage(
-  db: Db,
-  messageId: string,
-): Promise<string[]> {
+export async function deleteAttachmentsForMessage(db: Db, messageId: string): Promise<string[]> {
   const deleted = await db
     .delete(attachments)
     .where(eq(attachments.messageId, messageId))
@@ -175,16 +168,11 @@ export async function listOrphanAttachments(
   return db
     .select({ id: attachments.id, r2Key: attachments.r2Key })
     .from(attachments)
-    .where(
-      and(isNull(attachments.messageId), lt(attachments.createdAt, new Date(cutoff))),
-    );
+    .where(and(isNull(attachments.messageId), lt(attachments.createdAt, new Date(cutoff))));
 }
 
 /** 指定 id の添付行を削除する（孤児クリーンアップで R2 削除後に呼ぶ）。 */
-export async function deleteAttachmentsByIds(
-  db: Db,
-  ids: string[],
-): Promise<void> {
+export async function deleteAttachmentsByIds(db: Db, ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   await db.delete(attachments).where(inArray(attachments.id, ids));
 }
@@ -198,17 +186,12 @@ export async function countRecentUploadsByUser(
   const rows = await db
     .select({ n: count() })
     .from(attachments)
-    .where(
-      and(eq(attachments.userId, userId), gt(attachments.createdAt, since)),
-    );
+    .where(and(eq(attachments.userId, userId), gt(attachments.createdAt, since)));
   return rows[0]?.n ?? 0;
 }
 
 /** そのユーザーが現在保持している添付の合計バイト数（累積ストレージ判定用）。 */
-export async function sumAttachmentBytesByUser(
-  db: Db,
-  userId: string,
-): Promise<number> {
+export async function sumAttachmentBytesByUser(db: Db, userId: string): Promise<number> {
   const rows = await db
     .select({
       total: sql<number>`coalesce(sum(${attachments.size}), 0)`,
