@@ -1311,6 +1311,26 @@ describe("画像添付ルート", () => {
     expect(res.status).toBe(415);
   });
 
+  test.each([
+    ["image/avif", "x.avif"],
+    ["image/bmp", "x.bmp"],
+  ])("POST は allowlist の %s を受理する（201）", async (mimeType, name) => {
+    const roomId = `att-allow-${mimeType.replace("/", "-")}`;
+    const userId = `att-u-${mimeType.replace("/", "-")}`;
+    await seedRoomOwned(roomId, userId);
+    const headers = await createSession(userId);
+    const form = new FormData();
+    form.set("file", new File([new Uint8Array([1, 2, 3, 4])], name, { type: mimeType }));
+    const res = await app.request(
+      `/rooms/${roomId}/attachments`,
+      { method: "POST", headers, body: form },
+      env,
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { attachment: { mimeType: string } };
+    expect(body.attachment.mimeType).toBe(mimeType);
+  });
+
   test("POST は空ファイルに 413", async () => {
     await seedRoomOwned("att-413", "att-u413");
     const headers = await createSession("att-u413");
