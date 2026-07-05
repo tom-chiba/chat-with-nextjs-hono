@@ -81,10 +81,21 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
   // 後続テストへ漏れないよう JSDOM 既定の表示状態へ戻す。
   setDocumentHidden(false);
 });
+
+/** window.matchMedia を「pointer: coarse に一致（タッチ端末）」として差し替える。 */
+function stubCoarsePointer() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("coarse"),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
 
 const markRoomReadMock = vi.mocked(markRoomRead);
 
@@ -140,6 +151,30 @@ test("上限超過のまま Enter で送信しても send を呼ばない", () =
   fireEvent.keyDown(textarea, { key: "Enter" });
 
   expect(send).not.toHaveBeenCalled();
+});
+
+test("タッチ端末では Enter で送信せず改行する", () => {
+  stubCoarsePointer();
+  renderChatRoom();
+  // プレースホルダから Shift+Enter の案内が消える。
+  const textarea = screen.getByPlaceholderText("メッセージを入力");
+  fireEvent.change(textarea, { target: { value: "スマホで改行" } });
+  // fireEvent は preventDefault されなければ true を返す。改行（既定動作）を
+  // 握りつぶしていないこと＝送信していないことを確認する。
+  const notPrevented = fireEvent.keyDown(textarea, { key: "Enter" });
+
+  expect(notPrevented).toBe(true);
+  expect(send).not.toHaveBeenCalled();
+});
+
+test("タッチ端末でも送信ボタンからは送信できる", () => {
+  stubCoarsePointer();
+  renderChatRoom();
+  const textarea = screen.getByPlaceholderText("メッセージを入力");
+  fireEvent.change(textarea, { target: { value: "ボタンで送る" } });
+  fireEvent.click(screen.getByRole("button", { name: "送信" }));
+
+  expect(send).toHaveBeenCalledWith("ボタンで送る");
 });
 
 test("連投メッセージは 200ms デバウンスで末尾だけ 1 回既読化する", () => {
