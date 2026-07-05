@@ -1,12 +1,6 @@
-import {
-  pushSubscriptionSchema,
-  pushUnsubscribeSchema,
-} from "@repo/shared";
+import { pushSubscriptionSchema, pushUnsubscribeSchema } from "@repo/shared";
 import { Hono } from "hono";
-import {
-  deletePushSubscription,
-  upsertPushSubscription,
-} from "../db/push-subscriptions";
+import { deletePushSubscription, upsertPushSubscription } from "../db/push-subscriptions";
 import { requireSession } from "../guards";
 import { hasPushConfig } from "../push";
 import type { Bindings } from "../types";
@@ -28,9 +22,7 @@ export const pushApp = new Hono<{ Bindings: Bindings }>()
     if (!s.ok) return s.res;
 
     // 設定不備（503）・未認証（401）を先に返したいので、検証はハンドラ内で行う。
-    const parsed = pushSubscriptionSchema.safeParse(
-      await c.req.json().catch(() => undefined),
-    );
+    const parsed = pushSubscriptionSchema.safeParse(await c.req.json().catch(() => undefined));
     if (!parsed.success) {
       return c.json({ error: "invalid push subscription" } as const, 400);
     }
@@ -42,9 +34,7 @@ export const pushApp = new Hono<{ Bindings: Bindings }>()
     const s = await requireSession(c);
     if (!s.ok) return s.res;
 
-    const parsed = pushUnsubscribeSchema.safeParse(
-      await c.req.json().catch(() => undefined),
-    );
+    const parsed = pushUnsubscribeSchema.safeParse(await c.req.json().catch(() => undefined));
     if (!parsed.success) {
       return c.json({ error: "invalid endpoint" } as const, 400);
     }

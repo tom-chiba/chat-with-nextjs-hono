@@ -13,12 +13,12 @@ allowBuilds:
 # 単位は分。公開直後の汚染パッケージを避けるため 3 日（4320 分）経過した版のみ install する。
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
-  - '@cloudflare/workers-types@4.20260613.1'
-  - '@better-auth/core@1.6.18'
-  - '@better-auth/drizzle-adapter@1.6.18'
-  - '@better-auth/kysely-adapter@1.6.18'
-  - '@better-auth/memory-adapter@1.6.18'
-  - '@better-auth/mongo-adapter@1.6.18'
-  - '@better-auth/prisma-adapter@1.6.18'
-  - '@better-auth/telemetry@1.6.18'
+  - "@cloudflare/workers-types@4.20260613.1"
+  - "@better-auth/core@1.6.18"
+  - "@better-auth/drizzle-adapter@1.6.18"
+  - "@better-auth/kysely-adapter@1.6.18"
+  - "@better-auth/memory-adapter@1.6.18"
+  - "@better-auth/mongo-adapter@1.6.18"
+  - "@better-auth/prisma-adapter@1.6.18"
+  - "@better-auth/telemetry@1.6.18"
   - better-auth@1.6.18

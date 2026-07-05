@@ -1,9 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  createWebCryptoPushSender,
-  type FetchLike,
-  type PushSender,
-} from "../src/push";
+import { createWebCryptoPushSender, type FetchLike, type PushSender } from "../src/push";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -15,33 +11,26 @@ function bytesToBase64Url(bytes: Uint8Array) {
 }
 
 async function generateVapidKeys() {
-  const keys = await crypto.subtle.generateKey(
-    { name: "ECDSA", namedCurve: "P-256" },
-    true,
-    ["sign", "verify"],
-  ) as CryptoKeyPair;
-  const jwk = await crypto.subtle.exportKey("jwk", keys.privateKey) as JsonWebKey;
+  const keys = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+    "sign",
+    "verify",
+  ])) as CryptoKeyPair;
+  const jwk = (await crypto.subtle.exportKey("jwk", keys.privateKey)) as JsonWebKey;
   if (!jwk.x || !jwk.y || !jwk.d) throw new Error("invalid test VAPID key");
   return {
     publicKey: bytesToBase64Url(
-      Uint8Array.from([
-        0x04,
-        ...base64UrlToBytes(jwk.x),
-        ...base64UrlToBytes(jwk.y),
-      ]),
+      Uint8Array.from([0x04, ...base64UrlToBytes(jwk.x), ...base64UrlToBytes(jwk.y)]),
     ),
     privateKey: jwk.d,
   };
 }
 
 async function generateSubscriptionKeys() {
-  const keys = await crypto.subtle.generateKey(
-    { name: "ECDH", namedCurve: "P-256" },
-    true,
-    ["deriveBits"],
-  ) as CryptoKeyPair;
+  const keys = (await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, [
+    "deriveBits",
+  ])) as CryptoKeyPair;
   const publicKey = new Uint8Array(
-    await crypto.subtle.exportKey("raw", keys.publicKey) as ArrayBuffer,
+    (await crypto.subtle.exportKey("raw", keys.publicKey)) as ArrayBuffer,
   );
   const auth = crypto.getRandomValues(new Uint8Array(16));
   return {
@@ -117,11 +106,16 @@ describe("WebCryptoPushSender", () => {
         return { status: "gone" };
       },
     };
-    await expect(sender.send({
-      endpoint: "https://push.example.com/gone",
-      p256dh: "unused",
-      auth: "unused",
-    }, "{}")).resolves.toEqual({ status: "gone" });
+    await expect(
+      sender.send(
+        {
+          endpoint: "https://push.example.com/gone",
+          p256dh: "unused",
+          auth: "unused",
+        },
+        "{}",
+      ),
+    ).resolves.toEqual({ status: "gone" });
   });
 });
 
@@ -158,31 +152,15 @@ async function decryptWebPushBody({
   const prkKey = await hkdfExtract(authSecret, sharedSecret);
   const ikm = await hkdfExpand(
     prkKey,
-    concatBytes(
-      encoder.encode("WebPush: info\0"),
-      receiverPublicKey,
-      senderPublicKeyBytes,
-    ),
+    concatBytes(encoder.encode("WebPush: info\0"), receiverPublicKey, senderPublicKeyBytes),
     32,
   );
   const prk = await hkdfExtract(salt, ikm);
-  const cek = await hkdfExpand(
-    prk,
-    encoder.encode("Content-Encoding: aes128gcm\0"),
-    16,
-  );
-  const nonce = await hkdfExpand(
-    prk,
-    encoder.encode("Content-Encoding: nonce\0"),
-    12,
-  );
-  const key = await crypto.subtle.importKey(
-    "raw",
-    toArrayBuffer(cek),
-    { name: "AES-GCM" },
-    false,
-    ["decrypt"],
-  );
+  const cek = await hkdfExpand(prk, encoder.encode("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await hkdfExpand(prk, encoder.encode("Content-Encoding: nonce\0"), 12);
+  const key = await crypto.subtle.importKey("raw", toArrayBuffer(cek), { name: "AES-GCM" }, false, [
+    "decrypt",
+  ]);
   const plaintext = new Uint8Array(
     await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: toArrayBuffer(nonce) },
@@ -205,11 +183,7 @@ async function hkdfExtract(salt: Uint8Array, ikm: Uint8Array) {
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, toArrayBuffer(ikm)));
 }
 
-async function hkdfExpand(
-  prk: Uint8Array,
-  info: Uint8Array,
-  length: number,
-) {
+async function hkdfExpand(prk: Uint8Array, info: Uint8Array, length: number) {
   const key = await crypto.subtle.importKey(
     "raw",
     toArrayBuffer(prk),
@@ -218,11 +192,7 @@ async function hkdfExpand(
     ["sign"],
   );
   const result = new Uint8Array(
-    await crypto.subtle.sign(
-      "HMAC",
-      key,
-      toArrayBuffer(concatBytes(info, new Uint8Array([0x01]))),
-    ),
+    await crypto.subtle.sign("HMAC", key, toArrayBuffer(concatBytes(info, new Uint8Array([0x01])))),
   );
   return result.slice(0, length);
 }
@@ -239,8 +209,5 @@ function concatBytes(...parts: Uint8Array[]) {
 }
 
 function toArrayBuffer(bytes: Uint8Array) {
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }

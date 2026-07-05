@@ -32,55 +32,31 @@ test("messageBodySchema は空・空白のみを弾く", () => {
 });
 
 test("messageBodySchema は上限ちょうどを許可し超過を弾く", () => {
-  expect(messageBodySchema.safeParse("a".repeat(MAX_MESSAGE_LENGTH)).success).toBe(
-    true,
-  );
-  expect(
-    messageBodySchema.safeParse("a".repeat(MAX_MESSAGE_LENGTH + 1)).success,
-  ).toBe(false);
+  expect(messageBodySchema.safeParse("a".repeat(MAX_MESSAGE_LENGTH)).success).toBe(true);
+  expect(messageBodySchema.safeParse("a".repeat(MAX_MESSAGE_LENGTH + 1)).success).toBe(false);
 });
 
 test("messageBodySchema は書記素数で上限を判定する（絵文字は 1 文字）", () => {
   // 絵文字は String.length では 2 だが、書記素数で MAX ちょうどまで許可する。
-  expect(messageBodySchema.safeParse("😀".repeat(MAX_MESSAGE_LENGTH)).success).toBe(
-    true,
-  );
-  expect(
-    messageBodySchema.safeParse("😀".repeat(MAX_MESSAGE_LENGTH + 1)).success,
-  ).toBe(false);
+  expect(messageBodySchema.safeParse("😀".repeat(MAX_MESSAGE_LENGTH)).success).toBe(true);
+  expect(messageBodySchema.safeParse("😀".repeat(MAX_MESSAGE_LENGTH + 1)).success).toBe(false);
   // ZWJ 結合絵文字は String.length では 1 文字あたり 8 と最も乖離が大きいが、
   // 書記素数では 1 文字として上限ちょうどまで許可する。
-  expect(
-    messageBodySchema.safeParse("👨‍👩‍👧".repeat(MAX_MESSAGE_LENGTH)).success,
-  ).toBe(true);
-  expect(
-    messageBodySchema.safeParse("👨‍👩‍👧".repeat(MAX_MESSAGE_LENGTH + 1)).success,
-  ).toBe(false);
+  expect(messageBodySchema.safeParse("👨‍👩‍👧".repeat(MAX_MESSAGE_LENGTH)).success).toBe(true);
+  expect(messageBodySchema.safeParse("👨‍👩‍👧".repeat(MAX_MESSAGE_LENGTH + 1)).success).toBe(false);
   // 肌色修飾（ZWJ とは別の結合形態）も書記素数で 1 文字として判定する。
-  expect(
-    messageBodySchema.safeParse("👍🏽".repeat(MAX_MESSAGE_LENGTH)).success,
-  ).toBe(true);
-  expect(
-    messageBodySchema.safeParse("👍🏽".repeat(MAX_MESSAGE_LENGTH + 1)).success,
-  ).toBe(false);
+  expect(messageBodySchema.safeParse("👍🏽".repeat(MAX_MESSAGE_LENGTH)).success).toBe(true);
+  expect(messageBodySchema.safeParse("👍🏽".repeat(MAX_MESSAGE_LENGTH + 1)).success).toBe(false);
 });
 
 test("roomNameSchema は trim・空・上限超過を扱う", () => {
   expect(roomNameSchema.parse("  部屋  ")).toBe("部屋");
   expect(roomNameSchema.safeParse("   ").success).toBe(false);
-  expect(roomNameSchema.safeParse("あ".repeat(MAX_ROOM_NAME_LENGTH)).success).toBe(
-    true,
-  );
-  expect(
-    roomNameSchema.safeParse("あ".repeat(MAX_ROOM_NAME_LENGTH + 1)).success,
-  ).toBe(false);
+  expect(roomNameSchema.safeParse("あ".repeat(MAX_ROOM_NAME_LENGTH)).success).toBe(true);
+  expect(roomNameSchema.safeParse("あ".repeat(MAX_ROOM_NAME_LENGTH + 1)).success).toBe(false);
   // 絵文字も書記素数で判定する。
-  expect(roomNameSchema.safeParse("😀".repeat(MAX_ROOM_NAME_LENGTH)).success).toBe(
-    true,
-  );
-  expect(
-    roomNameSchema.safeParse("😀".repeat(MAX_ROOM_NAME_LENGTH + 1)).success,
-  ).toBe(false);
+  expect(roomNameSchema.safeParse("😀".repeat(MAX_ROOM_NAME_LENGTH)).success).toBe(true);
+  expect(roomNameSchema.safeParse("😀".repeat(MAX_ROOM_NAME_LENGTH + 1)).success).toBe(false);
 });
 
 test("emailSchema は trim して妥当なメールのみ通す", () => {
@@ -92,19 +68,13 @@ test("emailSchema は trim して妥当なメールのみ通す", () => {
 test("clientMessageSchema は body を trim し非 message 型を弾く", () => {
   const ok = clientMessageSchema.safeParse({ type: "message", body: " hi " });
   expect(ok.success && ok.data.body).toBe("hi");
-  expect(clientMessageSchema.safeParse({ type: "ping", body: "x" }).success).toBe(
-    false,
-  );
-  expect(clientMessageSchema.safeParse({ type: "message", body: "  " }).success).toBe(
-    false,
-  );
+  expect(clientMessageSchema.safeParse({ type: "ping", body: "x" }).success).toBe(false);
+  expect(clientMessageSchema.safeParse({ type: "message", body: "  " }).success).toBe(false);
 });
 
 test("clientMessageSchema は nonce を任意で受け付ける", () => {
   // nonce 無し（旧クライアント）も許容する。
-  expect(
-    clientMessageSchema.safeParse({ type: "message", body: "hi" }).success,
-  ).toBe(true);
+  expect(clientMessageSchema.safeParse({ type: "message", body: "hi" }).success).toBe(true);
   const withNonce = clientMessageSchema.safeParse({
     type: "message",
     body: "hi",
@@ -112,10 +82,9 @@ test("clientMessageSchema は nonce を任意で受け付ける", () => {
   });
   expect(withNonce.success && withNonce.data.nonce).toBe("abc-123");
   // 空 nonce は弾く（相関キーとして無意味なため）。
-  expect(
-    clientMessageSchema.safeParse({ type: "message", body: "hi", nonce: "" })
-      .success,
-  ).toBe(false);
+  expect(clientMessageSchema.safeParse({ type: "message", body: "hi", nonce: "" }).success).toBe(
+    false,
+  );
 });
 
 test("clientMessageSchema は本文空でも添付があれば許可し、両方空は弾く", () => {
@@ -128,24 +97,16 @@ test("clientMessageSchema は本文空でも添付があれば許可し、両方
     }).success,
   ).toBe(true);
   // 本文空 + 添付なし → reject（本文または添付が必要）。
-  expect(
-    clientMessageSchema.safeParse({ type: "message", body: "" }).success,
-  ).toBe(false);
+  expect(clientMessageSchema.safeParse({ type: "message", body: "" }).success).toBe(false);
   // 空白のみ本文 + 添付なし → trim して空になり reject。
-  expect(
-    clientMessageSchema.safeParse({ type: "message", body: "   " }).success,
-  ).toBe(false);
+  expect(clientMessageSchema.safeParse({ type: "message", body: "   " }).success).toBe(false);
 });
 
 test("clientMessageSchema は attachmentIds の枚数上限と空要素を検証する", () => {
-  const ids = Array.from(
-    { length: MAX_ATTACHMENTS_PER_MESSAGE },
-    (_, i) => `a${i}`,
-  );
+  const ids = Array.from({ length: MAX_ATTACHMENTS_PER_MESSAGE }, (_, i) => `a${i}`);
   // 上限ちょうど → OK。
   expect(
-    clientMessageSchema.safeParse({ type: "message", body: "x", attachmentIds: ids })
-      .success,
+    clientMessageSchema.safeParse({ type: "message", body: "x", attachmentIds: ids }).success,
   ).toBe(true);
   // 上限超過 → reject。
   expect(
@@ -173,13 +134,10 @@ test("chatMessageSchema は attachments 省略時に空配列を補う", () => {
 test("chatMessageSchema は editedAt/deletedAt の null と数値を許容する", () => {
   expect(chatMessageSchema.safeParse(validChatMessage).success).toBe(true);
   expect(
-    chatMessageSchema.safeParse({ ...validChatMessage, editedAt: 5, deletedAt: 9 })
-      .success,
+    chatMessageSchema.safeParse({ ...validChatMessage, editedAt: 5, deletedAt: 9 }).success,
   ).toBe(true);
   // 型違反（id が数値）は弾く。
-  expect(
-    chatMessageSchema.safeParse({ ...validChatMessage, id: 1 }).success,
-  ).toBe(false);
+  expect(chatMessageSchema.safeParse({ ...validChatMessage, id: 1 }).success).toBe(false);
 });
 
 test("serverMessageSchema は 4 種の正常メッセージを通す", () => {

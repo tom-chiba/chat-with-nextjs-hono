@@ -1,11 +1,7 @@
 import { memberAddSchema } from "@repo/shared";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
-import {
-  findUserByEmail,
-  getRoomMembership,
-  listRoomMembers,
-} from "../db/rooms";
+import { findUserByEmail, getRoomMembership, listRoomMembers } from "../db/rooms";
 import { roomMembers } from "../db/schema";
 import { requireMember, requireOwner, requireSession } from "../guards";
 import { disconnectRoomMember } from "../realtime";
@@ -37,47 +33,40 @@ export const membersApp = new Hono<{ Bindings: Bindings }>()
     });
   })
   // オーナーがメールアドレスで登録済みユーザーをルームへ追加する。
-  .post(
-    "/:roomId/members",
-    jsonValidator(memberAddSchema, "invalid email"),
-    async (c) => {
-      const s = await requireSession(c);
-      if (!s.ok) return s.res;
-      const roomId = c.req.param("roomId");
-      const own = await requireOwner(c, s.db, s.user.id, roomId);
-      if (!own.ok) return own.res;
+  .post("/:roomId/members", jsonValidator(memberAddSchema, "invalid email"), async (c) => {
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
+    const roomId = c.req.param("roomId");
+    const own = await requireOwner(c, s.db, s.user.id, roomId);
+    if (!own.ok) return own.res;
 
-      const { email } = c.req.valid("json");
-      const target = await findUserByEmail(s.db, email);
-      if (!target) {
-        return c.json({ error: "user not found" } as const, 404);
-      }
-      const userId = target.id;
+    const { email } = c.req.valid("json");
+    const target = await findUserByEmail(s.db, email);
+    if (!target) {
+      return c.json({ error: "user not found" } as const, 404);
+    }
+    const userId = target.id;
 
-      const existing = await getRoomMembership(s.db, roomId, userId);
-      if (existing.status === "member") {
-        return c.json(
-          { error: "user is already a member", role: existing.role } as const,
-          409,
-        );
-      }
+    const existing = await getRoomMembership(s.db, roomId, userId);
+    if (existing.status === "member") {
+      return c.json({ error: "user is already a member", role: existing.role } as const, 409);
+    }
 
-      const joinedAt = Date.now();
-      await s.db
-        .insert(roomMembers)
-        .values({
-          roomId,
-          userId,
-          role: "member",
-          joinedAt: new Date(joinedAt),
-          // 参加時点では過去のメッセージを未読としない（既読位置 = 参加時刻）。
-          lastReadAt: new Date(joinedAt),
-        })
-        .onConflictDoNothing();
+    const joinedAt = Date.now();
+    await s.db
+      .insert(roomMembers)
+      .values({
+        roomId,
+        userId,
+        role: "member",
+        joinedAt: new Date(joinedAt),
+        // 参加時点では過去のメッセージを未読としない（既読位置 = 参加時刻）。
+        lastReadAt: new Date(joinedAt),
+      })
+      .onConflictDoNothing();
 
-      return c.json({ member: { userId, role: "member", joinedAt } }, 201);
-    },
-  )
+    return c.json({ member: { userId, role: "member", joinedAt } }, 201);
+  })
   // オーナーがメンバーを外す。自分自身の owner 権限削除は拒否する。
   .delete("/:roomId/members/:userId", async (c) => {
     const s = await requireSession(c);
@@ -97,9 +86,7 @@ export const membersApp = new Hono<{ Bindings: Bindings }>()
 
     await s.db
       .delete(roomMembers)
-      .where(
-        and(eq(roomMembers.roomId, roomId), eq(roomMembers.userId, targetUserId)),
-      );
+      .where(and(eq(roomMembers.roomId, roomId), eq(roomMembers.userId, targetUserId)));
     await disconnectRoomMember(c.env, roomId, targetUserId);
 
     return c.json({ ok: true } as const);

@@ -19,9 +19,7 @@ export async function listPasskeys(): Promise<Passkey[]> {
  * 内部でブラウザの WebAuthn 登録セレモニーを起動する。
  */
 export async function addPasskey(name?: string): Promise<void> {
-  const { error } = await authClient.passkey.addPasskey(
-    name ? { name } : undefined,
-  );
+  const { error } = await authClient.passkey.addPasskey(name ? { name } : undefined);
   if (error) throw new Error(error.message ?? "パスキーの登録に失敗しました");
 }
 

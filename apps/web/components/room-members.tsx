@@ -23,16 +23,9 @@ export function RoomMembers({
   onClose,
 }: RoomMembersState & { onClose: () => void }) {
   return (
-    <div
-      className="member-sheet"
-      role="dialog"
-      aria-modal="true"
-      aria-label="メンバー一覧"
-    >
+    <div className="member-sheet" role="dialog" aria-modal="true" aria-label="メンバー一覧">
       <div className="member-sheet-head">
-        <strong className="eyebrow">
-          メンバー {loading ? "" : `(${members.length})`}
-        </strong>
+        <strong className="eyebrow">メンバー {loading ? "" : `(${members.length})`}</strong>
         <button
           type="button"
           onClick={onClose}
@@ -83,10 +76,7 @@ export function RoomMembers({
               placeholder="追加するメンバーのメールアドレス"
               style={{ flex: 1, minWidth: 0 }}
             />
-            <button
-              type="submit"
-              disabled={adding || draftEmail.trim().length === 0}
-            >
+            <button type="submit" disabled={adding || draftEmail.trim().length === 0}>
               追加
             </button>
           </form>

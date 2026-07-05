@@ -65,10 +65,7 @@ export async function listMessages(
   const olderThanCursor = before
     ? or(
         lt(messages.createdAt, new Date(before.createdAt)),
-        and(
-          eq(messages.createdAt, new Date(before.createdAt)),
-          lt(messages.id, before.id),
-        ),
+        and(eq(messages.createdAt, new Date(before.createdAt)), lt(messages.id, before.id)),
       )
     : undefined;
 
@@ -96,9 +93,7 @@ export async function listMessages(
     rows.map((r) => r.id),
   );
 
-  return rows
-    .map((row) => toChatMessage(row, attachmentsByMessage.get(row.id) ?? []))
-    .toReversed();
+  return rows.map((row) => toChatMessage(row, attachmentsByMessage.get(row.id) ?? [])).toReversed();
 }
 
 /**
@@ -106,21 +101,12 @@ export async function listMessages(
  * 行が無ければ null。
  */
 export async function getMessageById(db: Db, messageId: string) {
-  const rows = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.id, messageId))
-    .limit(1);
+  const rows = await db.select().from(messages).where(eq(messages.id, messageId)).limit(1);
   return rows[0] ?? null;
 }
 
 /** メッセージ本文を更新する。`editedAt` も同時に更新する。 */
-export async function updateMessageBody(
-  db: Db,
-  messageId: string,
-  body: string,
-  editedAt: Date,
-) {
+export async function updateMessageBody(db: Db, messageId: string, body: string, editedAt: Date) {
   await db
     .update(messages)
     .set({ body, editedAt })
@@ -128,11 +114,7 @@ export async function updateMessageBody(
 }
 
 /** メッセージを論理削除する。本文は空文字に書き換える。 */
-export async function softDeleteMessage(
-  db: Db,
-  messageId: string,
-  deletedAt: Date,
-) {
+export async function softDeleteMessage(db: Db, messageId: string, deletedAt: Date) {
   await db
     .update(messages)
     .set({ body: "", deletedAt })

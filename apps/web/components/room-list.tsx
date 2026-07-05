@@ -3,12 +3,7 @@
 import type { Room } from "@repo/shared";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { isRoomNameTooLong, ROOM_NAME_TOO_LONG_MESSAGE } from "@/lib/length";
-import {
-  createRoom,
-  deleteRoom as apiDeleteRoom,
-  listRooms,
-  updateRoomName,
-} from "@/lib/rooms";
+import { createRoom, deleteRoom as apiDeleteRoom, listRooms, updateRoomName } from "@/lib/rooms";
 import { mergeRooms } from "@/lib/room-list";
 
 export type RoomListHandle = {
@@ -85,9 +80,7 @@ export const RoomList = forwardRef<
       void fetchRooms(refreshSignal.current);
     },
     markRoomReadLocally: (roomId) => {
-      setRooms((prev) =>
-        prev.map((r) => (r.id === roomId ? { ...r, unreadCount: 0 } : r)),
-      );
+      setRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, unreadCount: 0 } : r)));
     },
   }));
 
@@ -140,9 +133,7 @@ export const RoomList = forwardRef<
     setActionError(null);
     try {
       await updateRoomName(room.id, name);
-      setRooms((prev) =>
-        prev.map((r) => (r.id === room.id ? { ...r, name } : r)),
-      );
+      setRooms((prev) => prev.map((r) => (r.id === room.id ? { ...r, name } : r)));
       cancelEdit();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "更新に失敗しました");
@@ -177,17 +168,12 @@ export const RoomList = forwardRef<
           placeholder="新しいルーム名"
           style={{ flex: 1, minWidth: 0 }}
         />
-        <button
-          type="submit"
-          disabled={creating || draft.trim().length === 0 || draftTooLong}
-        >
+        <button type="submit" disabled={creating || draft.trim().length === 0 || draftTooLong}>
           作成
         </button>
       </form>
 
-      {draftTooLong && (
-        <p className="action-error">{ROOM_NAME_TOO_LONG_MESSAGE}</p>
-      )}
+      {draftTooLong && <p className="action-error">{ROOM_NAME_TOO_LONG_MESSAGE}</p>}
       {error && <p className="action-error">{error}</p>}
       {actionError && <p className="action-error">{actionError}</p>}
 
@@ -229,9 +215,7 @@ export const RoomList = forwardRef<
                       取消
                     </button>
                     {editDraftTooLong && (
-                      <p className="action-error">
-                        {ROOM_NAME_TOO_LONG_MESSAGE}
-                      </p>
+                      <p className="action-error">{ROOM_NAME_TOO_LONG_MESSAGE}</p>
                     )}
                   </form>
                 ) : (
@@ -243,10 +227,7 @@ export const RoomList = forwardRef<
                     >
                       <span className="room-name">{room.name}</span>
                       {room.unreadCount > 0 && (
-                        <span
-                          className="unread-badge"
-                          aria-label={`未読 ${room.unreadCount} 件`}
-                        >
+                        <span className="unread-badge" aria-label={`未読 ${room.unreadCount} 件`}>
                           {room.unreadCount > 99 ? "99+" : room.unreadCount}
                         </span>
                       )}

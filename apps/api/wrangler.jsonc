@@ -1,67 +1,61 @@
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "chat-api",
-	"main": "src/worker.ts",
-	"compatibility_date": "2026-06-13",
-	"compatibility_flags": [
-		"nodejs_compat"
-	],
-	"observability": {
-		"enabled": true
-	},
-	// 秘匿不要な設定値は vars で管理（version 管理対象）。秘匿値は wrangler secret で投入する:
-	//   BETTER_AUTH_SECRET（署名鍵）/ RESEND_API_KEY（API キー）/ VAPID_PRIVATE_KEY（Push 秘密鍵）
-	// Push 通知を有効にするには VAPID_PUBLIC_KEY を vars に追加し、同じペアの秘密鍵を secret に入れる。
-	"vars": {
-		"BETTER_AUTH_URL": "https://chat.api.tom-chiba.com",
-		"WEB_URL": "https://chat.tom-chiba.com",
-		"EMAIL_FROM": "no-reply@tom-chiba.com",
-		"VAPID_PUBLIC_KEY": "BB-TIwIiGdAWchSUmeC3svZXe9pcZn5EgmnLNt4u6NmAw219u3KmlhxU0HSNqRdDM9ttf1ZXuwv4x5t3hOjt9_s"
-	},
-	// 本番は chat.api.tom-chiba.com にカスタムドメインで公開する（tom-chiba.com は Cloudflare 管理ゾーン）。
-	"routes": [
-		{
-			"pattern": "chat.api.tom-chiba.com",
-			"custom_domain": true
-		}
-	],
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "chat-db",
-			"database_id": "0da6cb37-cbe0-4f8f-9709-ef3378a87d12",
-			"migrations_dir": "migrations"
-		}
-	],
-	// 画像添付の実体は R2 に保存する（DB には attachments メタデータのみ）。
-	"r2_buckets": [
-		{
-			"binding": "ATTACHMENTS",
-			"bucket_name": "chat-attachments"
-		}
-	],
-	// 毎時、送信も削除もされなかった孤児添付（未紐付け）を回収する（scheduled ハンドラ）。
-	"triggers": {
-		"crons": [
-			"0 * * * *"
-		]
-	},
-	// チャットルーム = 1 Durable Object。WebSocket Hibernation で接続を保持する。
-	"durable_objects": {
-		"bindings": [
-			{
-				"name": "ROOM",
-				"class_name": "RoomDO"
-			}
-		]
-	},
-	// SQLite バックエンドの DO（無料プラン可）。
-	"migrations": [
-		{
-			"tag": "v1",
-			"new_sqlite_classes": [
-				"RoomDO"
-			]
-		}
-	]
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "chat-api",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-06-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+  },
+  // 秘匿不要な設定値は vars で管理（version 管理対象）。秘匿値は wrangler secret で投入する:
+  //   BETTER_AUTH_SECRET（署名鍵）/ RESEND_API_KEY（API キー）/ VAPID_PRIVATE_KEY（Push 秘密鍵）
+  // Push 通知を有効にするには VAPID_PUBLIC_KEY を vars に追加し、同じペアの秘密鍵を secret に入れる。
+  "vars": {
+    "BETTER_AUTH_URL": "https://chat.api.tom-chiba.com",
+    "WEB_URL": "https://chat.tom-chiba.com",
+    "EMAIL_FROM": "no-reply@tom-chiba.com",
+    "VAPID_PUBLIC_KEY": "BB-TIwIiGdAWchSUmeC3svZXe9pcZn5EgmnLNt4u6NmAw219u3KmlhxU0HSNqRdDM9ttf1ZXuwv4x5t3hOjt9_s",
+  },
+  // 本番は chat.api.tom-chiba.com にカスタムドメインで公開する（tom-chiba.com は Cloudflare 管理ゾーン）。
+  "routes": [
+    {
+      "pattern": "chat.api.tom-chiba.com",
+      "custom_domain": true,
+    },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "chat-db",
+      "database_id": "0da6cb37-cbe0-4f8f-9709-ef3378a87d12",
+      "migrations_dir": "migrations",
+    },
+  ],
+  // 画像添付の実体は R2 に保存する（DB には attachments メタデータのみ）。
+  "r2_buckets": [
+    {
+      "binding": "ATTACHMENTS",
+      "bucket_name": "chat-attachments",
+    },
+  ],
+  // 毎時、送信も削除もされなかった孤児添付（未紐付け）を回収する（scheduled ハンドラ）。
+  "triggers": {
+    "crons": ["0 * * * *"],
+  },
+  // チャットルーム = 1 Durable Object。WebSocket Hibernation で接続を保持する。
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ROOM",
+        "class_name": "RoomDO",
+      },
+    ],
+  },
+  // SQLite バックエンドの DO（無料プラン可）。
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["RoomDO"],
+    },
+  ],
 }

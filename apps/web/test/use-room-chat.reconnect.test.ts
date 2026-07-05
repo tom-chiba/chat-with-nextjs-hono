@@ -145,12 +145,7 @@ test("再接続 history が重なる場合はマージで前方を保持し補�
     });
   });
 
-  expect(result.current.messages.map((m) => m.id)).toEqual([
-    "m1",
-    "m2",
-    "m3",
-    "m4",
-  ]);
+  expect(result.current.messages.map((m) => m.id)).toEqual(["m1", "m2", "m3", "m4"]);
   expect(fetchMessages).not.toHaveBeenCalled();
 });
 
@@ -466,13 +461,9 @@ test("スキーマ検証に通らない受信データは無視する", () => {
     // 想定外の type。
     MockWebSocket.latest.receiveRaw(JSON.stringify({ type: "bogus" }));
     // type は正しいが message 形状が壊れている（createdAt 欠落・id が数値）。
-    MockWebSocket.latest.receiveRaw(
-      JSON.stringify({ type: "message", message: { id: 1 } }),
-    );
+    MockWebSocket.latest.receiveRaw(JSON.stringify({ type: "message", message: { id: 1 } }));
     // update でも壊れた message は無視する。
-    MockWebSocket.latest.receiveRaw(
-      JSON.stringify({ type: "update", message: { id: "m1" } }),
-    );
+    MockWebSocket.latest.receiveRaw(JSON.stringify({ type: "update", message: { id: "m1" } }));
     // history 配列内に壊れた要素が 1 つでもあれば配列全体を無視する。
     MockWebSocket.latest.receiveRaw(
       JSON.stringify({ type: "history", messages: [msg("m2", 2), { id: 1 }] }),

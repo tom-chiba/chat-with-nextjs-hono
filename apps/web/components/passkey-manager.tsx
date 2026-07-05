@@ -2,12 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { formatDay } from "@/lib/datetime";
-import {
-  type Passkey,
-  addPasskey,
-  deletePasskey,
-  listPasskeys,
-} from "@/lib/passkeys";
+import { type Passkey, addPasskey, deletePasskey, listPasskeys } from "@/lib/passkeys";
 
 const MAX_PASSKEY_NAME_LENGTH = 50;
 
@@ -37,8 +32,7 @@ export function PasskeyManager() {
   }, []);
 
   useEffect(() => {
-    const isSupported =
-      typeof window !== "undefined" && Boolean(window.PublicKeyCredential);
+    const isSupported = typeof window !== "undefined" && Boolean(window.PublicKeyCredential);
     setSupported(isSupported);
     if (isSupported) {
       void load();

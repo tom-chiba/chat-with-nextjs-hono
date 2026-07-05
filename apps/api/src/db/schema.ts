@@ -1,11 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
-  index,
-  integer,
-  primaryKey,
-  sqliteTable,
-  text,
-} from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { user } from "./auth-schema";
 
 export * from "./auth-schema";
@@ -140,9 +134,7 @@ export const pushSubscriptions = sqliteTable(
       .notNull()
       .default(sql`(CAST(unixepoch('subsec') * 1000 AS INTEGER))`),
   },
-  (t) => [
-    index("push_subscriptions_user_id_idx").on(t.userId),
-  ],
+  (t) => [index("push_subscriptions_user_id_idx").on(t.userId)],
 );
 
 export type Room = typeof rooms.$inferSelect;

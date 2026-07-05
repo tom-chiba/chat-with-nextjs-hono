@@ -2,11 +2,7 @@ import type { ChatMessage } from "@repo/shared";
 import { expect, test } from "vitest";
 import { mergeMessages } from "@/lib/messages";
 
-function msg(
-  id: string,
-  createdAt: number,
-  overrides: Partial<ChatMessage> = {},
-): ChatMessage {
+function msg(id: string, createdAt: number, overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
     id,
     roomId: "room-1",

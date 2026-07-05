@@ -12,9 +12,7 @@ export const authClient = createAuthClient({
 
 export const { signIn, signUp, signOut, useSession } = authClient;
 // 上記の destructure では出てこないため、個別に再エクスポートする。
-export const requestPasswordReset =
-  authClient.requestPasswordReset.bind(authClient);
+export const requestPasswordReset = authClient.requestPasswordReset.bind(authClient);
 export const resetPassword = authClient.resetPassword.bind(authClient);
-export const sendVerificationEmail =
-  authClient.sendVerificationEmail.bind(authClient);
+export const sendVerificationEmail = authClient.sendVerificationEmail.bind(authClient);
 export const changeEmail = authClient.changeEmail.bind(authClient);

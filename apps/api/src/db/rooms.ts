@@ -49,12 +49,7 @@ export async function deleteRoom(db: Db, roomId: string) {
  * 自分のメンバー行の `lastReadAt` を `at` まで進める。
  * 後退（巻き戻し）はしない。
  */
-export async function markRoomRead(
-  db: Db,
-  roomId: string,
-  userId: string,
-  at: Date,
-) {
+export async function markRoomRead(db: Db, roomId: string, userId: string, at: Date) {
   await db
     .update(roomMembers)
     .set({ lastReadAt: at })
@@ -96,10 +91,7 @@ export async function getRoomMembership(
   const rows = await db
     .select({ role: roomMembers.role })
     .from(rooms)
-    .leftJoin(
-      roomMembers,
-      and(eq(roomMembers.roomId, rooms.id), eq(roomMembers.userId, userId)),
-    )
+    .leftJoin(roomMembers, and(eq(roomMembers.roomId, rooms.id), eq(roomMembers.userId, userId)))
     .where(eq(rooms.id, roomId))
     .limit(1);
 

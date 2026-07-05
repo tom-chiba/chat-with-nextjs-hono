@@ -15,11 +15,7 @@ function getRoom(env: Bindings) {
 }
 
 /** ルームから特定メンバーの接続中 WebSocket を、対応する DO 経由でクローズさせる。 */
-export async function disconnectRoomMember(
-  env: Bindings,
-  roomId: string,
-  userId: string,
-) {
+export async function disconnectRoomMember(env: Bindings, roomId: string, userId: string) {
   const room = getRoom(env);
   if (!room) return;
 
@@ -48,11 +44,7 @@ export async function disconnectRoomAll(env: Bindings, roomId: string) {
 }
 
 /** メッセージ編集 / 削除を、対応する DO 経由で接続中の全 WebSocket に配信する。 */
-export async function broadcastMessageUpdate(
-  env: Bindings,
-  roomId: string,
-  message: ChatMessage,
-) {
+export async function broadcastMessageUpdate(env: Bindings, roomId: string, message: ChatMessage) {
   const room = getRoom(env);
   if (!room) return;
 

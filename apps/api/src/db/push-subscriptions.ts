@@ -30,28 +30,14 @@ export async function upsertPushSubscription(
     });
 }
 
-export async function deletePushSubscription(
-  db: Db,
-  userId: string,
-  endpoint: string,
-) {
+export async function deletePushSubscription(db: Db, userId: string, endpoint: string) {
   await db
     .delete(pushSubscriptions)
-    .where(
-      and(
-        eq(pushSubscriptions.endpoint, endpoint),
-        eq(pushSubscriptions.userId, userId),
-      ),
-    );
+    .where(and(eq(pushSubscriptions.endpoint, endpoint), eq(pushSubscriptions.userId, userId)));
 }
 
-export async function deletePushSubscriptionByEndpoint(
-  db: Db,
-  endpoint: string,
-) {
-  await db
-    .delete(pushSubscriptions)
-    .where(eq(pushSubscriptions.endpoint, endpoint));
+export async function deletePushSubscriptionByEndpoint(db: Db, endpoint: string) {
+  await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
 }
 
 export async function listPushSubscriptionsForRoomMembers(
@@ -74,16 +60,8 @@ export async function listPushSubscriptionsForRoomMembers(
       auth: pushSubscriptions.auth,
     })
     .from(pushSubscriptions)
-    .innerJoin(
-      roomMembers,
-      eq(roomMembers.userId, pushSubscriptions.userId),
-    )
-    .where(
-      and(
-        eq(roomMembers.roomId, roomId),
-        ne(pushSubscriptions.userId, senderUserId),
-      ),
-    );
+    .innerJoin(roomMembers, eq(roomMembers.userId, pushSubscriptions.userId))
+    .where(and(eq(roomMembers.roomId, roomId), ne(pushSubscriptions.userId, senderUserId)));
 
   if (!excludeUserIds?.size) return rows;
   return rows.filter((row) => !excludeUserIds.has(row.userId));

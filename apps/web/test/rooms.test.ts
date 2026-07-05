@@ -24,9 +24,7 @@ beforeEach(() => {
 describe("addRoomMember", () => {
   test("成功時は email を json で送り解決する", async () => {
     post.mockResolvedValue({ ok: true });
-    await expect(
-      addRoomMember("room-1", "member@example.com"),
-    ).resolves.toBeUndefined();
+    await expect(addRoomMember("room-1", "member@example.com")).resolves.toBeUndefined();
     expect(post).toHaveBeenCalledWith({
       param: { roomId: "room-1" },
       json: { email: "member@example.com" },
@@ -42,8 +40,6 @@ describe("addRoomMember", () => {
     [500, "メンバーの追加に失敗しました"],
   ])("status %i は「%s」を投げる", async (status, message) => {
     post.mockResolvedValue({ ok: false, status });
-    await expect(addRoomMember("room-1", "x@example.com")).rejects.toThrow(
-      message,
-    );
+    await expect(addRoomMember("room-1", "x@example.com")).rejects.toThrow(message);
   });
 });

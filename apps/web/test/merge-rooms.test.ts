@@ -48,18 +48,12 @@ test("createdAt 同値でもサーバ反映前後で位置がジャンプしな�
 
 test("複数の localOnly も createdAt 降順（同値は id 降順）で整列する", () => {
   // 連続作成で未反映の自作ルームが積み上がるケース。
-  const merged = mergeRooms(
-    [room("b", 5), room("a", 5), room("c", 9)],
-    [room("old", 1)],
-  );
+  const merged = mergeRooms([room("b", 5), room("a", 5), room("c", 9)], [room("old", 1)]);
   expect(merged.map((r) => r.id)).toEqual(["c", "b", "a", "old"]);
 });
 
 test("list 側の最新情報（未読件数など）を優先する", () => {
-  const merged = mergeRooms(
-    [room("a", 1, { unreadCount: 3 })],
-    [room("a", 1, { unreadCount: 0 })],
-  );
+  const merged = mergeRooms([room("a", 1, { unreadCount: 3 })], [room("a", 1, { unreadCount: 0 })]);
   expect(merged).toHaveLength(1);
   expect(merged[0]?.unreadCount).toBe(0);
 });

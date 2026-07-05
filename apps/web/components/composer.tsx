@@ -62,9 +62,7 @@ export function Composer({
   const uploading = attachments.some((a) => a.status === "uploading");
   const readyAttachments = attachments.filter((a) => a.status === "ready");
   const canSend =
-    !draftTooLong &&
-    !uploading &&
-    (draft.trim().length > 0 || readyAttachments.length > 0);
+    !draftTooLong && !uploading && (draft.trim().length > 0 || readyAttachments.length > 0);
 
   /** 選ばれた画像を検証し、アップロードを開始してサムネイル列へ追加する。 */
   const addFiles = (files: File[]) => {
@@ -84,17 +82,13 @@ export function Composer({
         .then((a) => {
           setAttachments((prev) =>
             prev.map((x) =>
-              x.localId === localId
-                ? { ...x, status: "ready", remoteId: a.id }
-                : x,
+              x.localId === localId ? { ...x, status: "ready", remoteId: a.id } : x,
             ),
           );
         })
         .catch(() => {
           setAttachments((prev) =>
-            prev.map((x) =>
-              x.localId === localId ? { ...x, status: "error" } : x,
-            ),
+            prev.map((x) => (x.localId === localId ? { ...x, status: "error" } : x)),
           );
         });
     }
@@ -314,9 +308,7 @@ export function Composer({
         />
       </form>
 
-      {draftTooLong && (
-        <p className="action-error">{MESSAGE_TOO_LONG_MESSAGE}</p>
-      )}
+      {draftTooLong && <p className="action-error">{MESSAGE_TOO_LONG_MESSAGE}</p>}
     </div>
   );
 }

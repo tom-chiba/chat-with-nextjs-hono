@@ -1,8 +1,5 @@
 import type { Db } from "./db";
-import {
-  deleteAttachmentsByIds,
-  listOrphanAttachments,
-} from "./db/attachments";
+import { deleteAttachmentsByIds, listOrphanAttachments } from "./db/attachments";
 
 /**
  * 添付の R2 実体操作に必要な最小インターフェース。

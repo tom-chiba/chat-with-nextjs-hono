@@ -24,9 +24,7 @@ app.use("*", (c, next) =>
 );
 
 // Better Auth のハンドラをマウント（サインアップ / ログイン / ログアウト / メール検証など）。
-app.on(["GET", "POST"], "/api/auth/*", (c) =>
-  createAuth(c.env).handler(c.req.raw),
-);
+app.on(["GET", "POST"], "/api/auth/*", (c) => createAuth(c.env).handler(c.req.raw));
 
 // 注: WebSocket ルート（`/ws/room/:roomId`）は Worker ランタイム専用 API（Durable Object への
 // フォワード）を使うため、FE が型解決しない `worker.ts` 側で `app` に登録する。

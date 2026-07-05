@@ -74,9 +74,7 @@ test("ログイン時は設定系 UI 一式とユーザー名を表示する", (
   expect(screen.getByText("email-change-form")).toBeInTheDocument();
   expect(screen.getByText("push-control")).toBeInTheDocument();
   expect(screen.getByText("passkey-manager")).toBeInTheDocument();
-  expect(
-    screen.getByRole("link", { name: "← トップへ戻る" }),
-  ).toHaveAttribute("href", "/");
+  expect(screen.getByRole("link", { name: "← トップへ戻る" })).toHaveAttribute("href", "/");
 });
 
 test("ログアウトすると signOut を呼び、トップへ遷移する", async () => {

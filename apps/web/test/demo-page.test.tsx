@@ -23,9 +23,7 @@ test("初期状態で選択ルームのメッセージとメンバーを表示�
   render(<DemoPage />);
   expect(screen.getByText("デモモード")).toBeInTheDocument();
   // r1（雑談）の既存メッセージ。
-  expect(
-    screen.getByText("おはようございます！今日もよろしくお願いします。"),
-  ).toBeInTheDocument();
+  expect(screen.getByText("おはようございます！今日もよろしくお願いします。")).toBeInTheDocument();
   expect(screen.getByText("今日")).toBeInTheDocument();
 });
 
@@ -45,10 +43,7 @@ test("メッセージ送信で自分の発言として追加される", () => {
   // 送信者「あなた」として表示される。
   expect(screen.getByText("あなた")).toBeInTheDocument();
   // 送信後は入力欄がクリアされる。
-  expect(
-    (screen.getByPlaceholderText(/メッセージを入力/) as HTMLTextAreaElement)
-      .value,
-  ).toBe("");
+  expect((screen.getByPlaceholderText(/メッセージを入力/) as HTMLTextAreaElement).value).toBe("");
 });
 
 test("初期選択ルーム（雑談）には未読バッジが出ない", () => {
@@ -56,9 +51,7 @@ test("初期選択ルーム（雑談）には未読バッジが出ない", () =>
   // 在室中のルームは既読扱い。未読バッジ 2 は未選択のプロジェクトA に付く。
   const chatRoom = screen.getByRole("button", { name: /雑談/ });
   expect(chatRoom.textContent).not.toContain("2");
-  expect(
-    screen.getByRole("button", { name: /プロジェクトA/ }).textContent,
-  ).toContain("2");
+  expect(screen.getByRole("button", { name: /プロジェクトA/ }).textContent).toContain("2");
 });
 
 test("ルームを切り替えると未読バッジがクリアされる", () => {
@@ -96,9 +89,7 @@ test("自分のメッセージを削除するとプレースホルダになる",
   render(<DemoPage />);
   sendMessage("消します");
   fireEvent.click(screen.getByRole("button", { name: "メッセージを削除" }));
-  expect(
-    screen.getByText("（このメッセージは削除されました）"),
-  ).toBeInTheDocument();
+  expect(screen.getByText("（このメッセージは削除されました）")).toBeInTheDocument();
   expect(screen.queryByText("消します")).not.toBeInTheDocument();
 });
 
@@ -106,9 +97,7 @@ test("画像添付ダミーは最大 4 枚まで追加できる", () => {
   render(<DemoPage />);
   // ＋メニューから 1 枚目を追加する。
   fireEvent.click(screen.getByRole("button", { name: "画像を添付" }));
-  fireEvent.click(
-    screen.getByRole("menuitem", { name: "画像を追加（デモ用ダミー）" }),
-  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "画像を追加（デモ用ダミー）" }));
   // 以降は末尾の「＋」ボタンから追加し、4 枚に達したら「＋」は消える。
   fireEvent.click(screen.getByLabelText("画像を追加"));
   fireEvent.click(screen.getByLabelText("画像を追加"));
@@ -117,9 +106,7 @@ test("画像添付ダミーは最大 4 枚まで追加できる", () => {
   expect(screen.queryByLabelText("画像を追加")).not.toBeInTheDocument();
   // 上限到達後は、ペーパークリップのメニュー項目も無効化される。
   fireEvent.click(screen.getByRole("button", { name: "画像を添付" }));
-  expect(
-    screen.getByRole("menuitem", { name: "画像を追加（デモ用ダミー）" }),
-  ).toBeDisabled();
+  expect(screen.getByRole("menuitem", { name: "画像を追加（デモ用ダミー）" })).toBeDisabled();
 });
 
 test("メンバー一覧を開いて役割を表示する", () => {
@@ -165,12 +152,8 @@ test("同一送信者の連続発言では送信者名を集約する", () => {
 test("他者のメッセージには編集/削除アクションが出ない", () => {
   render(<DemoPage />);
   // 初期メッセージはすべて他者（アオイ/ユウキ）で、自分の発言はまだない。
-  expect(
-    screen.queryByRole("button", { name: "メッセージを編集" }),
-  ).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole("button", { name: "メッセージを削除" }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "メッセージを編集" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "メッセージを削除" })).not.toBeInTheDocument();
 });
 
 test("添付のみ（本文なし）で送信でき、送信後にサムネがクリアされる", () => {
@@ -178,9 +161,7 @@ test("添付のみ（本文なし）で送信でき、送信後にサムネが�
   // 初期状態では添付画像プレースホルダは 1 件（アオイの m2）のみ。
   expect(screen.getAllByText("image")).toHaveLength(1);
   fireEvent.click(screen.getByRole("button", { name: "画像を添付" }));
-  fireEvent.click(
-    screen.getByRole("menuitem", { name: "画像を追加（デモ用ダミー）" }),
-  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "画像を追加（デモ用ダミー）" }));
   // 本文が空でも添付があれば送信ボタンは有効。
   const send = screen.getByRole("button", { name: "送信" });
   expect(send).toBeEnabled();
@@ -195,13 +176,9 @@ test("添付のみ（本文なし）で送信でき、送信後にサムネが�
 test("メンバー一覧を閉じられる", () => {
   render(<DemoPage />);
   fireEvent.click(screen.getByRole("button", { name: /メンバー/ }));
-  expect(
-    screen.getByRole("dialog", { name: "メンバー一覧" }),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("dialog", { name: "メンバー一覧" })).toBeInTheDocument();
   fireEvent.click(screen.getByText("✕"));
-  expect(
-    screen.queryByRole("dialog", { name: "メンバー一覧" }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("dialog", { name: "メンバー一覧" })).not.toBeInTheDocument();
 });
 
 test("編集を空文字で保存しても削除されず編集モードを抜ける", () => {
@@ -213,12 +190,8 @@ test("編集を空文字で保存しても削除されず編集モードを抜�
   });
   fireEvent.click(screen.getByRole("button", { name: "保存" }));
   expect(screen.getByText("残るはず")).toBeInTheDocument();
-  expect(
-    screen.queryByText("（このメッセージは削除されました）"),
-  ).not.toBeInTheDocument();
-  expect(
-    screen.getByRole("button", { name: "メッセージを編集" }),
-  ).toBeInTheDocument();
+  expect(screen.queryByText("（このメッセージは削除されました）")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "メッセージを編集" })).toBeInTheDocument();
 });
 
 test("編集を取消すと変更が破棄される", () => {
@@ -236,9 +209,7 @@ test("編集を取消すと変更が破棄される", () => {
 test("送信前に添付を削除でき、上限で消えた「+」が再表示される", () => {
   render(<DemoPage />);
   fireEvent.click(screen.getByRole("button", { name: "画像を添付" }));
-  fireEvent.click(
-    screen.getByRole("menuitem", { name: "画像を追加（デモ用ダミー）" }),
-  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "画像を追加（デモ用ダミー）" }));
   fireEvent.click(screen.getByLabelText("画像を追加"));
   fireEvent.click(screen.getByLabelText("画像を追加"));
   fireEvent.click(screen.getByLabelText("画像を追加"));

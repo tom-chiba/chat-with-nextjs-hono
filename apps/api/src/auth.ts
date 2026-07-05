@@ -69,13 +69,9 @@ function normalizeResendError(error: unknown): ResendErrorShape {
   if (error && typeof error === "object") {
     const record = error as Record<string, unknown>;
     return {
-      message:
-        typeof record.message === "string"
-          ? maskEmailAddresses(record.message)
-          : undefined,
+      message: typeof record.message === "string" ? maskEmailAddresses(record.message) : undefined,
       name: typeof record.name === "string" ? record.name : undefined,
-      statusCode:
-        typeof record.statusCode === "number" ? record.statusCode : undefined,
+      statusCode: typeof record.statusCode === "number" ? record.statusCode : undefined,
     };
   }
   return { message: maskEmailAddresses(String(error)) };
@@ -90,17 +86,11 @@ function isRecipientSuppressionError(error: ResendErrorShape) {
   return (
     error.statusCode === 422 &&
     error.name === "validation_error" &&
-    (message.includes("suppress") ||
-      message.includes("bounce") ||
-      message.includes("complaint"))
+    (message.includes("suppress") || message.includes("bounce") || message.includes("complaint"))
   );
 }
 
-function logEmailFailure(
-  logLabel: string,
-  to: string,
-  error: ResendErrorShape,
-) {
+function logEmailFailure(logLabel: string, to: string, error: ResendErrorShape) {
   console.error(logLabel, {
     recipientDomain: emailDomain(to),
     error,

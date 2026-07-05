@@ -138,11 +138,7 @@ export function useRoomChat(roomId: string) {
         if (compareMessages(oldestPage, boundary) <= 0) return;
         // これ以上履歴がない、またはカーソルが前進しないなら停止。
         if (page.length < MESSAGE_PAGE_SIZE) return;
-        if (
-          oldestPage.createdAt === cursor.createdAt &&
-          oldestPage.id === cursor.id
-        )
-          return;
+        if (oldestPage.createdAt === cursor.createdAt && oldestPage.id === cursor.id) return;
         cursor = oldestPage;
       }
     };
@@ -160,13 +156,10 @@ export function useRoomChat(roomId: string) {
         // 再送しても重複は生じない（sending は close 時に failed へ倒すので含まれない）。
         const toFlush = pendingRef.current.filter((p) => p.status === "queued");
         if (toFlush.length > 0) {
-          for (const p of toFlush)
-            sendClientMessage(ws, p.body, p.nonce, p.attachmentIds);
+          for (const p of toFlush) sendClientMessage(ws, p.body, p.nonce, p.attachmentIds);
           const flushed = new Set(toFlush.map((p) => p.nonce));
           setPending((prev) =>
-            prev.map((p) =>
-              flushed.has(p.nonce) ? { ...p, status: "sending" } : p,
-            ),
+            prev.map((p) => (flushed.has(p.nonce) ? { ...p, status: "sending" } : p)),
           );
         }
       });
@@ -195,11 +188,7 @@ export function useRoomChat(roomId: string) {
           // 比較は (createdAt, id) 複合で行い、同一ミリ秒境界の取りこぼしを防ぐ。
           const newestPrev = prev[prev.length - 1];
           const oldestIncoming = incoming[0];
-          if (
-            newestPrev &&
-            oldestIncoming &&
-            compareMessages(oldestIncoming, newestPrev) > 0
-          ) {
+          if (newestPrev && oldestIncoming && compareMessages(oldestIncoming, newestPrev) > 0) {
             void backfillGap(newestPrev, oldestIncoming);
           }
         } else if (data.type === "message") {
@@ -215,9 +204,7 @@ export function useRoomChat(roomId: string) {
         } else if (data.type === "update") {
           // 編集 / 論理削除。既存メッセージを id でマッチして差し替える。
           // 未ロード（表示範囲外）の id は無視し、孤立挿入しない。
-          setMessages((prev) =>
-            prev.map((m) => (m.id === data.message.id ? data.message : m)),
-          );
+          setMessages((prev) => prev.map((m) => (m.id === data.message.id ? data.message : m)));
         } else if (data.type === "error") {
           // nonce が一致する保留があれば失敗扱いにし、本文を保持して再送可能にする。
           // 失敗理由は従来どおりバナーにも出す（個別バブルの再送導線と併用）。
@@ -225,9 +212,7 @@ export function useRoomChat(roomId: string) {
           if (data.nonce) {
             const failed = data.nonce;
             setPending((prev) =>
-              prev.map((p) =>
-                p.nonce === failed ? { ...p, status: "failed" } : p,
-              ),
+              prev.map((p) => (p.nonce === failed ? { ...p, status: "failed" } : p)),
             );
           }
         }
@@ -242,9 +227,7 @@ export function useRoomChat(roomId: string) {
         // 送出済み（sending）は ack 前に切断され宙に浮いた。自動再送はサーバが
         // id を都度採番し重複投稿になり得るため、failed にして手動再送に委ねる。
         setPending((prev) =>
-          prev.map((p) =>
-            p.status === "sending" ? { ...p, status: "failed" } : p,
-          ),
+          prev.map((p) => (p.status === "sending" ? { ...p, status: "failed" } : p)),
         );
         attempts += 1;
         // error → close の二重発火など、複数 close で前のタイマーが参照を失って
@@ -269,10 +252,7 @@ export function useRoomChat(roomId: string) {
   }, [roomId]);
 
   const send = useCallback(
-    (
-      body: string,
-      opts?: { attachmentIds?: string[]; attachments?: PendingAttachment[] },
-    ) => {
+    (body: string, opts?: { attachmentIds?: string[]; attachments?: PendingAttachment[] }) => {
       const ws = wsRef.current;
       const isOpen = ws?.readyState === WebSocket.OPEN;
       const attachmentIds = opts?.attachmentIds;
@@ -303,14 +283,9 @@ export function useRoomChat(roomId: string) {
     const ws = wsRef.current;
     const isOpen = ws?.readyState === WebSocket.OPEN;
     setErrorMessage(null);
-    if (isOpen && ws)
-      sendClientMessage(ws, target.body, nonce, target.attachmentIds);
+    if (isOpen && ws) sendClientMessage(ws, target.body, nonce, target.attachmentIds);
     setPending((prev) =>
-      prev.map((p) =>
-        p.nonce === nonce
-          ? { ...p, status: isOpen ? "sending" : "queued" }
-          : p,
-      ),
+      prev.map((p) => (p.nonce === nonce ? { ...p, status: isOpen ? "sending" : "queued" } : p)),
     );
   }, []);
 

@@ -3,12 +3,7 @@
 import { MIN_PASSWORD_LENGTH } from "@repo/shared";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  requestPasswordReset,
-  sendVerificationEmail,
-  signIn,
-  signUp,
-} from "@/lib/auth-client";
+import { requestPasswordReset, sendVerificationEmail, signIn, signUp } from "@/lib/auth-client";
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -33,9 +28,7 @@ export function AuthForm() {
   const router = useRouter();
 
   useEffect(() => {
-    setPasskeySupported(
-      typeof window !== "undefined" && Boolean(window.PublicKeyCredential),
-    );
+    setPasskeySupported(typeof window !== "undefined" && Boolean(window.PublicKeyCredential));
   }, []);
 
   const signInWithPasskey = async () => {
@@ -193,30 +186,17 @@ export function AuthForm() {
       </button>
 
       {mode === "login" && passkeySupported && (
-        <button
-          type="button"
-          onClick={signInWithPasskey}
-          disabled={pending}
-          className="btn-quiet"
-        >
+        <button type="button" onClick={signInWithPasskey} disabled={pending} className="btn-quiet">
           パスキーでログイン
         </button>
       )}
 
       {mode === "login" ? (
-        <button
-          type="button"
-          onClick={() => changeMode("forgot")}
-          className="btn-link"
-        >
+        <button type="button" onClick={() => changeMode("forgot")} className="btn-link">
           パスワードを忘れた方
         </button>
       ) : mode === "forgot" ? (
-        <button
-          type="button"
-          onClick={() => changeMode("login")}
-          className="btn-link"
-        >
+        <button type="button" onClick={() => changeMode("login")} className="btn-link">
           ログインに戻る
         </button>
       ) : null}
@@ -226,11 +206,7 @@ export function AuthForm() {
       {mode === "login" && (
         <>
           <div className="auth-or">または</div>
-          <button
-            type="button"
-            onClick={() => router.push("/demo")}
-            className="btn-outline"
-          >
+          <button type="button" onClick={() => router.push("/demo")} className="btn-outline">
             デモを試す
           </button>
         </>

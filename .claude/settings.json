@@ -82,17 +82,16 @@
       "allowLocalBinding": true
     },
     "filesystem": {
-      "allowWrite": [
-        "~/.claude/plugins/data/",
-        "~/.codex/",
-        "~/Library/Preferences/.wrangler/"
-      ]
+      "allowWrite": ["~/.claude/plugins/data/", "~/.codex/", "~/Library/Preferences/.wrangler/"]
     },
     "excludedCommands": [
       "playwright-cli *",
       "node *codex-companion.mjs*",
       "git *",
-      "gh *"
+      "gh *",
+      "pnpm add *",
+      "pnpm install --frozen-lockfile*",
+      "pnpm --frozen-lockfile install*"
     ]
   }
 }

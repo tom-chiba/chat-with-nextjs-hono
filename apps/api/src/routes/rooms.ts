@@ -61,21 +61,17 @@ export const roomsApp = new Hono<{ Bindings: Bindings }>()
     );
   })
   // ルーム名変更。オーナーのみ。
-  .patch(
-    "/:roomId",
-    jsonValidator(roomNameInputSchema, "invalid room name"),
-    async (c) => {
-      const s = await requireSession(c);
-      if (!s.ok) return s.res;
-      const roomId = c.req.param("roomId");
-      const own = await requireOwner(c, s.db, s.user.id, roomId);
-      if (!own.ok) return own.res;
+  .patch("/:roomId", jsonValidator(roomNameInputSchema, "invalid room name"), async (c) => {
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
+    const roomId = c.req.param("roomId");
+    const own = await requireOwner(c, s.db, s.user.id, roomId);
+    if (!own.ok) return own.res;
 
-      const { name } = c.req.valid("json");
-      await updateRoomName(s.db, roomId, name);
-      return c.json({ room: { id: roomId, name } } as const);
-    },
-  )
+    const { name } = c.req.valid("json");
+    await updateRoomName(s.db, roomId, name);
+    return c.json({ room: { id: roomId, name } } as const);
+  })
   // ルーム削除。オーナーのみ。messages/room_members は FK の CASCADE で削除される。
   .delete("/:roomId", async (c) => {
     const s = await requireSession(c);
@@ -92,22 +88,18 @@ export const roomsApp = new Hono<{ Bindings: Bindings }>()
     return c.json({ ok: true } as const);
   })
   // 自分の lastReadAt を進める。`at` は既読化したい時刻のミリ秒。
-  .post(
-    "/:roomId/read",
-    jsonValidator(roomReadSchema, "invalid at"),
-    async (c) => {
-      const s = await requireSession(c);
-      if (!s.ok) return s.res;
-      const roomId = c.req.param("roomId");
-      const mem = await requireMember(c, s.db, s.user.id, roomId);
-      if (!mem.ok) return mem.res;
+  .post("/:roomId/read", jsonValidator(roomReadSchema, "invalid at"), async (c) => {
+    const s = await requireSession(c);
+    if (!s.ok) return s.res;
+    const roomId = c.req.param("roomId");
+    const mem = await requireMember(c, s.db, s.user.id, roomId);
+    if (!mem.ok) return mem.res;
 
-      // 省略時は現在時刻を既読位置にする。
-      const { at } = c.req.valid("json");
-      await markRoomRead(s.db, roomId, s.user.id, new Date(at ?? Date.now()));
-      return c.json({ ok: true } as const);
-    },
-  )
+    // 省略時は現在時刻を既読位置にする。
+    const { at } = c.req.valid("json");
+    await markRoomRead(s.db, roomId, s.user.id, new Date(at ?? Date.now()));
+    return c.json({ ok: true } as const);
+  })
   // members / messages / attachments は自身の path に `/:roomId/...` を含むため `/` でマウントする。
   .route("/", membersApp)
   .route("/", messagesApp)

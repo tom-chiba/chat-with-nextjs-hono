@@ -1,0 +1,6 @@
+# git blame から除外するリビジョン一覧。
+# 有効化: git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitHub は本ファイルを自動的に参照する)
+
+# 整形: oxfmt でリポジトリ全体を整形する (#149)
+c106064ea21762cc0602fd483226ff923771ab94

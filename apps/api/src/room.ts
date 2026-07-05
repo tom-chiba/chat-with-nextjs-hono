@@ -79,17 +79,12 @@ export class RoomDO extends DurableObject<Env> {
 
     // 接続直後に直近の履歴を送る（UI が空にならないように）。
     const history = await this.recentMessages(roomId);
-    server.send(
-      JSON.stringify({ type: "history", messages: history } satisfies ServerMessage),
-    );
+    server.send(JSON.stringify({ type: "history", messages: history } satisfies ServerMessage));
 
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  override async webSocketMessage(
-    ws: WebSocket,
-    raw: string | ArrayBuffer,
-  ): Promise<void> {
+  override async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
     const attachment = ws.deserializeAttachment() as SocketAttachment | null;
     if (!attachment) return;
 
@@ -169,8 +164,7 @@ export class RoomDO extends DurableObject<Env> {
         JSON.stringify({
           type: "error",
           code: "empty_message",
-          message:
-            "メッセージを送信できませんでした（添付が無効か、すでに送信済みです）。",
+          message: "メッセージを送信できませんでした（添付が無効か、すでに送信済みです）。",
           nonce,
         } satisfies ServerMessage),
       );
@@ -202,20 +196,12 @@ export class RoomDO extends DurableObject<Env> {
    * ハンドラをブロックせずに走らせ、失敗してもクライアントへは何も返せないため例外は
    * 握りつぶす（個別の Push 失敗は `sendMessagePushNotifications` 内でログ済み）。
    */
-  private firePushNotifications(
-    db: Db,
-    message: ChatMessage,
-    excludeUserIds: Set<string>,
-  ): void {
+  private firePushNotifications(db: Db, message: ChatMessage, excludeUserIds: Set<string>): void {
     this.ctx.waitUntil(
       (async () => {
         try {
           // 本文の `@<name>` をルームメンバー名と突き合わせ、メンション先を解決する。
-          const mentionedUserIds = await resolveMentionedUserIds(
-            db,
-            message.roomId,
-            message.body,
-          );
+          const mentionedUserIds = await resolveMentionedUserIds(db, message.roomId, message.body);
           await sendMessagePushNotifications({
             db,
             env: this.env,
@@ -233,10 +219,15 @@ export class RoomDO extends DurableObject<Env> {
   override async webSocketClose(ws: WebSocket, code: number): Promise<void> {
     // クローズハンドシェイクを完了させる。ただし 1005/1006 など予約コードは
     // Close フレームに設定できず close() が例外を投げるため、正常コードに丸める。
-    const safeCode = code >= 1000 && code <= 4999 && code !== 1004 &&
-      code !== 1005 && code !== 1006 && code !== 1015
-      ? code
-      : 1000;
+    const safeCode =
+      code >= 1000 &&
+      code <= 4999 &&
+      code !== 1004 &&
+      code !== 1005 &&
+      code !== 1006 &&
+      code !== 1015
+        ? code
+        : 1000;
     ws.close(safeCode, "closing");
   }
 
@@ -257,7 +248,6 @@ export class RoomDO extends DurableObject<Env> {
     return listMessages(db, { roomId, limit: HISTORY_LIMIT });
   }
 
-
   private async disconnectMember(request: Request): Promise<Response> {
     const json = (await request.json().catch(() => ({}))) as { userId?: unknown };
     const userId = typeof json.userId === "string" ? json.userId : "";
@@ -270,10 +260,7 @@ export class RoomDO extends DurableObject<Env> {
       const attachment = socket.deserializeAttachment() as SocketAttachment | null;
       if (attachment?.userId !== userId) continue;
 
-      socket.close(
-        ROOM_MEMBER_REMOVED_CLOSE_CODE,
-        ROOM_MEMBER_REMOVED_CLOSE_REASON,
-      );
+      socket.close(ROOM_MEMBER_REMOVED_CLOSE_CODE, ROOM_MEMBER_REMOVED_CLOSE_REASON);
       closed += 1;
     }
 
@@ -310,8 +297,7 @@ export class RoomDO extends DurableObject<Env> {
 
     let delivered = 0;
     for (const socket of this.ctx.getWebSockets()) {
-      const attachment =
-        socket.deserializeAttachment() as SocketAttachment | null;
+      const attachment = socket.deserializeAttachment() as SocketAttachment | null;
       if (attachment?.roomId !== json.message.roomId) continue;
       socket.send(payload);
       delivered += 1;
