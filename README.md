@@ -15,7 +15,7 @@ PWA を使った軽量チャットツール。
 | 双方向通信     | WebSocket                                   |
 | モノレポ       | Turborepo / pnpm workspace                  |
 | バージョン管理 | git / mise / pnpm                           |
-| Lint / Format  | oxc (Oxlint)                                |
+| Lint / Format  | oxc (Oxlint / oxfmt)                        |
 | テスト         | Vitest / React Testing Library / Playwright |
 
 ## リポジトリ構成（予定）
@@ -39,9 +39,13 @@ mise install
 # 依存インストール
 pnpm install
 
-# Lint / Format（oxlint）
+# Lint（oxlint）
 pnpm lint
 pnpm lint:fix
+
+# Format（oxfmt）
+pnpm format        # 整形して書き込み
+pnpm format:check  # 整形崩れの検査のみ（CI と同じ）
 
 # 型チェック（turbo 経由で各パッケージ）
 pnpm typecheck
@@ -49,6 +53,13 @@ pnpm typecheck
 # テスト
 pnpm test
 ```
+
+> **整形と blame**: oxfmt による一括整形コミットは `.git-blame-ignore-revs` に登録済み。
+> ローカルの `git blame` から除外するには次を一度実行する（GitHub は自動で参照する）。
+>
+> ```bash
+> git config blame.ignoreRevsFile .git-blame-ignore-revs
+> ```
 
 ### モノレポ構成
 
