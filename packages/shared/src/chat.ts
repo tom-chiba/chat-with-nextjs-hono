@@ -67,6 +67,8 @@ export const ALLOWED_IMAGE_MIME_TYPES = [
   "image/png",
   "image/webp",
   "image/gif",
+  "image/avif",
+  "image/bmp",
 ] as const;
 
 export const allowedImageMimeTypeSchema = z.enum(ALLOWED_IMAGE_MIME_TYPES);
