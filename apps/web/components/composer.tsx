@@ -1,17 +1,16 @@
 "use client";
 
-import {
-  ALLOWED_IMAGE_MIME_TYPES,
-  MAX_ATTACHMENTS_PER_MESSAGE,
-  isAllowedImageMimeType,
-} from "@repo/shared";
+import { MAX_ATTACHMENTS_PER_MESSAGE } from "@repo/shared";
 import { useEffect, useRef, useState } from "react";
-import { convertToWebpIfBeneficial, deleteAttachment, uploadAttachment } from "@/lib/attachments";
+import {
+  deleteAttachment,
+  IMAGE_INPUT_ACCEPT,
+  isAcceptableInputImage,
+  prepareAttachmentForUpload,
+  uploadAttachment,
+} from "@/lib/attachments";
 import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
 import type { PendingAttachment } from "@/lib/use-room-chat";
-
-/** input の accept 属性（許可 MIME を列挙）。 */
-const ACCEPT = ALLOWED_IMAGE_MIME_TYPES.join(",");
 
 /** コンポーザー内でアップロード中/済みの添付を追跡するローカル状態。 */
 type LocalAttachment = {
@@ -48,12 +47,17 @@ export function Composer({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   /** ドラッグ enter/leave のネスト相殺用カウンタ（子要素間の leave で誤消灯しない）。 */
   const dragDepth = useRef(0);
+  /** アンマウント後に解決した変換 promise が state 更新・プレビュー生成をしないためのフラグ。 */
+  const mounted = useRef(true);
 
   // アンマウント時、未送信で残っているプレビュー URL を解放する。
   const attachmentsRef = useRef(attachments);
   attachmentsRef.current = attachments;
   useEffect(() => {
+    // StrictMode（dev）は setup→cleanup→setup を実行するため、setup で必ず true に戻す。
+    mounted.current = true;
     return () => {
+      mounted.current = false;
       for (const a of attachmentsRef.current) URL.revokeObjectURL(a.previewUrl);
     };
   }, []);
@@ -66,7 +70,7 @@ export function Composer({
 
   /** 選ばれた画像を検証し、アップロードを開始してサムネイル列へ追加する。 */
   const addFiles = (files: File[]) => {
-    const images = files.filter((f) => isAllowedImageMimeType(f.type));
+    const images = files.filter(isAcceptableInputImage);
     if (images.length === 0) return;
     const remaining = MAX_ATTACHMENTS_PER_MESSAGE - attachments.length;
     if (remaining <= 0) return;
@@ -80,8 +84,26 @@ export function Composer({
       ]);
       // 保存効率のため、対象形式はアップロード前に webp へ変換する（変換後は
       // サーバの保存 MIME に合わせてローカル状態の mimeType も更新する）。
-      void convertToWebpIfBeneficial(file)
-        .then((converted) => uploadAttachment(roomId, converted))
+      void prepareAttachmentForUpload(file)
+        .then(({ file: converted, changed }) => {
+          // 変換でバイト列が変わった場合（HEIC→webp/PNG、他形式→webp）は変換後のファイルから
+          // プレビューを作り直す。特に生 HEIC の blob URL は Chrome/Firefox で表示できないため必須。
+          // 変換前に削除/アンマウントされていれば作らない（どのサムネイルにも紐づかず解放され
+          // なくなるのを防ぐ）。
+          const stillPresent =
+            mounted.current && attachmentsRef.current.some((x) => x.localId === localId);
+          if (changed && stillPresent) {
+            const convertedPreview = URL.createObjectURL(converted);
+            setAttachments((prev) =>
+              prev.map((x) => {
+                if (x.localId !== localId) return x;
+                URL.revokeObjectURL(x.previewUrl);
+                return { ...x, previewUrl: convertedPreview };
+              }),
+            );
+          }
+          return uploadAttachment(roomId, converted);
+        })
         .then((a) => {
           setAttachments((prev) =>
             prev.map((x) =>
@@ -145,7 +167,7 @@ export function Composer({
 
   const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(e.clipboardData.files);
-    if (files.some((f) => isAllowedImageMimeType(f.type))) {
+    if (files.some(isAcceptableInputImage)) {
       e.preventDefault();
       addFiles(files);
     }
@@ -292,7 +314,7 @@ export function Composer({
         <input
           ref={fileInputRef}
           type="file"
-          accept={ACCEPT}
+          accept={IMAGE_INPUT_ACCEPT}
           multiple
           hidden
           onChange={(e) => {
@@ -303,7 +325,7 @@ export function Composer({
         <input
           ref={cameraInputRef}
           type="file"
-          accept={ACCEPT}
+          accept={IMAGE_INPUT_ACCEPT}
           capture="environment"
           hidden
           onChange={(e) => {

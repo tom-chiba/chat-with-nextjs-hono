@@ -61,7 +61,17 @@ export const MAX_ATTACHMENTS_PER_MESSAGE = 4;
 /** 添付 1 ファイルの最大バイト数（10 MiB）。 */
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
-/** 添付として受け付ける画像 MIME タイプ（allowlist）。 */
+/**
+ * 添付として受け付ける（保存・配信する）画像 MIME タイプ（allowlist）。
+ *
+ * サーバの受け入れ判定（これ以外は 415）・保存 contentType・配信メタ（{@link messageAttachmentSchema}）の
+ * 型を兼ねる単一の情報源。
+ *
+ * `image/heic` / `image/heif` は **含めない**: Chrome/Firefox がデコードできず、生のまま保存・配信すると
+ * 閲覧者が表示できないため。HEIC/HEIF は FE がアップロード前に必ず webp（不可なら PNG）へ変換し、
+ * 変換できないものはアップロードさせない。生 HEIC が直接 POST されてもサーバは 415 で弾く。
+ * FE の「入力として選べる形式」判定は allowlist ではなく別途拡張子/MIME で行う（`lib/attachments` の `isHeicLike`）。
+ */
 export const ALLOWED_IMAGE_MIME_TYPES = [
   "image/jpeg",
   "image/png",
