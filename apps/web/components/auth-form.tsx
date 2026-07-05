@@ -1,6 +1,7 @@
 "use client";
 
 import { MIN_PASSWORD_LENGTH } from "@repo/shared";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   requestPasswordReset,
@@ -29,6 +30,7 @@ export function AuthForm() {
   const [verifyEmail, setVerifyEmail] = useState<string | null>(null);
   // WebAuthn 非対応ブラウザではパスキー UI を出さず、メール+パスワードのみにフォールバックする。
   const [passkeySupported, setPasskeySupported] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setPasskeySupported(
@@ -218,6 +220,21 @@ export function AuthForm() {
           ログインに戻る
         </button>
       ) : null}
+
+      {/* アカウント登録なしでチャットを試せるゲストデモへの入り口（デザイン 1a）。
+          ログイン導線を主にしつつ、その下に控えめなサブボタンとして置く。 */}
+      {mode === "login" && (
+        <>
+          <div className="auth-or">または</div>
+          <button
+            type="button"
+            onClick={() => router.push("/demo")}
+            className="btn-outline"
+          >
+            デモを試す
+          </button>
+        </>
+      )}
 
       {verifyEmail && (
         <div className="verify-notice" role="status">

@@ -8,6 +8,10 @@ import {
   signUp,
 } from "@/lib/auth-client";
 
+const push = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+}));
 vi.mock("@/lib/auth-client", () => ({
   signIn: { email: vi.fn() },
   signUp: { email: vi.fn() },
@@ -173,6 +177,33 @@ test("再送ボタンで確認メールを再送し成功メッセージを表�
   expect(
     await screen.findByText("確認メールを再送しました。受信箱をご確認ください。"),
   ).toBeInTheDocument();
+});
+
+test("ログインモードでは「デモを試す」からゲストデモへ遷移する", () => {
+  render(<AuthForm />);
+  fireEvent.click(screen.getByRole("button", { name: "デモを試す" }));
+  expect(push).toHaveBeenCalledWith("/demo");
+});
+
+test("サインアップ/パスワード忘れモードでは「デモを試す」を出さない", () => {
+  render(<AuthForm />);
+  // ログインモードでは出る。
+  expect(
+    screen.getByRole("button", { name: "デモを試す" }),
+  ).toBeInTheDocument();
+
+  // サインアップへ切り替えると隠れる。
+  fireEvent.click(screen.getByRole("button", { name: "サインアップ" }));
+  expect(
+    screen.queryByRole("button", { name: "デモを試す" }),
+  ).not.toBeInTheDocument();
+
+  // ログインへ戻り、パスワード忘れへ進むと再び隠れる。
+  fireEvent.click(screen.getByRole("button", { name: "ログイン" }));
+  fireEvent.click(screen.getByRole("button", { name: "パスワードを忘れた方" }));
+  expect(
+    screen.queryByRole("button", { name: "デモを試す" }),
+  ).not.toBeInTheDocument();
 });
 
 test("パスワード忘れ導線は検証案内に影響しない", async () => {
