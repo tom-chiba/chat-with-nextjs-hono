@@ -6,7 +6,7 @@ import {
   isAllowedImageMimeType,
 } from "@repo/shared";
 import { useEffect, useRef, useState } from "react";
-import { deleteAttachment, uploadAttachment } from "@/lib/attachments";
+import { convertToWebpIfBeneficial, deleteAttachment, uploadAttachment } from "@/lib/attachments";
 import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
 import type { PendingAttachment } from "@/lib/use-room-chat";
 
@@ -78,11 +78,16 @@ export function Composer({
         ...prev,
         { localId, previewUrl, mimeType: file.type, status: "uploading" },
       ]);
-      void uploadAttachment(roomId, file)
+      // 保存効率のため、対象形式はアップロード前に webp へ変換する（変換後は
+      // サーバの保存 MIME に合わせてローカル状態の mimeType も更新する）。
+      void convertToWebpIfBeneficial(file)
+        .then((converted) => uploadAttachment(roomId, converted))
         .then((a) => {
           setAttachments((prev) =>
             prev.map((x) =>
-              x.localId === localId ? { ...x, status: "ready", remoteId: a.id } : x,
+              x.localId === localId
+                ? { ...x, status: "ready", remoteId: a.id, mimeType: a.mimeType }
+                : x,
             ),
           );
         })
