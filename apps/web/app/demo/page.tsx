@@ -3,6 +3,7 @@
 import { APP_NAME, MAX_ATTACHMENTS_PER_MESSAGE } from "@repo/shared";
 import { useRouter } from "next/navigation";
 import { Fragment, useState } from "react";
+import { useCoarsePointer } from "@/lib/use-coarse-pointer";
 
 /**
  * ゲストデモ（デザイン 1a の入り口から遷移する先）。
@@ -111,6 +112,7 @@ export default function DemoPage() {
   const [selectedRoomId, setSelectedRoomId] = useState("r1");
   const [roomDraft, setRoomDraft] = useState("");
   const [draft, setDraft] = useState("");
+  const coarsePointer = useCoarsePointer();
   const [thumbs, setThumbs] = useState<DemoThumb[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -168,6 +170,8 @@ export default function DemoPage() {
   };
 
   const onComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // タッチ端末では Enter は改行のみ（送信はボタンで行う）。
+    if (coarsePointer) return;
     // Shift+Enter は改行、IME 変換中の Enter は確定なので送信しない。
     if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
     e.preventDefault();
@@ -494,7 +498,9 @@ export default function DemoPage() {
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={onComposerKeyDown}
-                  placeholder="メッセージを入力（Shift+Enter で改行）"
+                  placeholder={
+                    coarsePointer ? "メッセージを入力" : "メッセージを入力（Shift+Enter で改行）"
+                  }
                   rows={2}
                 />
                 <button type="submit" className="btn-primary" disabled={sendDisabled}>

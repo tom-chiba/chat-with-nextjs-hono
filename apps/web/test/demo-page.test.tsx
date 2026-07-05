@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import DemoPage from "@/app/demo/page";
 
 const push = vi.fn();
@@ -10,6 +10,20 @@ vi.mock("next/navigation", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
 });
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+/** window.matchMedia を「pointer: coarse に一致（タッチ端末）」として差し替える。 */
+function stubCoarsePointer() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("coarse"),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
 
 /** コンポーザーの入力欄にメッセージを打ち込んで送信する。 */
 function sendMessage(body: string) {
@@ -141,6 +155,29 @@ test("IME 変換確定中の Enter では送信しない", () => {
   fireEvent.change(textarea, { target: { value: "へんかんちゅう" } });
   fireEvent.keyDown(textarea, { key: "Enter", isComposing: true });
   expect(screen.queryByText("あなた")).not.toBeInTheDocument();
+});
+
+test("タッチ端末では Enter で送信せず改行する", () => {
+  stubCoarsePointer();
+  render(<DemoPage />);
+  // プレースホルダから Shift+Enter の案内が消える。
+  const textarea = screen.getByPlaceholderText("メッセージを入力");
+  fireEvent.change(textarea, { target: { value: "スマホで改行" } });
+  // fireEvent は preventDefault されなければ true を返す。改行（既定動作）を
+  // 握りつぶしていないこと＝送信していないことを確認する。
+  const notPrevented = fireEvent.keyDown(textarea, { key: "Enter" });
+  expect(notPrevented).toBe(true);
+  // 送信されないため自分の発言は追加されない。
+  expect(screen.queryByText("あなた")).not.toBeInTheDocument();
+});
+
+test("タッチ端末でも送信ボタンからは送信できる", () => {
+  stubCoarsePointer();
+  render(<DemoPage />);
+  const textarea = screen.getByPlaceholderText("メッセージを入力");
+  fireEvent.change(textarea, { target: { value: "ボタンで送る" } });
+  fireEvent.click(screen.getByRole("button", { name: "送信" }));
+  expect(screen.getByText("ボタンで送る")).toBeInTheDocument();
 });
 
 test("同一送信者の連続発言では送信者名を集約する", () => {
