@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import heic2any from "heic2any";
 import {
   convertToWebpIfBeneficial,
+  IMAGE_INPUT_ACCEPT,
   isAcceptableInputImage,
   isHeicLike,
   prepareAttachmentForUpload,
@@ -96,6 +97,24 @@ describe("isAcceptableInputImage", () => {
 
   test("非画像は受理しない", () => {
     expect(isAcceptableInputImage(new File([], "a.txt", { type: "text/plain" }))).toBe(false);
+  });
+});
+
+/**
+ * accept 属性の実体。HEIC は MIME を認識しないブラウザ向けに拡張子も、Safari 向けに MIME も
+ * 含む必要がある（本機能の核心対策のリグレッションガード）。
+ */
+describe("IMAGE_INPUT_ACCEPT", () => {
+  test("HEIC/HEIF を MIME と拡張子の両方で許可する", () => {
+    const tokens = IMAGE_INPUT_ACCEPT.split(",");
+    expect(tokens).toContain("image/heic");
+    expect(tokens).toContain("image/heif");
+    expect(tokens).toContain(".heic");
+    expect(tokens).toContain(".heif");
+  });
+
+  test("allowlist の代表的な MIME（JPEG）を含む", () => {
+    expect(IMAGE_INPUT_ACCEPT.split(",")).toContain("image/jpeg");
   });
 });
 
