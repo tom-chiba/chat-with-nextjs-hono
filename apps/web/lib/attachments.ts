@@ -1,4 +1,4 @@
-import type { MessageAttachment } from "@repo/shared";
+import type { AllowedImageMimeType, MessageAttachment } from "@repo/shared";
 
 /** API のベース URL（rpc.ts と同じ環境変数を使う）。 */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
@@ -9,6 +9,59 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
  */
 export function attachmentUrl(roomId: string, attachmentId: string): string {
   return `${API_BASE}/rooms/${encodeURIComponent(roomId)}/attachments/${encodeURIComponent(attachmentId)}`;
+}
+
+/**
+ * Canvas でブラウザデコード可能かつ webp 化する価値が高い MIME（このどれかだけ変換する）。
+ * GIF はアニメーションが 1 フレーム目に潰れるため、WebP は変換不要なため除外する。
+ *
+ * `satisfies AllowedImageMimeType[]` で、変換対象が必ず allowlist の部分集合になることを
+ * コンパイル時に担保する（allowlist から外れた MIME を誤って足すと型エラー）。Set 自体は
+ * `Set<string>` とし、任意の `file.type`（string）で `.has` を引けるようにする。
+ */
+const WEBP_CONVERTIBLE_MIME_TYPES = new Set<string>([
+  "image/jpeg",
+  "image/png",
+  "image/bmp",
+  "image/avif",
+] satisfies AllowedImageMimeType[]);
+
+/** webp へエンコードする際の品質（0-1）。保存効率が目的のため lossy とする。 */
+const WEBP_QUALITY = 0.82;
+
+/**
+ * アップロード前に、変換価値が高くブラウザでデコードできる形式を webp へ変換する。
+ *
+ * - 対象は JPEG / PNG / BMP / AVIF。GIF（アニメ喪失）と WebP（変換不要）、および
+ *   デコードできない形式はそのまま返す。
+ * - `createImageBitmap` で EXIF の向きを適用してデコードし、Canvas で webp へ再エンコードする。
+ * - サイズ逆転フォールバック: 変換後が元以上（AVIF 等で起こりうる）なら元を採用する。
+ * - デコード / エンコードに失敗した場合も元をそのまま返し、アップロードは継続する。
+ */
+export async function convertToWebpIfBeneficial(file: File): Promise<File> {
+  if (!WEBP_CONVERTIBLE_MIME_TYPES.has(file.type)) return file;
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      return file;
+    }
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/webp", WEBP_QUALITY),
+    );
+    // toBlob が null（webp エンコード非対応）、または変換で小さくならないなら元を採用。
+    if (!blob || blob.size >= file.size) return file;
+    const name = `${file.name.replace(/\.[^./\\]+$/, "")}.webp`;
+    return new File([blob], name, { type: "image/webp" });
+  } catch {
+    return file;
+  }
 }
 
 /**
