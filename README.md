@@ -15,6 +15,7 @@ PWA を使った軽量チャットツール。
 | 双方向通信     | WebSocket                                   |
 | モノレポ       | Turborepo / pnpm workspace                  |
 | バージョン管理 | git / mise / pnpm                           |
+| Git hooks      | lefthook                                    |
 | Lint / Format  | oxc (Oxlint / oxfmt)                        |
 | テスト         | Vitest / React Testing Library / Playwright |
 
@@ -60,6 +61,33 @@ pnpm test
 > ```bash
 > git config blame.ignoreRevsFile .git-blame-ignore-revs
 > ```
+
+### Git hooks（lefthook）
+
+コミット/プッシュ前にローカルで品質チェックを走らせ、CI より前に手戻りを検知する。設定は `lefthook.yml`。
+
+- **pre-commit**: ステージ済みファイルのみ、oxlint で自動修正し、その後 oxfmt で整形して、修正結果を再ステージする。
+- **pre-push**: リポジトリ全体の `pnpm typecheck` と `pnpm test`（turbo キャッシュで高速化）。
+
+フックは `pnpm install`（`package.json` の `prepare` が `lefthook install` を実行）で自動セットアップされる。手動で入れ直すには次を実行する。
+
+```bash
+pnpm exec lefthook install
+```
+
+緊急時にフックを回避する場合:
+
+```bash
+# lefthook のフックだけ無効化（Git 標準フックは動く）
+LEFTHOOK=0 git commit -m "..."
+LEFTHOOK=0 git push
+
+# Git 標準の回避（すべてのフックをスキップ）
+git commit --no-verify -m "..."
+git push --no-verify
+```
+
+> CI（GitHub Actions）ではコミット/プッシュを行わないためフックは発火しない。品質チェックは CI 側の lint / typecheck / test ジョブが担う。
 
 ### モノレポ構成
 
