@@ -10,9 +10,20 @@ export const authClient = createAuthClient({
   plugins: [passkeyClient()],
 });
 
-export const { signIn, signUp, signOut, useSession } = authClient;
-// 上記の destructure では出てこないため、個別に再エクスポートする。
-export const requestPasswordReset = authClient.requestPasswordReset.bind(authClient);
-export const resetPassword = authClient.resetPassword.bind(authClient);
-export const sendVerificationEmail = authClient.sendVerificationEmail.bind(authClient);
-export const changeEmail = authClient.changeEmail.bind(authClient);
+// authClient は better-auth クライアントの動的パス Proxy（内部で @better-fetch を呼ぶ）で、
+// これらのメンバーは実メソッドではなくプロパティアクセスで解決される。過去に
+// `authClient.requestPasswordReset.bind(authClient)` としていたが、`.bind` までパス
+// セグメントとして横取りされ、モジュール評価時に不正な fetch
+// （'[object Promise]' is not a valid HTTP method / 404 /api/auth/fetch-options/method/to-upper-case）
+// が走っていた（#146）。分割代入なら get トラップがプロパティを 1 回解決するだけで
+// この罠を踏まず、apply トラップは this に依存しないため bind も不要。まとめて再エクスポートする。
+export const {
+  signIn,
+  signUp,
+  signOut,
+  useSession,
+  requestPasswordReset,
+  resetPassword,
+  sendVerificationEmail,
+  changeEmail,
+} = authClient;
