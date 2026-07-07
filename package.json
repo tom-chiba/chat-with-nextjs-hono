@@ -18,8 +18,8 @@
     "@types/node": "catalog:",
     "lefthook": "^2.1.9",
     "oxfmt": "^0.57.0",
-    "oxlint": "^1.71.0",
-    "turbo": "^2.10.0",
+    "oxlint": "^1.72.0",
+    "turbo": "^2.10.2",
     "typescript": "catalog:"
   },
   "engines": {
