@@ -3,7 +3,9 @@
 import { APP_NAME, MAX_ATTACHMENTS_PER_MESSAGE } from "@repo/shared";
 import { useRouter } from "next/navigation";
 import { Fragment, useState } from "react";
-import { useCoarsePointer } from "@/lib/use-coarse-pointer";
+import { HamburgerIcon, PlusIcon } from "@/components/icons";
+import { initialOf, MAX_AVATARS } from "@/lib/avatar";
+import { shouldSubmitOnEnter, useCoarsePointer } from "@/lib/use-coarse-pointer";
 
 /**
  * ゲストデモ（デザイン 1a の入り口から遷移する先）。
@@ -15,8 +17,6 @@ import { useCoarsePointer } from "@/lib/use-coarse-pointer";
  */
 
 const GUEST_ID = "guest";
-/** アバタースタックに並べるメンバーの最大数。超過分は "+N" にまとめる。 */
-const MAX_AVATARS = 3;
 
 type DemoRoom = { id: string; name: string; unread: number };
 type DemoAttachment = { id: string };
@@ -99,11 +99,6 @@ const MEMBERS: DemoMember[] = [
   { userId: GUEST_ID, userName: "あなた", role: "member" },
 ];
 
-/** 表示名の先頭 1 文字（サロゲートペア・結合文字を割らない）を返す。 */
-function initialOf(name: string): string {
-  return Array.from(name)[0] ?? "?";
-}
-
 export default function DemoPage() {
   const router = useRouter();
   const [rooms, setRooms] = useState<DemoRoom[]>(INITIAL_ROOMS);
@@ -170,10 +165,7 @@ export default function DemoPage() {
   };
 
   const onComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // タッチ端末では Enter は改行のみ（送信はボタンで行う）。
-    if (coarsePointer) return;
-    // Shift+Enter は改行、IME 変換中の Enter は確定なので送信しない。
-    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    if (!shouldSubmitOnEnter(e, coarsePointer)) return;
     e.preventDefault();
     sendMessage();
   };
@@ -292,20 +284,7 @@ export default function DemoPage() {
                 onClick={() => setRoomsDrawerOpen(true)}
                 aria-label="ルーム一覧を開く"
               >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  aria-hidden="true"
-                >
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
+                <HamburgerIcon />
               </button>
 
               <div className="chat-heading">
@@ -458,19 +437,7 @@ export default function DemoPage() {
                     aria-label="画像を添付"
                     aria-expanded={menuOpen}
                   >
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      aria-hidden="true"
-                    >
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
+                    <PlusIcon />
                   </button>
                   {menuOpen && (
                     <>
