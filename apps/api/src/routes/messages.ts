@@ -4,7 +4,9 @@ import {
   MESSAGE_PAGE_SIZE,
   MESSAGE_PAGE_SIZE_MAX,
 } from "@repo/shared";
+import type { Context } from "hono";
 import { Hono } from "hono";
+import type { Db } from "../db";
 import { deleteAttachmentsForMessage, listAttachmentsForMessages } from "../db/attachments";
 import {
   getMessageById,
@@ -13,10 +15,31 @@ import {
   toChatMessage,
   updateMessageBody,
 } from "../db/messages";
-import { requireMember, requireSession } from "../guards";
+import { requireMemberSession } from "../guards";
 import { broadcastMessageUpdate } from "../realtime";
 import type { Bindings } from "../types";
 import { jsonValidator, queryValidator } from "../validators";
+
+/**
+ * 編集・削除対象メッセージの所有者チェック（取得→ルーム一致→本人確認）。
+ * 論理削除済みかどうかの扱いは編集/削除で異なるため、呼び出し側で判定する。
+ */
+async function loadOwnMessage(
+  c: Context<{ Bindings: Bindings }>,
+  db: Db,
+  roomId: string,
+  messageId: string,
+  userId: string,
+) {
+  const existing = await getMessageById(db, messageId);
+  if (!existing || existing.roomId !== roomId) {
+    return { ok: false as const, res: c.json({ error: "message not found" } as const, 404) };
+  }
+  if (existing.userId !== userId) {
+    return { ok: false as const, res: c.json({ error: "forbidden" } as const, 403) };
+  }
+  return { ok: true as const, message: existing };
+}
 
 /**
  * `/rooms/:roomId/messages`: メッセージ履歴の取得と編集 / 削除。
@@ -26,11 +49,9 @@ import { jsonValidator, queryValidator } from "../validators";
 export const messagesApp = new Hono<{ Bindings: Bindings }>()
   // ルームのメッセージ履歴（古い順）。`before`/`beforeId` で過去ページをたどる。要セッション。
   .get("/:roomId/messages", queryValidator(messagesQuerySchema), async (c) => {
-    const s = await requireSession(c);
-    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
-    const mem = await requireMember(c, s.db, s.user.id, roomId);
-    if (!mem.ok) return mem.res;
+    const s = await requireMemberSession(c, roomId);
+    if (!s.ok) return s.res;
 
     const q = c.req.valid("query");
     const rawLimit = Number(q.limit);
@@ -53,21 +74,15 @@ export const messagesApp = new Hono<{ Bindings: Bindings }>()
     "/:roomId/messages/:messageId",
     jsonValidator(messageEditSchema, "invalid body"),
     async (c) => {
-      const s = await requireSession(c);
-      if (!s.ok) return s.res;
       const roomId = c.req.param("roomId");
       const messageId = c.req.param("messageId");
-      const mem = await requireMember(c, s.db, s.user.id, roomId);
-      if (!mem.ok) return mem.res;
+      const s = await requireMemberSession(c, roomId);
+      if (!s.ok) return s.res;
 
       const { body } = c.req.valid("json");
-      const existing = await getMessageById(s.db, messageId);
-      if (!existing || existing.roomId !== roomId) {
-        return c.json({ error: "message not found" } as const, 404);
-      }
-      if (existing.userId !== s.user.id) {
-        return c.json({ error: "forbidden" } as const, 403);
-      }
+      const own = await loadOwnMessage(c, s.db, roomId, messageId, s.user.id);
+      if (!own.ok) return own.res;
+      const existing = own.message;
       if (existing.deletedAt) {
         return c.json({ error: "message is deleted" } as const, 410);
       }
@@ -94,20 +109,14 @@ export const messagesApp = new Hono<{ Bindings: Bindings }>()
   )
   // メッセージ削除（論理削除）。本人のみ。
   .delete("/:roomId/messages/:messageId", async (c) => {
-    const s = await requireSession(c);
-    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
     const messageId = c.req.param("messageId");
-    const mem = await requireMember(c, s.db, s.user.id, roomId);
-    if (!mem.ok) return mem.res;
+    const s = await requireMemberSession(c, roomId);
+    if (!s.ok) return s.res;
 
-    const existing = await getMessageById(s.db, messageId);
-    if (!existing || existing.roomId !== roomId) {
-      return c.json({ error: "message not found" } as const, 404);
-    }
-    if (existing.userId !== s.user.id) {
-      return c.json({ error: "forbidden" } as const, 403);
-    }
+    const own = await loadOwnMessage(c, s.db, roomId, messageId, s.user.id);
+    if (!own.ok) return own.res;
+    const existing = own.message;
     if (existing.deletedAt) {
       return c.json({ ok: true } as const);
     }

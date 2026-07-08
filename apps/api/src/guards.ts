@@ -11,8 +11,9 @@ import { getRoomMembership, requireRoomOwner } from "./db/rooms";
  * 失敗時の `c.json(...)` をハンドラ自身が return する」関数として提供し、401/403/404 を
  * RPC 型に残す。成功時は後続が使う値（user / db）を返す。
  *
- * 注: ガードの呼び出しは型では強制されない。新しい保護ルートでは必ず `requireSession`
- * を先頭で呼び、必要に応じて `requireMember` / `requireOwner` を続けること。
+ * 注: ガードの呼び出しは型では強制されない。新しい保護ルートでは、メンバー/オーナー確認が
+ * 必要な場合は合成ヘルパの `requireMemberSession` / `requireOwnerSession` を、セッションのみで
+ * 良い場合は `requireSession` を先頭で呼ぶこと。
  */
 
 type GuardCtx = Context<{ Bindings: AuthEnv }>;
@@ -34,7 +35,7 @@ export async function requireSession(c: GuardCtx) {
  * `roomId` の所属メンバーであることを要求する。ルームが無ければ 404、
  * メンバーでなければ 403 を `res` で返す。
  */
-export async function requireMember(c: GuardCtx, db: Db, userId: string, roomId: string) {
+async function requireMember(c: GuardCtx, db: Db, userId: string, roomId: string) {
   const membership = await getRoomMembership(db, roomId, userId);
   if (membership.status === "not_found") {
     return { ok: false as const, res: c.json({ error: "room not found" } as const, 404) };
@@ -49,7 +50,7 @@ export async function requireMember(c: GuardCtx, db: Db, userId: string, roomId:
  * `roomId` のオーナーであることを要求する。ルームが無ければ 404、
  * オーナーでなければ 403 を `res` で返す。
  */
-export async function requireOwner(c: GuardCtx, db: Db, userId: string, roomId: string) {
+async function requireOwner(c: GuardCtx, db: Db, userId: string, roomId: string) {
   const owner = await requireRoomOwner(db, roomId, userId);
   if (owner.status === "not_found") {
     return { ok: false as const, res: c.json({ error: "room not found" } as const, 404) };
@@ -58,4 +59,30 @@ export async function requireOwner(c: GuardCtx, db: Db, userId: string, roomId: 
     return { ok: false as const, res: c.json({ error: "forbidden" } as const, 403) };
   }
   return { ok: true as const };
+}
+
+/**
+ * `roomId` のメンバーであることを要求する合成ヘルパ。セッション確認とメンバー確認を
+ * 一度に行い、失敗時は最初に失敗した方の `res` を返す。成功時は `requireSession` と
+ * 同じ形（`user` / `db`）を返す。
+ */
+export async function requireMemberSession(c: GuardCtx, roomId: string) {
+  const s = await requireSession(c);
+  if (!s.ok) return s;
+  const mem = await requireMember(c, s.db, s.user.id, roomId);
+  if (!mem.ok) return mem;
+  return s;
+}
+
+/**
+ * `roomId` のオーナーであることを要求する合成ヘルパ。セッション確認とオーナー確認を
+ * 一度に行い、失敗時は最初に失敗した方の `res` を返す。成功時は `requireSession` と
+ * 同じ形（`user` / `db`）を返す。
+ */
+export async function requireOwnerSession(c: GuardCtx, roomId: string) {
+  const s = await requireSession(c);
+  if (!s.ok) return s;
+  const own = await requireOwner(c, s.db, s.user.id, roomId);
+  if (!own.ok) return own;
+  return s;
 }
