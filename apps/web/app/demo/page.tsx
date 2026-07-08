@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Fragment, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { HamburgerIcon, PlusIcon } from "@/components/icons";
+import { RoomMembers } from "@/components/room-members";
 import { initialOf, MAX_AVATARS } from "@/lib/avatar";
 import { shouldSubmitOnEnter, useCoarsePointer } from "@/lib/use-coarse-pointer";
 
@@ -492,34 +493,22 @@ export default function DemoPage() {
                 aria-label="メンバー一覧を閉じる"
                 onClick={() => setMembersOpen(false)}
               />
-              <div
-                className="member-sheet"
-                role="dialog"
-                aria-modal="true"
-                aria-label="メンバー一覧"
-              >
-                <div className="member-sheet-head">
-                  <strong className="eyebrow">メンバー ({MEMBERS.length})</strong>
-                  <button
-                    type="button"
-                    className="warn-close"
-                    onClick={() => setMembersOpen(false)}
-                    aria-label="メンバー一覧を閉じる"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div className="members-body">
-                  <ul className="member-items">
-                    {MEMBERS.map((m) => (
-                      <li key={m.userId} className="member-row">
-                        <span className="member-name">{m.userName}</span>
-                        <span className="role-tag">{m.role}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+              {/* メンバーシートは本番（ChatRoom）と同じ presentational コンポーネントを共有する。
+                  デモは閲覧のみのため、オーナー操作（追加・削除）・ローディング・エラーは無効化し、
+                  該当ハンドラは no-op を渡す。 */}
+              <RoomMembers
+                members={MEMBERS}
+                loading={false}
+                error={null}
+                isOwner={false}
+                draftEmail=""
+                setDraftEmail={() => {}}
+                adding={false}
+                removingUserId={null}
+                submitAdd={() => {}}
+                submitRemove={() => {}}
+                onClose={() => setMembersOpen(false)}
+              />
             </>
           )}
         </div>
