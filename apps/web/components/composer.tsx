@@ -10,8 +10,9 @@ import {
   uploadAttachment,
 } from "@/lib/attachments";
 import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
-import { useCoarsePointer } from "@/lib/use-coarse-pointer";
+import { shouldSubmitOnEnter, useCoarsePointer } from "@/lib/use-coarse-pointer";
 import type { PendingAttachment } from "@/lib/use-room-chat";
+import { PlusIcon } from "./icons";
 
 /** コンポーザー内でアップロード中/済みの添付を追跡するローカル状態。 */
 type LocalAttachment = {
@@ -161,10 +162,7 @@ export function Composer({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // タッチ端末では Enter は改行のみ（送信はボタンで行う）。
-    if (coarsePointer) return;
-    // Shift+Enter は改行、IME 変換中の Enter は確定なので送信しない。
-    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    if (!shouldSubmitOnEnter(e, coarsePointer)) return;
     e.preventDefault();
     submit(e);
   };
@@ -247,19 +245,7 @@ export function Composer({
             aria-label="画像を添付"
             aria-expanded={menuOpen}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
+            <PlusIcon />
           </button>
           {menuOpen && (
             <>

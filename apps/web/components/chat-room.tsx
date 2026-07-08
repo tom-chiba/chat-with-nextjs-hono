@@ -1,21 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { initialOf, MAX_AVATARS } from "@/lib/avatar";
 import { markRoomRead } from "@/lib/rooms";
 import { useMessageActions } from "@/lib/use-message-actions";
 import { useRoomChat } from "@/lib/use-room-chat";
 import { useRoomMembers } from "@/lib/use-room-members";
 import { Composer } from "./composer";
+import { HamburgerIcon } from "./icons";
 import { MessageList } from "./message-list";
 import { RoomMembers } from "./room-members";
-
-/** アバタースタックに並べるメンバーの最大数。超過分は "+N" にまとめる。 */
-const MAX_AVATARS = 3;
-
-/** 表示名の先頭 1 文字（サロゲートペア・結合文字を割らない）を返す。 */
-function initialOf(name: string): string {
-  return Array.from(name)[0] ?? "?";
-}
 
 const STATUS_LABEL = {
   connecting: "接続中…",
@@ -139,20 +133,7 @@ export function ChatRoom({
             onClick={onOpenRooms}
             aria-label="ルーム一覧を開く"
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
+            <HamburgerIcon />
           </button>
         )}
 
