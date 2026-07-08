@@ -4,6 +4,7 @@ import type { ChatMessage, MessageAttachment, Room, RoomMember } from "@repo/sha
 import { APP_NAME, MAX_ATTACHMENTS_PER_MESSAGE } from "@repo/shared";
 import { useRouter } from "next/navigation";
 import { Fragment, useState } from "react";
+import { AppShell } from "@/components/app-shell";
 import { HamburgerIcon, PlusIcon } from "@/components/icons";
 import { initialOf, MAX_AVATARS } from "@/lib/avatar";
 import { shouldSubmitOnEnter, useCoarsePointer } from "@/lib/use-coarse-pointer";
@@ -243,16 +244,7 @@ export default function DemoPage() {
         </button>
       </header>
 
-      <div className="app-shell" data-drawer={roomsDrawerOpen ? "open" : "closed"}>
-        {roomsDrawerOpen && (
-          <button
-            type="button"
-            className="drawer-backdrop mobile-only"
-            aria-label="ルーム一覧を閉じる"
-            onClick={() => setRoomsDrawerOpen(false)}
-          />
-        )}
-
+      <AppShell drawerOpen={roomsDrawerOpen} onCloseDrawer={() => setRoomsDrawerOpen(false)}>
         <div className="roomlist-pane">
           <div className="roomlist">
             <strong className="eyebrow">ルーム</strong>
@@ -531,7 +523,7 @@ export default function DemoPage() {
             </>
           )}
         </div>
-      </div>
+      </AppShell>
     </main>
   );
 }
