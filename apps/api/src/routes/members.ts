@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { findUserByEmail, getRoomMembership, listRoomMembers } from "../db/rooms";
 import { roomMembers } from "../db/schema";
-import { requireMember, requireOwner, requireSession } from "../guards";
+import { requireMemberSession, requireOwnerSession } from "../guards";
 import { disconnectRoomMember } from "../realtime";
 import type { Bindings } from "../types";
 import { jsonValidator } from "../validators";
@@ -16,11 +16,9 @@ import { jsonValidator } from "../validators";
 export const membersApp = new Hono<{ Bindings: Bindings }>()
   // ルームメンバー一覧。所属メンバーのみ閲覧可。
   .get("/:roomId/members", async (c) => {
-    const s = await requireSession(c);
-    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
-    const mem = await requireMember(c, s.db, s.user.id, roomId);
-    if (!mem.ok) return mem.res;
+    const s = await requireMemberSession(c, roomId);
+    if (!s.ok) return s.res;
 
     const members = await listRoomMembers(s.db, roomId);
     return c.json({
@@ -34,11 +32,9 @@ export const membersApp = new Hono<{ Bindings: Bindings }>()
   })
   // オーナーがメールアドレスで登録済みユーザーをルームへ追加する。
   .post("/:roomId/members", jsonValidator(memberAddSchema, "invalid email"), async (c) => {
-    const s = await requireSession(c);
-    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
-    const own = await requireOwner(c, s.db, s.user.id, roomId);
-    if (!own.ok) return own.res;
+    const s = await requireOwnerSession(c, roomId);
+    if (!s.ok) return s.res;
 
     const { email } = c.req.valid("json");
     const target = await findUserByEmail(s.db, email);
@@ -69,12 +65,10 @@ export const membersApp = new Hono<{ Bindings: Bindings }>()
   })
   // オーナーがメンバーを外す。自分自身の owner 権限削除は拒否する。
   .delete("/:roomId/members/:userId", async (c) => {
-    const s = await requireSession(c);
-    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
     const targetUserId = c.req.param("userId");
-    const own = await requireOwner(c, s.db, s.user.id, roomId);
-    if (!own.ok) return own.res;
+    const s = await requireOwnerSession(c, roomId);
+    if (!s.ok) return s.res;
 
     const target = await getRoomMembership(s.db, roomId, targetUserId);
     if (target.status !== "member") {
