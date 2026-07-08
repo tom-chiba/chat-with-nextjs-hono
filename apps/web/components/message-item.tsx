@@ -4,13 +4,27 @@ import type { ChatMessage } from "@repo/shared";
 import { attachmentUrl } from "@/lib/attachments";
 import { formatDay } from "@/lib/datetime";
 import { isMessageTooLong, MESSAGE_TOO_LONG_MESSAGE } from "@/lib/length";
-import { AttachmentGrid } from "./attachment-grid";
+import { AttachmentGrid, type GridImage } from "./attachment-grid";
 import { MessageBody } from "./message-body";
+
+/** 日付区切りのラベル。既定は暦日（`YYYY/MM/DD`）。デモは "今日" 固定に差し替える。 */
+const defaultFormatDivider = (m: ChatMessage): string => formatDay(m.createdAt);
+
+/** 添付を表示用の画像リストに変換する既定。実体（API 経由）の URL を組み立てる。 */
+const defaultBuildImages = (m: ChatMessage): GridImage[] =>
+  m.attachments.map((a) => {
+    const url = attachmentUrl(m.roomId, a.id);
+    return { src: url, href: url };
+  });
 
 /**
  * メッセージ 1 件の描画。
  * 前メッセージとの関係から日付区切り・送信者名の集約を判定し、
  * 本文（メンション/リンクのトークン化）・編集フォーム・編集/削除アクションを描く。
+ *
+ * ログイン後（{@link MessageList}）とゲストデモで共有する presentational コンポーネント。
+ * 実体を持たないデモは、日付区切りのラベル（{@link formatDivider}）と添付の表示内容
+ * （{@link buildImages}）だけを差し替え、本番の URL 生成・暦日表示に依存しない。
  */
 export function MessageItem({
   message,
@@ -23,6 +37,8 @@ export function MessageItem({
   onCancelEdit,
   onSubmitEdit,
   onSubmitDelete,
+  formatDivider = defaultFormatDivider,
+  buildImages = defaultBuildImages,
 }: {
   message: ChatMessage;
   prevMessage: ChatMessage | undefined;
@@ -34,6 +50,10 @@ export function MessageItem({
   onCancelEdit: () => void;
   onSubmitEdit: (m: ChatMessage) => void;
   onSubmitDelete: (m: ChatMessage) => void;
+  /** 日付区切りのラベルを組み立てる（既定=暦日）。 */
+  formatDivider?: (m: ChatMessage) => string;
+  /** 添付を表示用の画像リストへ変換する（既定=API 経由の実 URL）。 */
+  buildImages?: (m: ChatMessage) => GridImage[];
 }) {
   const mine = message.userId === currentUserId;
   const isDeleted = message.deletedAt !== null;
@@ -48,7 +68,7 @@ export function MessageItem({
 
   return (
     <>
-      {showDivider && <div className="date-divider">{formatDay(message.createdAt)}</div>}
+      {showDivider && <div className="date-divider">{formatDivider(message)}</div>}
       <div className={`msg${mine ? " is-mine" : ""}${grouped ? " is-grouped" : ""}`}>
         {!grouped && <span className="msg-author">{message.userName}</span>}
         {isEditing ? (
@@ -81,14 +101,7 @@ export function MessageItem({
               "（このメッセージは削除されました）"
             ) : (
               <>
-                {message.attachments.length > 0 && (
-                  <AttachmentGrid
-                    images={message.attachments.map((a) => {
-                      const url = attachmentUrl(message.roomId, a.id);
-                      return { src: url, href: url };
-                    })}
-                  />
-                )}
+                {message.attachments.length > 0 && <AttachmentGrid images={buildImages(message)} />}
                 {message.body.length > 0 && <MessageBody body={message.body} />}
               </>
             )}
