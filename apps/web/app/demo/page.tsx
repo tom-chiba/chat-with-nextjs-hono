@@ -3,9 +3,10 @@
 import type { ChatMessage, MessageAttachment, Room, RoomMember } from "@repo/shared";
 import { APP_NAME, MAX_ATTACHMENTS_PER_MESSAGE } from "@repo/shared";
 import { useRouter } from "next/navigation";
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { HamburgerIcon, PlusIcon } from "@/components/icons";
+import { MessageItem } from "@/components/message-item";
 import { RoomMembers } from "@/components/room-members";
 import { initialOf, MAX_AVATARS } from "@/lib/avatar";
 import { shouldSubmitOnEnter, useCoarsePointer } from "@/lib/use-coarse-pointer";
@@ -326,85 +327,25 @@ export default function DemoPage() {
 
             <div className="msg-scroll">
               {messages.length === 0 && <p className="empty-note">まだメッセージはありません。</p>}
-              {messages.map((m, idx) => {
-                const prev = messages[idx - 1];
-                const mine = m.userId === GUEST_ID;
-                const grouped = idx > 0 && prev?.userId === m.userId;
-                const isEditing = editingId === m.id;
-                const isDeleted = m.deletedAt !== null;
-                return (
-                  // Fragment で date-divider と .msg を .msg-scroll グリッドの
-                  // 直接の子にする（.is-grouped の負マージンで連続発言を詰める前提）。
-                  <Fragment key={m.id}>
-                    {idx === 0 && <div className="date-divider">今日</div>}
-                    <div className={`msg${mine ? " is-mine" : ""}${grouped ? " is-grouped" : ""}`}>
-                      {!grouped && <span className="msg-author">{m.userName}</span>}
-                      {isEditing ? (
-                        <form className="edit-form" onSubmit={(e) => submitEdit(m, e)}>
-                          <textarea
-                            autoFocus
-                            value={editDraft}
-                            onChange={(e) => setEditDraft(e.target.value)}
-                            rows={2}
-                          />
-                          <div className="edit-actions">
-                            <button type="submit">保存</button>
-                            <button type="button" onClick={cancelEdit}>
-                              取消
-                            </button>
-                          </div>
-                        </form>
-                      ) : (
-                        <div
-                          className={`bubble${mine ? " is-mine" : ""}${isDeleted ? " is-deleted" : ""}`}
-                        >
-                          {isDeleted ? (
-                            "（このメッセージは削除されました）"
-                          ) : (
-                            <>
-                              {m.attachments.length > 0 && (
-                                <div className="attach-grid" data-count={m.attachments.length}>
-                                  {m.attachments.map((a) => (
-                                    <span key={a.id} className="attach-cell">
-                                      <span className="demo-image">image</span>
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                              {m.body.length > 0 && m.body}
-                              {m.editedAt !== null && (
-                                <span className="msg-edited" title="編集済み">
-                                  （編集済み）
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )}
-                      {mine && !isDeleted && !isEditing && (
-                        <div className="msg-actions">
-                          <button
-                            type="button"
-                            className="btn-quiet msg-action"
-                            onClick={() => startEdit(m)}
-                            aria-label="メッセージを編集"
-                          >
-                            編集
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-quiet btn-danger msg-action"
-                            onClick={() => deleteMessage(m)}
-                            aria-label="メッセージを削除"
-                          >
-                            削除
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </Fragment>
-                );
-              })}
+              {messages.map((m, idx) => (
+                // 日付区切りは "今日" 固定、添付はプレースホルダに差し替え、それ以外は
+                // 本番と同じ MessageItem のグルーピング・バブル・編集/削除 UI を共有する。
+                <MessageItem
+                  key={m.id}
+                  message={m}
+                  prevMessage={messages[idx - 1]}
+                  currentUserId={GUEST_ID}
+                  isEditing={editingId === m.id}
+                  editDraft={editDraft}
+                  onEditDraftChange={setEditDraft}
+                  onStartEdit={startEdit}
+                  onCancelEdit={cancelEdit}
+                  onSubmitEdit={submitEdit}
+                  onSubmitDelete={deleteMessage}
+                  formatDivider={() => "今日"}
+                  buildImages={(mm) => mm.attachments.map(() => ({ placeholder: true }) as const)}
+                />
+              ))}
             </div>
 
             <div className="composer-wrap">
