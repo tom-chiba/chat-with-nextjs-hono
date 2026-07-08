@@ -28,3 +28,18 @@ export function useCoarsePointer(): boolean {
 
   return coarse;
 }
+
+/**
+ * textarea の keydown が「Enter 送信」に該当するかを返す（判定のみ）。
+ *
+ * タッチ端末（coarse pointer）では Enter は改行のみとし送信しない。それ以外では
+ * Shift+Enter は改行、IME 変換確定中の Enter は確定なので送信しない。呼び出し側は
+ * true のときだけ `e.preventDefault()` と実際の送信処理を行う。
+ */
+export function shouldSubmitOnEnter(
+  e: React.KeyboardEvent<HTMLTextAreaElement>,
+  coarsePointer: boolean,
+): boolean {
+  if (coarsePointer) return false;
+  return e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing;
+}

@@ -41,6 +41,17 @@ test("初期状態で選択ルームのメッセージとメンバーを表示�
   expect(screen.getByText("今日")).toBeInTheDocument();
 });
 
+test("既存メッセージのあるルームへ送信しても日付区切りは1つのまま", () => {
+  render(<DemoPage />);
+  // r1（雑談）には既存メッセージがあり、先頭に「今日」の日付区切りが 1 つある。
+  expect(screen.getAllByText("今日")).toHaveLength(1);
+  // 送信メッセージも同じ暦日として扱うため、区切りは増えず 1 つのまま
+  // （createdAt を揃えて先頭以外に区切りを出さない不変条件をピン留めする）。
+  sendMessage("追記です");
+  expect(screen.getByText("追記です")).toBeInTheDocument();
+  expect(screen.getAllByText("今日")).toHaveLength(1);
+});
+
 test("空の入力では送信ボタンが無効", () => {
   render(<DemoPage />);
   expect(screen.getByRole("button", { name: "送信" })).toBeDisabled();

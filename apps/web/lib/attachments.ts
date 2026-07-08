@@ -1,15 +1,13 @@
 import type { AllowedImageMimeType, MessageAttachment } from "@repo/shared";
 import { ALLOWED_IMAGE_MIME_TYPES, isAllowedImageMimeType } from "@repo/shared";
-
-/** API のベース URL（rpc.ts と同じ環境変数を使う）。 */
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
+import { apiBaseUrl } from "@/lib/api-base";
 
 /**
  * 添付画像の配信 URL。`<img src>` から直接参照する。
  * 別サブドメインだが same-site のためセッション Cookie は自動送信される。
  */
 export function attachmentUrl(roomId: string, attachmentId: string): string {
-  return `${API_BASE}/rooms/${encodeURIComponent(roomId)}/attachments/${encodeURIComponent(attachmentId)}`;
+  return `${apiBaseUrl()}/rooms/${encodeURIComponent(roomId)}/attachments/${encodeURIComponent(attachmentId)}`;
 }
 
 /**
@@ -163,7 +161,7 @@ export async function prepareAttachmentForUpload(
 export async function uploadAttachment(roomId: string, file: File): Promise<MessageAttachment> {
   const form = new FormData();
   form.set("file", file);
-  const res = await fetch(`${API_BASE}/rooms/${encodeURIComponent(roomId)}/attachments`, {
+  const res = await fetch(`${apiBaseUrl()}/rooms/${encodeURIComponent(roomId)}/attachments`, {
     method: "POST",
     body: form,
     credentials: "include",
@@ -188,7 +186,7 @@ export async function uploadAttachment(roomId: string, file: File): Promise<Mess
 export async function deleteAttachment(roomId: string, attachmentId: string): Promise<void> {
   try {
     await fetch(
-      `${API_BASE}/rooms/${encodeURIComponent(roomId)}/attachments/${encodeURIComponent(attachmentId)}`,
+      `${apiBaseUrl()}/rooms/${encodeURIComponent(roomId)}/attachments/${encodeURIComponent(attachmentId)}`,
       { method: "DELETE", credentials: "include" },
     );
   } catch {

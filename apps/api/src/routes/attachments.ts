@@ -14,7 +14,7 @@ import {
   sumAttachmentBytesByUser,
 } from "../db/attachments";
 import { getMessageById } from "../db/messages";
-import { requireMember, requireSession } from "../guards";
+import { requireMemberSession } from "../guards";
 import type { Bindings } from "../types";
 
 /** R2 に保存するオブジェクトキー。ルームごとに名前空間を切る。 */
@@ -33,11 +33,9 @@ function attachmentR2Key(roomId: string, attachmentId: string): string {
 export const attachmentsApp = new Hono<{ Bindings: Bindings }>()
   // 画像を 1 枚アップロードする。multipart の `file` フィールドを受け取る。要メンバー。
   .post("/:roomId/attachments", async (c) => {
-    const s = await requireSession(c);
-    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
-    const mem = await requireMember(c, s.db, s.user.id, roomId);
-    if (!mem.ok) return mem.res;
+    const s = await requireMemberSession(c, roomId);
+    if (!s.ok) return s.res;
 
     let form: FormData;
     try {
@@ -94,11 +92,9 @@ export const attachmentsApp = new Hono<{ Bindings: Bindings }>()
   })
   // 未送信の添付を取り消す（サムネイルの × 削除）。要メンバー。自分の未紐付けのみ削除可。
   .delete("/:roomId/attachments/:attachmentId", async (c) => {
-    const s = await requireSession(c);
-    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
-    const mem = await requireMember(c, s.db, s.user.id, roomId);
-    if (!mem.ok) return mem.res;
+    const s = await requireMemberSession(c, roomId);
+    if (!s.ok) return s.res;
 
     const attachmentId = c.req.param("attachmentId");
     const r2Key = await deleteUnlinkedAttachment(s.db, {
@@ -115,11 +111,9 @@ export const attachmentsApp = new Hono<{ Bindings: Bindings }>()
   })
   // 添付画像の実体を配信する。要メンバー（ルームの所属者だけが取得できる）。
   .get("/:roomId/attachments/:attachmentId", async (c) => {
-    const s = await requireSession(c);
-    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
-    const mem = await requireMember(c, s.db, s.user.id, roomId);
-    if (!mem.ok) return mem.res;
+    const s = await requireMemberSession(c, roomId);
+    if (!s.ok) return s.res;
 
     const attachmentId = c.req.param("attachmentId");
     const attachment = await getAttachmentById(s.db, attachmentId);

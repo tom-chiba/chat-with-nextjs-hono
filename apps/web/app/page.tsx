@@ -3,6 +3,7 @@
 import { APP_NAME } from "@repo/shared";
 import Link from "next/link";
 import { lazy, Suspense, useRef, useState } from "react";
+import { AppShell } from "@/components/app-shell";
 import { AuthForm } from "@/components/auth-form";
 import type { RoomListHandle } from "@/components/room-list";
 import { useSession } from "@/lib/auth-client";
@@ -59,16 +60,7 @@ export default function Home() {
       {isPending ? (
         <p className="muted">読み込み中…</p>
       ) : session ? (
-        <div className="app-shell" data-drawer={roomsDrawerOpen ? "open" : "closed"}>
-          {/* モバイルのドロワー背面。開いている間だけ描画し、クリックで閉じる。 */}
-          {roomsDrawerOpen && (
-            <button
-              type="button"
-              className="drawer-backdrop mobile-only"
-              aria-label="ルーム一覧を閉じる"
-              onClick={() => setRoomsDrawerOpen(false)}
-            />
-          )}
+        <AppShell drawerOpen={roomsDrawerOpen} onCloseDrawer={() => setRoomsDrawerOpen(false)}>
           <div className="roomlist-pane">
             {/* 遅延読み込み中の一瞬を埋める。ペインごとに境界を分け、ルーム選択で
                 ChatRoom を読み込む間もルーム一覧が消えないようにする。 */}
@@ -115,7 +107,7 @@ export default function Home() {
               </div>
             )}
           </div>
-        </div>
+        </AppShell>
       ) : (
         <AuthForm />
       )}
