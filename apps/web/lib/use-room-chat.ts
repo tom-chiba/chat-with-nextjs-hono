@@ -3,6 +3,7 @@
 import type { ChatMessage, ClientMessage } from "@repo/shared";
 import { HISTORY_LIMIT, MESSAGE_PAGE_SIZE, serverMessageSchema } from "@repo/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { apiWebSocketUrl } from "@/lib/api-base";
 import { compareMessages, mergeMessages } from "@/lib/messages";
 import { fetchMessages } from "@/lib/rooms";
 
@@ -36,11 +37,9 @@ export type PendingMessage = {
   attachments?: PendingAttachment[];
 };
 
-/** API の URL（http/https）から WebSocket の URL（ws/wss）を組み立てる。 */
+/** ルームの WebSocket URL を組み立てる。 */
 export function roomWebSocketUrl(roomId: string): string {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787";
-  const wsBase = base.replace(/^http/, "ws");
-  return `${wsBase}/ws/room/${encodeURIComponent(roomId)}`;
+  return apiWebSocketUrl(`/ws/room/${encodeURIComponent(roomId)}`);
 }
 
 /** 保留メッセージが持つプレビュー object URL を解放する（確定・破棄・失敗破棄時）。 */

@@ -8,7 +8,7 @@ import {
   markRoomRead,
   updateRoomName,
 } from "../db/rooms";
-import { requireOwner, requireMember, requireSession } from "../guards";
+import { requireMemberSession, requireOwnerSession, requireSession } from "../guards";
 import { disconnectRoomAll } from "../realtime";
 import type { Bindings } from "../types";
 import { jsonValidator } from "../validators";
@@ -62,11 +62,9 @@ export const roomsApp = new Hono<{ Bindings: Bindings }>()
   })
   // ルーム名変更。オーナーのみ。
   .patch("/:roomId", jsonValidator(roomNameInputSchema, "invalid room name"), async (c) => {
-    const s = await requireSession(c);
-    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
-    const own = await requireOwner(c, s.db, s.user.id, roomId);
-    if (!own.ok) return own.res;
+    const s = await requireOwnerSession(c, roomId);
+    if (!s.ok) return s.res;
 
     const { name } = c.req.valid("json");
     await updateRoomName(s.db, roomId, name);
@@ -74,11 +72,9 @@ export const roomsApp = new Hono<{ Bindings: Bindings }>()
   })
   // ルーム削除。オーナーのみ。messages/room_members は FK の CASCADE で削除される。
   .delete("/:roomId", async (c) => {
-    const s = await requireSession(c);
-    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
-    const own = await requireOwner(c, s.db, s.user.id, roomId);
-    if (!own.ok) return own.res;
+    const s = await requireOwnerSession(c, roomId);
+    if (!s.ok) return s.res;
 
     await deleteRoom(s.db, roomId);
     // DB の attachments 行は FK CASCADE で消えるが R2 実体は残るため、明示的に回収する。
@@ -89,11 +85,9 @@ export const roomsApp = new Hono<{ Bindings: Bindings }>()
   })
   // 自分の lastReadAt を進める。`at` は既読化したい時刻のミリ秒。
   .post("/:roomId/read", jsonValidator(roomReadSchema, "invalid at"), async (c) => {
-    const s = await requireSession(c);
-    if (!s.ok) return s.res;
     const roomId = c.req.param("roomId");
-    const mem = await requireMember(c, s.db, s.user.id, roomId);
-    if (!mem.ok) return mem.res;
+    const s = await requireMemberSession(c, roomId);
+    if (!s.ok) return s.res;
 
     // 省略時は現在時刻を既読位置にする。
     const { at } = c.req.valid("json");

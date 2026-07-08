@@ -1,12 +1,13 @@
 import type { AppType } from "@repo/api";
 import { hc } from "hono/client";
+import { apiBaseUrl } from "@/lib/api-base";
 
 /**
  * 型安全な API クライアント（Hono RPC）。
  * API（Cloudflare Workers）の URL を環境変数で指定する。
  */
 export const client = hc<AppType>(
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8787",
+  apiBaseUrl(),
   // 別サブドメインの API へセッション Cookie を送るためクロスオリジンでも資格情報を付与する。
   { init: { credentials: "include" } },
 );
