@@ -23,8 +23,8 @@
     "@repo/shared": "workspace:*",
     "better-auth": "^1.6.23",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.12.27",
-    "resend": "^6.16.0",
+    "hono": "^4.12.28",
+    "resend": "^6.17.2",
     "zod": "catalog:"
   },
   "devDependencies": {
