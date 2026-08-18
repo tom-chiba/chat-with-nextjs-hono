@@ -28,12 +28,12 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.19.1",
-    "@cloudflare/workers-types": "^5.20260731.1",
+    "@cloudflare/vitest-pool-workers": "^0.21.3",
+    "@cloudflare/workers-types": "^5.20260814.1",
     "@repo/typescript-config": "workspace:*",
     "drizzle-kit": "^0.31.10",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "^4.116.0"
+    "wrangler": "^4.123.0"
   }
 }
