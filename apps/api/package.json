@@ -18,13 +18,13 @@
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote"
   },
   "dependencies": {
-    "@better-auth/passkey": "^1.6.23",
-    "@hono/zod-validator": "^0.8.0",
+    "@better-auth/passkey": "^1.7.2",
+    "@hono/zod-validator": "^0.9.1",
     "@repo/shared": "workspace:*",
-    "better-auth": "^1.6.23",
+    "better-auth": "^1.7.2",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.12.28",
-    "resend": "^6.17.2",
+    "hono": "^4.13.5",
+    "resend": "^6.26.0",
     "zod": "catalog:"
   },
   "devDependencies": {
