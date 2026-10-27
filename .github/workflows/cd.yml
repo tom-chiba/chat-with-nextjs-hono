@@ -68,7 +68,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       # mise.toml に従って node 24 / pnpm 11.6.0 をインストール（CI と同一）。
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@v5
 
       - name: Get pnpm store directory
         shell: bash
